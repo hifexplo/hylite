@@ -1,4 +1,4 @@
-hylite.sensors package
+hylite.sensors
 ======================
 
 .. automodule:: hylite.sensors
