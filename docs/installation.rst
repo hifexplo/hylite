@@ -1,7 +1,12 @@
 Install
 ========================================================
 
-1. Create and activate a new python environment (for anaconda users).
+1. Create and activate a new python environment (anaconda users only).
+
+.. code:: shell
+
+  conda create -n hylite
+  conda activate hylite
 
 2. Install GDAL
 
@@ -21,15 +26,16 @@ On some environments GDAL can be difficult to install.
 -------
 
 4. Install *hylite* (PIP):
-----------------------
 
 4a. Install hylite from PIP
 
 .. code:: shell
     pip install hylite
 
-4. Install *hylite* (Github):
 ----------------------
+
+4. Install *hylite* (Github):
+
 
 4a. Download the hylite directory from Github.
 4b. Unzip this directory and navigate to it in a terminal.
