@@ -109,7 +109,7 @@ lib.quick_plot()
 image = io.loadWithGDAL( 'test_data/image.hdr' )
 image.quick_plot(hylite.RGB)
 
-cloud = io.loadCloudPLY( 'template_notebooks/demo_data/hypercloud.ply' )
+cloud = io.loadCloudPLY( 'test_data/hypercloud.ply' )
 cloud.quick_plot(cloud.header.get_camera(0), hylite.RGB)
 ```
 

@@ -38,7 +38,9 @@ On some environments GDAL can be difficult to install.
 
 
 4a. Download the hylite directory from Github.
+
 4b. Unzip this directory and navigate to it in a terminal.
+
 4c. Install with setuptools by typing the following into terminal:
 
 .. code:: shell
@@ -72,5 +74,5 @@ and running the following code:
     image = io.loadWithGDAL( 'test_data/image.hdr' )
     image.quick_plot(hylite.RGB)
 
-    cloud = io.loadCloudPLY( 'template_notebooks/demo_data/hypercloud.ply' )
+    cloud = io.loadCloudPLY( 'test_data/hypercloud.ply' )
     cloud.quick_plot(cloud.header.get_camera(0), hylite.RGB)
