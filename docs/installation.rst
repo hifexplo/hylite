@@ -68,11 +68,11 @@ and running the following code:
     import hylite
     from hylite import io
 
-    lib = io.loadLibraryCSV( 'test_data/library.csv' )
+    lib = io.load( 'test_data/library.csv' )
     lib.quick_plot()
 
-    image = io.loadWithGDAL( 'test_data/image.hdr' )
+    image = io.load( 'test_data/image.hdr' )
     image.quick_plot(hylite.RGB)
 
-    cloud = io.loadCloudPLY( 'test_data/hypercloud.ply' )
+    cloud = io.load( 'test_data/hypercloud.ply' )
     cloud.quick_plot(cloud.header.get_camera(0), hylite.RGB)

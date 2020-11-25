@@ -1,7 +1,9 @@
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import matplotlib
+from hylite import io
 from hylite.correct.detrend import hull, polynomial
 from hylite.hyfeature import HyFeature, MixedFeature
 from hylite.multiprocessing import parallel_chunks
@@ -632,7 +634,6 @@ def sortMultiMWL( mwl, mode='pos'):
         mwls.append( _mwl )
     return mwls
 
-
 def getMixedFeature(idx, mwl, source=None):
     """
     Return a MixedFeature index corresponding to the specified point or pixel index. Useful for plotting fitted results
@@ -669,3 +670,52 @@ def getMixedFeature(idx, mwl, source=None):
         # wav = np.linspace( np.min(pos) - domain*0.5, np.max(pos)+domain*0.5, 1000 )
         feats = [HyFeature('fit', p, w, d) for p, w, d in zip(pos, width, depth)]
         return MixedFeature('mix', feats, color='r')
+
+def saveMultiMWL( path, mwl ):
+    """
+    A utility function for compressing multi-mwl results into a single image/cloud and saving them.
+
+    *Arguments*:
+     - path = the path to save to.
+     - mwl = a list of MWL HyData instances, as returned by minimum_wavelength when n > 1.
+    """
+
+    # check mwl is a list
+    assert isinstance(mwl, list), "Error - mwl must be a list. Perhaps you're not passing a multiMWL result?"
+    # stack mwl data into single HyData instance
+    out = mwl[0].copy(data=False)
+    if mwl[0].is_image():
+        out.data = np.dstack( [m.data for m in mwl])
+    else:
+        out.data = np.hstack( [m.data for m in mwl])
+
+    # save
+    io.save( path, out )
+
+def loadMultiMWL( path ):
+    """
+    A utility function for loading multi-mwl dataset as saved with saveMultiMWL(...) and converting them to a
+    list of minimum wavelength maps.
+
+    *Arguments*:
+     - path = the file to load. Must point to a multiMWL dataset saved with saveMultiMWL(...).
+
+    *Returns*: A list of mwl datasets.
+    """
+
+    # load stacked dataset
+    _mwl = io.load( path )
+
+    # split
+    mwl = []
+    assert _mwl.band_count() % 4 == 0, "Error - invalid number of bands for a multi-mwl dataset?"
+    n = int(_mwl.band_count() / 4)
+    for i in range(0, n):
+        out = _mwl.copy(data=False)
+        out.header.drop_all_bands()
+        out.data = _mwl.data[..., [4*i, 4*i+1, 4*i+2, 4*i+3]]
+        out.set_band_names(['pos', 'width', 'depth', 'strength'])
+        out.push_to_header()
+        mwl.append(out)
+
+    return mwl

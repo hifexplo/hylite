@@ -14,5 +14,5 @@ packages.
    hylite.project
    hylite.filter
    hylite.analyse
-
+   hylite.multiprocessing
 

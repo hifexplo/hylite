@@ -1,6 +1,5 @@
 import unittest
 import os
-import hylite
 from hylite import io
 from pathlib import Path
 from tempfile import mkdtemp
@@ -22,3 +21,6 @@ class TestHyImage(unittest.TestCase):
             except:
                 shutil.rmtree(pth)  # delete temp directory
                 self.assertFalse(True, "Error - could not save data of type %s" % str(type(data)))
+
+if __name__ == '__main__':
+    unittest.main()

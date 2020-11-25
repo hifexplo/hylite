@@ -1,5 +1,5 @@
 """
-Utility functions for parallel processing with HyData objects.
+Generic tools for distributing computationally intensive tasks across multiple threads.
 """
 
 import os
@@ -135,7 +135,8 @@ def parallel_chunks(function, data, *args, **kwds):
      - args = tuple of arguments to pass to the function.
 
      **Keywords**:
-      - nthreads = the number of threads to spawn. Default is the number of cores - 2.
+      - nthreads = the number of threads to spawn. Default is the number of cores - 2. Negative numbers will be subtracted
+                   from the number of cores.
       - any other keywords are passed to the function
     """
     assert isinstance(data, HyCloud) or isinstance(data, HyImage)
@@ -145,8 +146,12 @@ def parallel_chunks(function, data, *args, **kwds):
         nthreads = kwds['nthreads']
         del kwds['nthreads']
     else:
-        nthreads = os.cpu_count() - 2
+        nthreads = -2
+    if nthreads < 1:
+        nthreads = os.cpu_count() - nthreads
+    assert nthreads > 0, "Error - cannot spawn %d threads" % nthreads
 
+    assert isinstance(nthreads, int), "Error - nthreads must be an integer."
     assert nthreads is not None, "Error - could not identify CPU count. Please specify nthreads keyword."
 
     # split data into chunks
