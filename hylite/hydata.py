@@ -2,10 +2,13 @@ import numpy as np
 import numpy.ma as ma
 import matplotlib.pyplot as plt
 from scipy import ndimage, signal
+
+import hylite
 from hylite import HyHeader
 import hylite.reference.features as ref
 from hylite.hyfeature import HyFeature, MultiFeature, MixedFeature
 class HyData(object):
+
     """
     A generic class for encapsulating hyperspectral (points and images), and associated metadata such as georeferencing, bands etc.
 
@@ -414,18 +417,27 @@ class HyData(object):
 
         return self.data.reshape(-1, self.data.shape[-1])
 
-    def set_raveled(self, pix):
+    def X(self):
+        """
+        A shorthand way of writing get_raveled(), as X is conventionally used for a vector of spectra.
+        """
+        return self.get_raveled()
+
+    def set_raveled(self, pix, shape=None):
         """
         Fills the image/dataset from a list of pixels of the format returned by get_pixel_list(...). Note that this does not
         copy the list, but simply stores a view of it in this image.
 
         *Arguments*:
          - pix = a list such that pixel[n][band] gives the spectra of the nth pixel.
+         - shape = the reshaped data dimensions. Defaults to the shape of the current dataset, except with auto-shape for the last dimension.
         """
+        if shape is None:
+            shape = list( self.data.shape )
+            shape[-1] = -1
+        self.data = pix.reshape(shape)
 
-        self.data = pix.reshape(self.data.shape)
-
-    def get_band_index(self, w, thresh=5.0):
+    def get_band_index(self, w, **kwds):
         """
         Get the band index that corresponds with the given wavelength or band name.
 
@@ -433,11 +445,15 @@ class HyData(object):
          - w = the wavelength, index or band name search for. Note that if w is an integer it is treated
                as a band index and simply returned. If it is a string then the index of the matching band name
                is returned. If it is a wavelength then the closest band to this wavelength is returned.
-         - thresh = the threshold (in nanometers) within which a band must fall to be valid. Default is 5 nm (i.e. if a
-                    wavelength is passed and a band exists within 5 nm of this, then it is returned. Otherwise an error is thrown).
+        *Keywords*:
+         - thresh = the threshold (in nanometers) within which a band must fall to be valid. Default is
+                    hylite.band_select_threshold (which defaults to 10 nm). If a wavelength is passed and a
+                    band exists within this distance, then it is returned. Otherwise an error is thrown).
         *Returns*:
          - the matching band index.
         """
+
+        thresh = kwds.get("thresh", hylite.band_select_threshold)
 
         if isinstance(w, int):  # already a valid band index
             assert -self.band_count() <= w <= self.band_count(), "Error - band index %d is out of range (image has %d bands)." % (w, self.band_count())
