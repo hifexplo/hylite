@@ -30,3 +30,12 @@ PCA
    :undoc-members:
    :show-inheritance:
 
+Band resampling
+------------------------
+
+.. automodule:: hylite.filter.sample
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+

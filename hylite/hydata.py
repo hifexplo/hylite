@@ -277,7 +277,12 @@ class HyData(object):
         """
         Returns a new image resampled to the specified list of wavelengths. Note that this
         simply uses a nearest neighbour resampling, so chooses the closest band matching each
-        wavelength.
+        wavelength. No averaging will be performed using this method - for more advanced resampling see
+        hylite.filter.sample.
+
+        Also note that to avoid confusion, the original wavelengths will be preserved rather than
+        overwritten. Also note that bands will not be duplicated, so the number of bands returned MAY NOT equal
+        the number of wavelengths provided!
 
         *Arguments*:
          - wavelengths = the wavelengths (list of floats) to resample to. MUST be in ascending order.
@@ -289,7 +294,6 @@ class HyData(object):
         for w in wavelengths:
             out.append( self.get_band_index(w) )
         out = self.export_bands(out)
-        out.set_wavelengths(wavelengths)
         return out
 
     def delete_nan_bands(self, inplace=True):

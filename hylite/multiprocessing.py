@@ -126,7 +126,7 @@ def parallel_chunks(function, data, *args, **kwds):
     """
     Run a function that operates per-point or per-pixel on smaller chunks of a point cloud or image dataset
     in parallel. Only use for expensive operations as otherwise overheads (writing files to cache, spawning threads,
-    loading files from cache) are to costly.
+    loading files from cache) are too costly.
 
     *Arguments*:
      - function = the function to run on each chunk of the dataset. Must take a HyCloud or HyImage dataset as it's first

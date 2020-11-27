@@ -74,7 +74,7 @@ class Resample( object ):
 
         *Arguments*:
          - data = the dataset to extract information from.
-         - n = the resampled band index to extract. NOTE THA BAND INDICES START AT 1 FOR COMPATIBILITY WITH
+         - n = the resampled band index to extract. NOTE THAT BAND INDICES START AT 1 FOR COMPATIBILITY WITH
                STANDARD SATELLITE NOTATION!
         """
         assert n >= 1 and (n-1) < len(self.bands), "Error - Band %d is not defined in this resampling scheme." % n
@@ -94,6 +94,23 @@ class Resample( object ):
         for i,b in enumerate(self.bands):
             print("Band %d: %.1f - %.1f nm" % (i+1, b[0], b[1]))
 
+    def apply(self, data):
+        """
+        Apply this resampling to a HyData instance and return a new instance with appropriately averaged bands.
+
+        *Arguments*:
+         - data = the HyData instance to apply this sampling scheme to.
+        *Returns*: A copy of the original HyData instance with the bands averaged as defined. Corresponding wavelengths will be set to the middle of each averaged region.
+        """
+
+        bands = [self.get_band(data, n + 1) for n in range(len(self.bands))]
+        out = data.copy(data=False)
+        if data.is_image():
+            out.data = np.dstack(bands)
+        else:
+            out.data = np.hstack(bands)
+        out.set_wavelengths([np.mean(self.bands[n]) for n in range(len(self.bands))])
+        return out
 
 # create instances for common satellites
 # based on https://www.indexdatabase.de/db/bs.php
@@ -113,6 +130,7 @@ ASTER = Resample( [
     (8925.0, 9275.0),
     (10250.0, 10950.0),
     (10950.0, 11650.0) ] )
+""" Static resampling class for sampling hyperspectral data onto ASTER bands"""
 
 SENTINEL = Resample( [
     (433.0, 453.0),
@@ -128,3 +146,4 @@ SENTINEL = Resample( [
     (1360.0, 1390.0),
     (1565.0, 1655.0),
     (2100.0, 2280.0) ] )
+""" Static resampling class for sampling hyperspectral data onto Sentinel bands"""
