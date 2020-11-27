@@ -603,7 +603,7 @@ class HyData(object):
         # plot pixels
         if isinstance(indices, tuple): indices = [indices]
         for idx in indices:
-            plt.plot(x, self.data[idx][minb:maxb], **kwds)
+            ax.plot(x, self.data[idx][minb:maxb], **kwds)
 
         # plot labels
         if not labels is None:  # plot labels?

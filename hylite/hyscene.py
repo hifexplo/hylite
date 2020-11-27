@@ -37,7 +37,7 @@ class HyScene(object):
         self.image = image
         self.cloud = cloud
         self.camera = camera
-        self.s = 1
+        self.s = s
         self.occ_tol = occ_tol
 
         assert camera.dims[0] == image.xdim() and camera.dims[
