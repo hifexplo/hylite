@@ -591,14 +591,18 @@ class HyData(object):
 
         # calculate percentiles and plot
         if median:
-            mask = np.logical_and(np.isfinite(x), np.isfinite(q50))  # remove any invalid bands
             ax.plot(x, q50, color='k',label='median', **kwds)
         if quantiles:
+            # plot quantiles as polygons
+            for lower, upper in zip( [q5, q25], [q95, q75]):
+                _y = np.hstack([lower, upper[::-1]])
+                _x = np.hstack([x, x[::-1]])
+                plt.fill(_x, _y, color='grey', alpha=0.25)
 
-            ax.plot(x, q95, color='k', alpha=0.25, label='95%', **kwds)
-            ax.plot(x, q75, color='k', alpha=0.5, label='75%', **kwds)
-            ax.plot(x, q25, color='k', alpha=0.5, label='25%', **kwds)
-            ax.plot(x, q5, color='k', alpha=0.25, label='5%', **kwds)
+            #ax.plot(x, q95, color='k', alpha=0.25, label='95%', **kwds)
+            #ax.plot(x, q75, color='k', alpha=0.5, label='75%', **kwds)
+            #ax.plot(x, q25, color='k', alpha=0.5, label='25%', **kwds)
+            #ax.plot(x, q5, color='k', alpha=0.25, label='5%', **kwds)
 
         # plot pixels
         if isinstance(indices, tuple): indices = [indices]
