@@ -52,8 +52,6 @@ def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
      - cam = a Camera object containing camera data (fov, step, dims) and initial position/orientation estimate.
      - bands = a tuple containing the 3 hyperspectral bands to match agains the RGB bands of the point cloud. Default is
              io.HyImage.RGB.
-     - step = the angular step between pixels (in the x direction) for panoramic cameras. Must be defined if
-            camera == 'pano'.
      - method = the matching method to use. Can be 'sift' (default) or 'orb'.
      - recurse = The number of rounds of matching/alignment to perform. Default is 2.
      - s = the point size to use for rendering. Default is 2. Must be integer.

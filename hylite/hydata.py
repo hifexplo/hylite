@@ -597,7 +597,7 @@ class HyData(object):
             for lower, upper in zip( [q5, q25], [q95, q75]):
                 _y = np.hstack([lower, upper[::-1]])
                 _x = np.hstack([x, x[::-1]])
-                plt.fill(_x, _y, color='grey', alpha=0.25)
+                plt.fill(_x[np.isfinite(_y)], _y[np.isfinite(_y)], color='grey', alpha=0.25)
 
             #ax.plot(x, q95, color='k', alpha=0.25, label='95%', **kwds)
             #ax.plot(x, q75, color='k', alpha=0.5, label='75%', **kwds)
