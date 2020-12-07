@@ -6,7 +6,6 @@ from pathlib import Path
 import cv2
 from multiprocessing import Pool
 from tqdm import tqdm
-import osgeo.gdal as gdal
 import piexif
 import matplotlib.pyplot as plt
 
@@ -397,6 +396,11 @@ class Rikola(Sensor):
                   as well as the acquisition-specific "TASKFILE.TXT"
 
         """
+
+        try:
+            import osgeo.gdal as gdal # todo - remove GDAL dependency for this function (replace with Pillow?)
+        except:
+            assert False, "Error - the GPS_JPG function requires GDAL to be installed."
 
         # create new folder for file storage
         if not os.path.exists(MAIN + 'RGB/'):

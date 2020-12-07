@@ -22,7 +22,7 @@ copyright = '2020, Sam Thiele, Sandra Lorenz'
 author = 'Sam Thiele, Sandra Lorenz'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0 Alpha'
+release = '1.0.2'
 
 autodoc_mock_imports = [ 'numpy', 'scipy', 'matplotlib', 'skimage', 'gdal', 'PIL',
                          'jupyter', 'cv2', 'tqdm', 'roipoly', 'pysptools', 'spectral', 'utm',
@@ -55,3 +55,13 @@ html_theme = 'alabaster'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+
+# Include __init__(...) functions in docs
+def skip(app, what, name, obj, would_skip, options):
+    if name == "__init__":
+        return False
+    return would_skip
+
+def setup(app):
+    app.connect("autodoc-skip-member", skip )

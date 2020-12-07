@@ -8,10 +8,6 @@ import imageio
 import cv2
 import scipy as sp
 from scipy import ndimage
-import osgeo.gdal as gdal
-from osgeo import ogr
-from osgeo import osr
-from osgeo.osr import SpatialReference
 
 import hylite
 from hylite.hydata import HyData
@@ -98,6 +94,11 @@ class HyImage( HyData ):
         *Arguments*:
          - proj = the project to use as osgeo.osr.SpatialReference or GDAL georeference string.
         """
+        try:
+            from osgeo.osr import SpatialReference
+        except:
+            assert False, "Error - GDAL must be installed to work with spatial projections in hylite."
+
         if proj is None:
             self.projection = None
         elif isinstance(proj, SpatialReference):
@@ -115,6 +116,12 @@ class HyImage( HyData ):
         *Arguments*:
          - EPSG = string EPSG code that can be passed to SpatialReference.SetFromUserInput(...).
         """
+
+        try:
+            from osgeo.osr import SpatialReference
+        except:
+            assert False, "Error - GDAL must be installed to work with spatial projections in hylite."
+
         self.projection = SpatialReference()
         self.projection.SetFromUserInput(EPSG)
 
@@ -142,6 +149,13 @@ class HyImage( HyData ):
         *Returns*:
          - the world coordinates in the coordinate system defined by get_projection_EPSG(...).
         """
+
+        try:
+            from osgeo import osr
+            import osgeo.gdal as gdal
+            from osgeo import ogr
+        except:
+            assert False, "Error - GDAL must be installed to work with spatial projections in hylite."
 
         # parse project
         if proj is None:
@@ -193,6 +207,13 @@ class HyImage( HyData ):
         *Returns*:
          - the pixel coordinates based on the affine transform stored in self.affine.
         """
+
+        try:
+            from osgeo import osr
+            import osgeo.gdal as gdal
+            from osgeo import ogr
+        except:
+            assert False, "Error - GDAL must be installed to work with spatial projections in hylite."
 
         # parse project
         if proj is None:

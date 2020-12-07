@@ -1,12 +1,8 @@
 import sys, os
 import numpy as np
-import osgeo.gdal as gdal
 
 from hylite.hyimage import HyImage
 from .headers import matchHeader, makeDirs, loadHeader, saveHeader
-
-# ignore GDAL warnings
-gdal.PushErrorHandler('CPLQuietErrorHandler')
 
 def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
     """
@@ -18,6 +14,13 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
     *Returns*:
      - a hyImage object
     """
+
+    # find GDAL
+    try:
+        import osgeo.gdal as gdal
+        gdal.PushErrorHandler('CPLQuietErrorHandler') # ignore GDAL warnings
+    except:
+        assert False, "Error - please install GDAL before using loadWithGDAL(...)"
 
     #parse file format
     _, ext = os.path.splitext(path)
@@ -51,6 +54,8 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
 
     return img
 
+def loadWithSPy( path, dtype=np.float32, mask_zero = True):
+    pass
 
 # noinspection PyUnusedLocal
 def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
@@ -63,6 +68,13 @@ def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
      - writeHeader = true if a .hdr file will be written. Default is true.
      - interleave = data interleaving for ENVI files. Default is 'BSQ', other options are 'BIL' and 'BIP'.
     """
+
+    # find GDAL
+    try:
+        import osgeo.gdal as gdal
+        gdal.PushErrorHandler('CPLQuietErrorHandler') # ignore GDAL warnings
+    except:
+        assert False, "Error - please install GDAL before using saveWithGDAL(...)"
 
     # make directories if need be
     makeDirs( path )
@@ -131,3 +143,5 @@ def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
         output.SetProjection(image.projection.ExportToPrettyWkt())
     output = None  # close file
 
+def saveWithSPy( path, image, writeHeader=True, interleave='BSQ'):
+    pass
