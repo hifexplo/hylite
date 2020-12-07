@@ -106,7 +106,11 @@ def _call(func, path, arg, kwd, n):
 
     # print("Spawning thread %d." % n)
     # func, path, arg, kwd = args
-    os.environ['MKL_NUM_THREADS'] = '1' # make sure we don't multithread twice when using advanced scipy/numpy functions...
+
+    # make sure we don't multithread twice when using advanced scipy/numpy functions...
+    os.environ['MKL_NUM_THREADS'] = '1'
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_DYNAMIC'] = 'FALSE'
 
     # load data chunk
     if '.ply' in path:
@@ -209,7 +213,11 @@ def parallel_chunks(function, data, *args, **kwds):
 
 def _call2(func, in_paths, out_paths, kwd, n):
 
-    os.environ[ 'MKL_NUM_THREADS'] = '1'  # make sure we don't multithread twice when using advanced scipy/numpy functions...
+    # make sure we don't multithread twice when using advanced scipy/numpy functions...
+    os.environ['MKL_NUM_THREADS'] = '1'
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_DYNAMIC'] = 'FALSE'
+
     for i, o in tqdm(zip(in_paths, out_paths)):  # loop through paths managed by this thread
         func(i, o, **kwd)  # call function
 
