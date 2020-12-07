@@ -107,11 +107,6 @@ def _call(func, path, arg, kwd, n):
     # print("Spawning thread %d." % n)
     # func, path, arg, kwd = args
 
-    # make sure we don't multithread twice when using advanced scipy/numpy functions...
-    os.environ['MKL_NUM_THREADS'] = '1'
-    os.environ['OMP_NUM_THREADS'] = '1'
-    os.environ['MKL_DYNAMIC'] = 'FALSE'
-
     # load data chunk
     if '.ply' in path:
         data = io.loadCloudPLY(path)  # load point cloud
@@ -179,6 +174,11 @@ def parallel_chunks(function, data, *args, **kwds):
             io.saveWithGDAL(p, c)
         paths.append(p)
 
+    # make sure we don't multithread twice when using advanced scipy/numpy functions...
+    os.environ['MKL_NUM_THREADS'] = '1'
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_DYNAMIC'] = 'FALSE'
+
     # spawn worker processes
     P = [mp.Process(target=_call, args=(function, p, args, kwds, i)) for i, p in enumerate(paths)]
     try:
@@ -207,16 +207,17 @@ def parallel_chunks(function, data, *args, **kwds):
         print("Done.")
         raise e
 
+    # re-enable scipy/numpy multithreading
+    del os.environ['MKL_NUM_THREADS']
+    del os.environ['OMP_NUM_THREADS']
+    del os.environ['MKL_DYNAMIC']
+
     # merge back into one dataset
     out = _merge(chunks, shape=shape)
     return out
 
 def _call2(func, in_paths, out_paths, kwd, n):
 
-    # make sure we don't multithread twice when using advanced scipy/numpy functions...
-    os.environ['MKL_NUM_THREADS'] = '1'
-    os.environ['OMP_NUM_THREADS'] = '1'
-    os.environ['MKL_DYNAMIC'] = 'FALSE'
 
     for i, o in tqdm(zip(in_paths, out_paths)):  # loop through paths managed by this thread
         func(i, o, **kwd)  # call function
@@ -265,9 +266,19 @@ def parallel_datasets(function, in_paths, out_paths=None, nthreads=-2, **kwds):
         inP[i].append(in_paths[-i-1])
         outP[i].append(out_paths[-i - 1])
 
+    # make sure we don't multithread twice when using advanced scipy/numpy functions...
+    os.environ['MKL_NUM_THREADS'] = '1'
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_DYNAMIC'] = 'FALSE'
+
     # spawn worker processes and wait for jobs to finish
     P = [mp.Process(target=_call2, args=(function, inP[i], outP[i], kwds, i)) for i in range(nthreads)]
     for p in P:
         p.start()
     for p in P:
         p.join()
+
+    # re-enable scipy/numpy multithreading
+    del os.environ['MKL_NUM_THREADS']
+    del os.environ['OMP_NUM_THREADS']
+    del os.environ['MKL_DYNAMIC']
