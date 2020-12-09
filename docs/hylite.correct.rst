@@ -6,6 +6,15 @@ hylite.correct
    :undoc-members:
    :show-inheritance:
 
+---------------------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   hylite.correct
+
+---------------------------------
+
 Data detrending
 -----------------------------
 
@@ -14,6 +23,11 @@ Data detrending
    :undoc-members:
    :show-inheritance:
 
+
+---------------------------------
+
+
+
 Empirical line calibrations
 -----------------------------
 
@@ -21,6 +35,11 @@ Empirical line calibrations
    :members:
    :undoc-members:
    :show-inheritance:
+
+
+---------------------------------
+
+
 
 Topographic correction
 --------------------------------

@@ -6,6 +6,15 @@ hylite.filter
    :undoc-members:
    :show-inheritance:
 
+---------------------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   hylite.filter
+
+---------------------------------
+
 Combining datasets
 ----------------------------
 
@@ -13,6 +22,11 @@ Combining datasets
    :members:
    :undoc-members:
    :show-inheritance:
+
+
+---------------------------------
+
+
 
 Minimum noise filter
 ------------------------
@@ -22,6 +36,11 @@ Minimum noise filter
    :undoc-members:
    :show-inheritance:
 
+
+---------------------------------
+
+
+
 PCA
 ------------------------
 
@@ -29,6 +48,11 @@ PCA
    :members:
    :undoc-members:
    :show-inheritance:
+
+
+---------------------------------
+
+
 
 Band resampling
 ------------------------
@@ -38,4 +62,15 @@ Band resampling
    :undoc-members:
    :show-inheritance:
 
+
+---------------------------------
+
+
+Segmentation
+------------------------
+
+.. automodule:: hylite.filter.segment
+   :members:
+   :undoc-members:
+   :show-inheritance:
 

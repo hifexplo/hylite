@@ -5,12 +5,24 @@ hylite.sensors
    :members:
    :show-inheritance:
 
+.. toctree::
+   :maxdepth: 2
+
+   hylite.sensors
+
+---------------------------------
+
 Generic Sensor
 ----------------------------
 
 .. automodule:: hylite.sensors.sensor
    :members:
    :show-inheritance:
+
+
+---------------------------------
+
+
 
 Hyspex
 ---------------------------
@@ -22,6 +34,11 @@ Hyspex
 .. automodule:: hylite.sensors.fx
    :members:
    :show-inheritance:
+
+
+---------------------------------
+
+
 
 Rikola
 ----------------------------

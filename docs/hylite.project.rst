@@ -6,6 +6,14 @@ hylite.project
    :undoc-members:
    :show-inheritance:
 
+---------------------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   hylite.project
+
+---------------------------------
 
 Projective geometry
 ---------------------------
@@ -15,6 +23,11 @@ Projective geometry
    :undoc-members:
    :show-inheritance:
 
+
+---------------------------------
+
+
+
 Camera class
 ----------------------------
 
@@ -22,6 +35,11 @@ Camera class
    :members:
    :undoc-members:
    :show-inheritance:
+
+
+---------------------------------
+
+
 
 Camera alignment
 ---------------------------

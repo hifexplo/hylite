@@ -35,6 +35,8 @@ autodoc_mock_imports = [ 'numpy', 'scipy', 'matplotlib', 'skimage', 'gdal', 'PIL
 extensions = ['sphinx.ext.autodoc',
               ]
 
+autoclass_content = 'both'
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
@@ -55,13 +57,3 @@ html_theme = 'alabaster'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
-
-
-# Include __init__(...) functions in docs
-def skip(app, what, name, obj, would_skip, options):
-    if name == "__init__":
-        return False
-    return would_skip
-
-def setup(app):
-    app.connect("autodoc-skip-member", skip )

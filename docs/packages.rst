@@ -2,7 +2,7 @@ Packages
 ========================
 
 Data correction and analysis functions and data structures are organised into the following
-packages.
+packages:
 
 .. toctree::
    :maxdepth: 1

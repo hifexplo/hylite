@@ -9,6 +9,15 @@ spectral libraries (e.g., USGS).
    :undoc-members:
    :show-inheritance:
 
+---------------------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   hylite.reference
+
+---------------------------------
+
 Reference Spectra
 -----------------------
 Reference spectra used for radiance - reflectance conversions (e.g. ELC). To include your own reference spectra,
@@ -25,6 +34,11 @@ add .txt files containing wavelength, reflectance pairs (separated by commas) to
    :members:
    :undoc-members:
    :show-inheritance:
+
+
+---------------------------------
+
+
 
 Reference Features
 -----------------------

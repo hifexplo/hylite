@@ -11,13 +11,14 @@ class HyFeature(object):
 
     def __init__(self, name, pos, width, depth=1, data=None, color='g'):
         """
-        Create a new feature
+        Create a new feature:
+
         *Arguments*:
-        - name = a name for this feature.
-        - pos = the position of this feature (in nm).
-        - width = the width of this feature (in nm).
-        - data = a real spectra associated with this feature (e.g. for feature fitting or from reference libraries).
-                 Should be a numpy array such that data[0,:] gives wavelength and data[1,:] gives reflectance.
+         - name = a name for this feature.
+         - pos = the position of this feature (in nm).
+         - width = the width of this feature (in nm).
+         - data = a real spectra associated with this feature (e.g. for feature fitting or from reference libraries).
+                  Should be a numpy array such that data[0,:] gives wavelength and data[1,:] gives reflectance.
         """
 
         self.name = name

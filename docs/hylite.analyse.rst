@@ -6,6 +6,15 @@ hylite.analyse
    :undoc-members:
    :show-inheritance:
 
+---------------------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   hylite.analyse
+
+---------------------------------
+
 
 Band ratios
 ---------------------------------
@@ -17,6 +26,11 @@ band ratios and spectral indices.
    :members:
    :undoc-members:
    :show-inheritance:
+
+
+---------------------------------
+
+
 
 Minimum wavelength mapping
 -----------------------------
@@ -31,6 +45,11 @@ or lorentzian features to reproduce observed spectra.
    :members:
    :undoc-members:
    :show-inheritance:
+
+
+---------------------------------
+
+
 
 Classification
 ---------------

@@ -8,6 +8,20 @@ The hyperspectral data itself is stored in a numpy array *HyData.data*, indexed 
 [ id, band ] for point clouds or spectral libraries.
 
 
+
+---------------------------------
+
+
+.. toctree::
+   :maxdepth: 2
+
+   hylite_data
+
+
+---------------------------------
+
+
+
 HyData
 --------------------
 
@@ -15,6 +29,11 @@ HyData
    :members:
    :undoc-members:
    :show-inheritance:
+
+
+---------------------------------
+
+
 
 
 HyImage
@@ -25,6 +44,11 @@ HyImage
    :undoc-members:
    :show-inheritance:
 
+
+---------------------------------
+
+
+
 HyCloud
 ---------------------
 
@@ -32,6 +56,11 @@ HyCloud
    :members:
    :undoc-members:
    :show-inheritance:
+
+
+---------------------------------
+
+
 
 HyLibrary
 -----------------------
@@ -41,6 +70,11 @@ HyLibrary
    :undoc-members:
    :show-inheritance:
 
+
+---------------------------------
+
+
+
 HyScene
 ---------------------
 
@@ -49,3 +83,9 @@ HyScene
    :undoc-members:
    :show-inheritance:
 
+
+HyFeature
+---------------------------------
+
+.. automodule:: hylite.hyfeature
+   :members:
