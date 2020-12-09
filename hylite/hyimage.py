@@ -339,6 +339,21 @@ class HyImage( HyData ):
 
         self.data = cv2.resize(self.data, (newdims[1],newdims[0]), interpolation=interpolation)
 
+    def despeckle(self, size=5):
+        """
+        Despeckle each band of this image (independently) using a median filter.
+
+        *Arguments*:
+         - size = the size of the median filter kernel. Default is 5. Must be an odd number.
+        """
+
+        assert (size % 2) == 1, "Error - size must be an odd integer"
+
+        if self.is_float():
+            self.data = cv2.medianBlur( self.data.astype(np.float32), size )
+        else:
+            self.data = cv2.medianBlur( self.data, size )
+
     #####################################
     ##FEATURES AND FEATURE MATCHING
     ######################################
