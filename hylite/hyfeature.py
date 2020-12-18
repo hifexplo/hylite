@@ -123,9 +123,10 @@ class HyFeature(object):
          - offset = the vertical offset of the functions. Default is 1.0.
         """
 
-        y = np.zeros_like(x)
-        for p, w, d in zip(pos, width, depth):
-            y += cls.gaussian(x, p, w, d, 0)
+        y = cls.gaussian(x, pos[0], width[0], depth[0], 0)
+        if len(pos) > 1:
+            for p, w, d in zip(pos[1:], width[1:], depth[1:]):
+                y += cls.gaussian(x, p, w, d, 0)
         return y + offset
 
     ############################

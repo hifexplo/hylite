@@ -493,3 +493,33 @@ def plot_drillhole(composite, N=5, maxN=25, **kwds):
 
     fig.tight_layout()
     return fig, ax
+
+
+def map_depth(image):
+    # check we have the necessary info
+    assert 'core width' in image.header, "Error - no core width information in header file."
+    assert 'core starts' in image.header, "Error - no core position information in header file."
+    assert 'core ends' in image.header, "Error - no core position information in header file."
+
+    # get data on dimensions and position
+    width = int(image.header['core width'])
+    starts = image.header['core starts']
+    ends = image.header['core ends']
+
+    if isinstance(starts, str):
+        starts = np.fromstring(starts, sep=',')
+    if isinstance(ends, str):
+        ends = np.fromstring(ends, sep=',')
+
+    # build distance from top of each stick of core
+    zz = np.zeros((image.data.shape[0], image.data.shape[1]))
+    zz += np.linspace(0, 1, image.data.shape[1]) * (ends[0] - starts[0])
+
+    # add value from previous core
+    for i, x in enumerate(range(0, image.data.shape[0], width)):
+        zz[x:min(x + width, image.data.shape[0])] += starts[i]
+
+    # mask
+    zz[np.logical_not(np.isfinite(image.data).any(axis=-1))] = np.nan
+
+    return zz

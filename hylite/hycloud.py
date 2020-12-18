@@ -240,7 +240,8 @@ class HyCloud( HyData ):
          - s = the point size (in pixels). Must be an integer. Default is 1.
          - step = skip through n points for quicker plotting (default is 1 = draw all points).
          - fill_holes = True if 1-pixel holes should be filled. Default is False.
-         - blur = Gaussian kernal size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
+         - blur = Gaussian kernel size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
+         - despeckle = Median kernel size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
          - res = the pixel size (in world coordinates) used to georeference the resulting raster (if creating an orthophoto).
                  Default is 0.1 (10 cm).
          - epsg = an epsg code used to georeference the resulting render (if creating an orthophoto). Default is 32629.
@@ -256,6 +257,7 @@ class HyCloud( HyData ):
         step = kwds.get("step",1)
         fill_holes = kwds.get("fill_holes", False)
         blur = kwds.get("blur", 0)
+        despeckle = kwds.get("despeckle", 0)
         res = kwds.get("res", 0.1)
         EPSG = kwds.get("EPSG", "EPSG:32629")
         depth = kwds.get("depth", False)
@@ -409,12 +411,17 @@ class HyCloud( HyData ):
         # postprocessing
         if fill_holes:
             img.fill_holes()
+        if blur == True:
+            blur = 3
+        if despeckle == True:
+            despeckle = 5
         if blur > 2:
             img.blur(int(blur))
-
+        if despeckle > 2:
+            img.despeckle(int(despeckle))
         return img
 
-    def quick_plot(self, cam, bands='rgb', s=1, step=1, fill_holes=False, blur=False, **kwds):
+    def quick_plot(self, cam, bands='rgb', s=1, step=1, fill_holes=False, blur=False, despeckle=False, **kwds):
 
         """
         Renders this point cloud using the specified camera.
@@ -425,8 +432,9 @@ x
                    coordinates. Or an index or tuple of 3-indices (mapped to rgb) can be passed to plot scalar fields.
          - s = point size (in pixels; must be an integer).
          - step = skip through n points for quicker plotting (default is 1 = draw all points).
-         - fill_holes = True if 1-pixel holes should be filled. Default is true.
-         - blur = True if a 3x3 gaussian blur kernel is used to smooth the scene. Default is true.
+         - fill_holes = True if 1-pixel holes should be filled. Default is False.
+         - blur = True if a 3x3 gaussian blur kernel is used to smooth the scene. Default is False.
+         - despeckle = True if a 5x5 median filter should be used to denoise rendered image before plotting. Default is False.
         *Keywords*:
          - keywords are passed to HyImage.quick_plot( ... ).
 
@@ -435,7 +443,7 @@ x
          - ax = the plot axis
         """
 
-        img = self.render(cam, bands, s=s, step=step, fill_holes=fill_holes, blur=blur)
+        img = self.render(cam, bands, s=s, step=step, fill_holes=fill_holes, blur=blur, despeckle=despeckle)
 
         if img.band_count() >= 3:  # we have enough bands to map to rgb
             if 'rgb' in bands: # edge case - rgb values should map from 0 to 1!
