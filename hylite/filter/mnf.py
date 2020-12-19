@@ -36,12 +36,8 @@ def MNF(hydata, output_bands=20, denoise_bands=40, band_range=None, inplace=Fals
         minb = 0
         maxb = data.shape[-1]
     else:
-        if isinstance(band_range[0], int) and isinstance(band_range[1], int):  # band indices passed
-            minb, maxb = band_range
-        if isinstance(band_range[0], float) and isinstance(band_range[1], float):  # wavelengths passed
-            assert not wav is None, "Error - dataset has no wavelength information."
-            minb = np.argmin(np.array(wav) < band_range[0])
-            maxb = np.argmin(np.array(wav) < band_range[1])
+        minb = hydata.get_band_index( band_range[0] )
+        maxb = hydata.get_band_index( band_range[1] )
 
     assert minb < maxb, "Error - invalid range... band_range[0] > band_range[1]??"
     assert minb < data.shape[-1], "Error - band_range[0] out of range."
