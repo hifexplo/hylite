@@ -218,8 +218,7 @@ def parallel_chunks(function, data, *args, **kwds):
 
 def _call2(func, in_paths, out_paths, kwd, n):
 
-
-    for i, o in tqdm(zip(in_paths, out_paths)):  # loop through paths managed by this thread
+    for i, o in zip(in_paths, out_paths):  # loop through paths managed by this thread
         func(i, o, **kwd)  # call function
 
 def parallel_datasets(function, in_paths, out_paths=None, nthreads=-2, **kwds):

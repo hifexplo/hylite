@@ -74,7 +74,7 @@ def saveCloudCSV(path, cloud, delimeter=' ', fmt='%.3f', writeHeader=True):
     if not cloud.header is None:
         hdrpth, _ = os.path.splitext( path )
         cloud.push_to_header()
-        saveHeader( path, cloud.header )
+        saveHeader( hdrpth + ".hdr", cloud.header )
 
 def loadCloudCSV(path, delimiter=' ', order='xyzrgbklm'):
 
