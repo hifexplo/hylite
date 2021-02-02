@@ -77,8 +77,13 @@ class Fenix(Sensor):
         if rad:
             if verbose: print("Converting to radiance... ", end="", flush="True")
 
-            #convert from int to float
+            # convert from int to float
             image.data = image.data.astype(np.float32)
+
+            # flag infs
+            r = image.get_band_index(975.)
+            image.data[..., :r][image.data[..., :r] == 4095.] = np.nan
+            image.data[..., r:][image.data[..., r:] == 65535.] = np.nan
 
             # apply dark reference
             if cls.dark is None:
@@ -180,11 +185,12 @@ class Fenix(Sensor):
             dst_mask = np.expand_dims(dst_mask, axis=1)
             src_mask = np.expand_dims(src_mask, axis=1)
 
-            #estimate translation matrix
+            # estimate translation matrix
             M = cv2.estimateRigidTransform(dst_mask, src_mask, False)
 
-            #transform bands from second sensor (>175)
-            for i in range(175, image.band_count()):
+            # transform bands from second sensor (>175)
+            r = image.get_band_index(975.)
+            for i in range(r, image.band_count()):
                 image.data[:, :, i] = cv2.warpAffine(image.data[:, :, i], M, (image.data.shape[1], image.data.shape[0]))
 
             if verbose: print("DONE.")
