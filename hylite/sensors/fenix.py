@@ -80,10 +80,11 @@ class Fenix(Sensor):
             # convert from int to float
             image.data = image.data.astype(np.float32)
 
-            # flag infs
+            # find saturation and store in mask
             r = image.get_band_index(975.)
-            image.data[..., :r][image.data[..., :r] == 4095.] = np.nan
-            image.data[..., r:][image.data[..., r:] == 65535.] = np.nan
+            mask = np.ones(image.data.shape)
+            mask[...,:r][image.data[...,:r]==4095.]=np.nan
+            mask[...,r:][image.data[...,r:]==65535.]=np.nan
 
             # apply dark reference
             if cls.dark is None:
@@ -161,6 +162,12 @@ class Fenix(Sensor):
                 if n > 0: sum /= n #do averaging
                 image.data[px][py][band] = sum
             if verbose: print("DONE.")
+        
+        ##############################################################
+        #apply saturation flag
+        ##############################################################
+        if rad:
+            image.data *= mask
 
         ######################################################################################
         #sensor alignment - identify tie points and apply rigid transform to second sensor
