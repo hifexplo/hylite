@@ -146,6 +146,7 @@ def estimate_ambient(data, cosInc, shadow_mask=None):
 
     return a
 
+
 def correct_topo(data, cosInc, method="cfac", **kwds):
     """
     Apply topographic correction to a HyImage or HyCloud dataset.
@@ -193,12 +194,13 @@ def correct_topo(data, cosInc, method="cfac", **kwds):
     X = data.get_raveled()
 
     # replace any bands that are all nan with 1.0 (hack that avoids issues when calculating regressions)
-    nans = np.logical_not( np.isfinite(X).any(axis=0) ) & (X == 0).all(axis=0)
-    X[ :, nans ] = 1.0
+    nans = np.logical_or(np.logical_not(np.isfinite(X).any(axis=0)), (X == 0).all(axis=0))
+    X[:, nans] = 1.0  # regressions will now give 0 slope ( == 0 correction ) for nan bands
+    X[
+        X <= 0] = 1e-6  # get rid of zeros and negative numbers [ should be impossible and causes errors for log in minnaert]
 
     # extract cosInc
     cosInc = cosInc.reshape(X.shape[0])
-
 
     target = kwds.get("target", "normal")
     if "horiz" in target.lower():  # normalize to horizontal plane
@@ -213,10 +215,10 @@ def correct_topo(data, cosInc, method="cfac", **kwds):
         ambient = kwds.get("ambient", estimate_ambient(X, cosInc))
 
     # calculate direct illumination mask
-    i_mask = cosInc > 0.01 #no direct illumination for shaded pixels
-    cosInc[ cosInc < 0.01 ] = 0.01 # backface culling
+    i_mask = cosInc > 0.01  # no direct illumination for shaded pixels
+    cosInc[cosInc < 0.01] = 0.01  # backface culling
 
-    #get shadow mask (and adjust illumination mask accordingly)
+    # get shadow mask (and adjust illumination mask accordingly)
     # shadow correction
     shadow_mask = kwds.get("shadow_mask", np.full(X.shape[0], False))
     if shadow_mask is None: shadow_mask = np.full(X.shape[0], False)
@@ -229,22 +231,24 @@ def correct_topo(data, cosInc, method="cfac", **kwds):
     if 'cfac' in method.lower():  # cfactor
         mask = np.isfinite(X).all(axis=1) & (X != 0).any(axis=1) & np.isfinite(cosInc) & i_mask
         assert mask.any(), "Error - all pixels are invalid. Check shadow mask and remove bands that are all nan or 0."
-        #mask = mask & np.logical_not(shadow_mask) # also remove shadows
+        # mask = mask & np.logical_not(shadow_mask) # also remove shadows
         intercept, slope = np.polynomial.polynomial.polyfit(cosInc[mask], X[mask, :], 1)
         cfac = intercept / slope
         m = (cosZen + cfac[None, :]) / (cosInc[:, None] + cfac[None, :])
-    elif 'minnaert' in method.lower() and 'slope' in method.lower(): # minnaert with slope
+    elif 'minnaert' in method.lower() and 'slope' in method.lower():  # minnaert with slope
         mask = np.isfinite(X).all(axis=1) & (X != 0).any(axis=1) & np.isfinite(cosInc) & i_mask
+        assert mask.any(), "Error - all pixels are invalid. Check shadow mask and remove bands that are all nan or 0."
         assert "slope" in kwds, "Error - 'slope' must be specified for the minnaert slope correction."
-        cosDip = np.cos( np.deg2rad(kwds.get("slope")) ).reshape(X.shape[0])
+        cosDip = np.cos(np.deg2rad(kwds.get("slope"))).reshape(X.shape[0])
         intercept, k = np.polynomial.polynomial.polyfit(np.log(cosInc[mask] / cosZen),  # x
                                                         np.log(X[mask, :]), 1)  # y
-        m += cosDip[:, None] * np.power((cosZen / (cosInc*cosDip)[:, None]), k[None, :])
+        m += cosDip[:, None] * np.power((cosZen / (cosInc * cosDip)[:, None]), k[None, :])
     elif 'minnaert' in method.lower():  # minnaert
         mask = np.isfinite(X).all(axis=1) & (X != 0).any(axis=1) & np.isfinite(cosInc) & i_mask
-        intercept, k = np.polynomial.polynomial.polyfit( np.log( cosInc[mask] / cosZen ), # x
-                                                                       np.log(X[mask, :]), 1) # y
-        m += np.power((cosZen / cosInc[:, None]),k[None, :])
+        assert mask.any(), "Error - all pixels are invalid. Check shadow mask and remove bands that are all nan or 0."
+        intercept, k = np.polynomial.polynomial.polyfit(np.log(cosInc[mask] / cosZen),  # x
+                                                        np.log(X[mask, :]), 1)  # y
+        m += np.power((cosZen / cosInc[:, None]), k[None, :])
     elif "icos" in method.lower():  # improved cosign correction
         # improved cosign
         cos_i_mean = np.nanmean(cosInc[i_mask])
@@ -255,10 +259,10 @@ def correct_topo(data, cosInc, method="cfac", **kwds):
     elif "percent" in method.lower():  # percent
         m += (2 / (cosInc + 1))[:, None]
     elif "ambient" in method.lower():
-        cosInc = cosInc.copy() #it's rude to unexpectedly modify user data...
-        cosInc[ cosInc < 0.01 ] = 0 #no direct illumination for shaded pixels
-        cosInc[ shadow_mask ] = 0 #and no direct illumination for shadow pixels
-        m = 1/(cosInc[:,None]+ambient[None,:]) #calculate correction factor
+        cosInc = cosInc.copy()  # it's rude to unexpectedly modify user data...
+        cosInc[cosInc < 0.01] = 0  # no direct illumination for shaded pixels
+        cosInc[shadow_mask] = 0  # and no direct illumination for shadow pixels
+        m = 1 / (cosInc[:, None] + ambient[None, :])  # calculate correction factor
     else:
         assert False, "Error - unknown correction method '%s'" % method
 

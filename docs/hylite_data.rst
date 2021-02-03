@@ -34,7 +34,16 @@ HyData
 ---------------------------------
 
 
+HyHeader
+--------------------
 
+.. automodule:: hylite.hyheader
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+---------------------------------
 
 HyImage
 ---------------------
