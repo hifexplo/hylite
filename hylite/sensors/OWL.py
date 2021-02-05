@@ -66,6 +66,7 @@ class OWL(Sensor):
 
         lim = image.get_band_index(12368.)
         image.data = image.data[..., :lim]
+        image.set_wavelengths(image.get_wavelengths()[:lim])
 
         if rad:
             if verbose: print("Converting to radiance... ", end="", flush="True")
