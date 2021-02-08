@@ -7,6 +7,8 @@ import hylite
 from hylite import HyHeader
 import hylite.reference.features as ref
 from hylite.hyfeature import HyFeature, MultiFeature, MixedFeature
+from matplotlib.ticker import AutoMinorLocator
+
 class HyData(object):
 
     """
@@ -476,6 +478,52 @@ class HyData(object):
         else:
             assert False, "Error - %s is an unknown band descriptor type." % type(w)
 
+    def contiguous_chunks(self, p=75, min_size=0):
+        """
+        Extract contiguous chunks of spectra, splitting a (1) completely nan bands or (2) large steps in wavelength.
+
+        *Arguments*:
+         - p = the percentile used to define a large change in wavelength. Default is 90. A "gap" is considered to be
+               a change in wavelength greater than double this percentile.
+         - min_size = the minimum number of bands required to consider a chunk valid. Default is 0 (return all chunks).
+        *Returns*:
+         - chunks = copies of the orignal data array that contain continuous spectra. At least one pixel/point
+                    in each slice of these bans is guaranteed to be finite.
+         - wav = array containing the wavelengths corresponding to each band of each chunk.
+        """
+
+        # find gaps in wavelength and/or completely nan bands and/or data ignore values
+        finite = np.isfinite(self.data).any(axis=tuple(range(len(self.data.shape) - 1)))  # False = nans
+        finite = finite & (self.data != float(self.header.get("data ignore value", 0))).any(
+            axis=tuple(range(len(self.data.shape) - 1)))
+        assert len(self.get_wavelengths()) == len(
+            finite), "Error - hyperspectral dataset has %d bands but %d wavelengths." % (
+        len(finite), len(self.get_wavelengths()))
+        x = self.get_wavelengths()[finite]
+        dx = np.abs(np.diff(x))
+        maxstep = 2. * np.percentile(dx, p)
+        if not (dx >= maxstep).any():  # no gaps - just return contiguous block!
+            assert len(x) > min_size, "Error - total band count < min_size."
+            msk = [self.get_band_index(b) for b in x]
+            return [self.data[..., msk]], [x]
+        else:
+            break_start = list(np.argwhere(dx > maxstep)[:, 0])
+            break_end = list((-np.argwhere(np.abs(np.diff(x[::-1])) > maxstep)[:, 0])[::-1])
+            break_start.append(-1)  # add end of dataset so we don't miss last chunk
+            break_end.append(-1)  # add end of dataset so we don't miss last chunk
+            assert len(break_start) == len(
+                break_end), r"Error - weird shit is happening? [ useful error messages ftw ¯\_(ツ)_/¯ ]"
+            idx0 = 0
+            chunks = []
+            wav = []
+            for i in range(len(break_start)):  # build chunks
+                W = x[idx0:break_start[i]]
+                msk = [self.get_band_index(b) for b in W]
+                if W.shape[-1] > min_size:
+                    wav.append(W)
+                    chunks.append(self.data[..., msk])
+                idx0 = break_end[i]  # skip forwards
+            return chunks, wav
 
     ##################################
     ## Smoothing algorithms
@@ -498,46 +546,59 @@ class HyData(object):
         else:
             assert False, "Error: Run_median does not work on %d-d data." % len(self.data.shape)
 
-    def smooth_savgol(self, window=5, poly=1):
+    def smooth_savgol(self, window=5, poly=2, **kwds):
         """
         Applies Savitzky-Golay-filter on data.
 
         *Arguments*:
-         - window = size of running window, must be int.
+         - window = size of running window, must be an odd integer.
          - poly = degree of polynom, must be int.
-
-        *Returns*: Nothing - overwrites self.data with smoothed result.
+         - deriv = the order of derivative to evaluate (e.g. for stationary point analysis). Default is 0 [smooth
+                   but don't compute derivative].
+        *Keywords*: Keywords are passed to scipy.signal.savgol_filter(...).
+        *Returns*: A copy of the input dataset with smoothed spectra.
         """
 
         assert isinstance(window, int), "Error - running window size must be integer."
 
-        #mask nan bands
-        bands = np.isfinite( self.data ).any(axis=tuple(range(len(self.data.shape) - 1)))
+        # extract contiguous chunks
+        C, w = self.contiguous_chunks(min_size=window)
 
-        #mask nan pixels
-        mask = np.isfinite( self.data[...,bands] ).all(axis=-1)
+        # do smoothing
+        kwds['window_length'] = window
+        kwds['polyorder'] = poly
+        kwds['axis'] = -1
+        for X in C:
+            mask = np.isfinite(X).all(axis=-1)  # remove nans
+            X[mask, :] = signal.savgol_filter(X[mask, :], **kwds)
 
-        #smooth
-        self.data[...,bands][mask] = signal.savgol_filter(self.data[...,bands][mask], window, poly, axis=-1)
+        # return copy
+        out = self.copy(data=False)
+        if self.is_image():
+            out.data = np.dstack(C)
+            out.set_wavelengths(np.hstack(w))
+        else:
+            out.data = np.vstack(C)
+            out.set_wavelengths(np.hstack(w))
+        return out
 
 
     ###################################
     # PLOTTING AND OTHER VISUALISATIONS
     ###################################
     # noinspection PyDefaultArgument
-    def plot_spectra(self, ax=None, band_range=None, labels=ref.Themes.DIAGNOSTIC, indices=[], **kwds):
+    def plot_spectra(self, ax=None, band_range=None, labels=None, indices=[], colours='blue', **kwds):
         """
         Plots a summary of all the spectra in this dataset.
 
         *Arguments*:
          - ax = an axis to plot to. If None (default), a new axis is created.
          - band_range = tuple containing the (min,max) band index (int) or wavelength (float) to plot.
-         - labels = Labels for spectral features. By default common minerals are plotted. Otherwise a custom list
-                    such that labels[0] = [feat1,feat2,..] and labels[1] = [name1,name2,...] can be passed. Pass None to
-                    disable labels. Pass a string containing "REE" to plot REE library lines
-                    (examples: "REE: all" for all REE lines or "REE: Pr, Nd, Dy" for selected REE lines)
+         - labels = Labels for spectral features such that labels[0] = [feat1,feat2,..] and labels[1] = [name1,name2,...]
+                    can be passed. Pass None (default) to disable labels.
          - indices = specific data point to plot. Should be a list containing index tuples, or an empty list if no pixels
                     should be plotted (Default).
+         - colours = a matplotlib colour string or list of colours corresponding to each index spectra. Default is 'blue'.
         *Keywords*
          - quantiles = True if summary quantiles of all pixels should be plotted. Default is True.
          - median = True if the median spectra of all pixels should be plotted. Default is True.
@@ -547,79 +608,54 @@ class HyData(object):
         if ax is None:
             fig, ax = plt.subplots(figsize=(18, 6))
 
-        minb = 0
-        maxb = self.band_count() - 1
-        if not band_range is None:
-            if isinstance(band_range[0], int):
-                minb = band_range[0]
-            else:
-                minb = self.get_band_index(band_range[0])
-            if isinstance(band_range[1], int):
-                maxb = band_range[1]
-            else:
-                maxb = self.get_band_index(band_range[1])
+        # extract relevant range
+        subset = self
+        if band_range is not None:
+            subset = self.export_bands(band_range)
 
-        # filter nans and zeros
-        nan = int(self.header.get("data ignore value", 0))
-        data = self.data[np.isfinite(self.data).any(axis=-1) & (self.data != nan).any(axis=-1)][..., minb:maxb]
+        # ensure wavelengths are appropriate
+        if not subset.has_wavelengths() or len(subset.get_wavelengths()) != subset.band_count():
+            subset.set_wavelengths( np.arange( subset.band_count() ) )
 
-        # calculate percentiles
+        # calculate and plot percentiles
         quantiles = kwds.get("quantiles", True)
-        median = kwds.get("median",True)
-        if "quantiles" in kwds: del kwds['quantiles'] #remove keyword
-        if 'median' in kwds: del kwds['median'] #remove keyword
+        median = kwds.get("median", True)
+        if "quantiles" in kwds: del kwds['quantiles']  # remove keyword
+        if 'median' in kwds: del kwds['median']  # remove keyword
+        C, x = subset.contiguous_chunks()
+        for C, x in zip(C, x):
+            if quantiles or median:  # calculate percentiles
+                percent = np.nanpercentile(C, axis=tuple(range(len(self.data.shape) - 1)),
+                                           q=[5, 25, 50, 75, 95])  # calculate percentiles
+                q5, q25, q50, q75, q95 = percent
 
-        if quantiles or median:
-            percent = np.nanpercentile(data, axis=0,
-                                       q=[5, 25, 50, 75, 95])  # calculate percentiles
-            q5, q25, q50, q75, q95 = percent
+            if median:  # plot median line
+                ax.plot(x, q50, color='k', label='median', **kwds)
+            if quantiles:  # plot percentile areas
+                for lower, upper in zip([q5, q25], [q95, q75]):
+                    _y = np.hstack([lower, upper[::-1]])
+                    _x = np.hstack([x, x[::-1]])
+                    ax.fill(_x[np.isfinite(_y)], _y[np.isfinite(_y)], color='grey', alpha=0.25)
 
-        # get wavelength data
-        if not self.has_wavelengths():
-            x = np.arange(maxb-minb)
-        else:
-            x = np.array(self.get_wavelengths()[minb:maxb])
-
-        # mask bad bands
-        mask = np.isfinite(x) # remove any invalid bands
-        if quantiles or median:
-            mask = mask & np.isfinite(q50)
-        mask[mask == nan] = False
-        if self.header.has_bbl():
-            mask = mask & self.header.get_bbl()[minb:maxb]
-        x = ma.masked_array( x, np.logical_not(mask) )
-
-        # calculate percentiles and plot
-        if median:
-            ax.plot(x, q50, color='k',label='median', **kwds)
-        if quantiles:
-            # plot quantiles as polygons
-            for lower, upper in zip( [q5, q25], [q95, q75]):
-                _y = np.hstack([lower, upper[::-1]])
-                _x = np.hstack([x, x[::-1]])
-                ax.fill(_x[np.isfinite(_y)], _y[np.isfinite(_y)], color='grey', alpha=0.25)
-
-            #ax.plot(x, q95, color='k', alpha=0.25, label='95%', **kwds)
-            #ax.plot(x, q75, color='k', alpha=0.5, label='75%', **kwds)
-            #ax.plot(x, q25, color='k', alpha=0.5, label='25%', **kwds)
-            #ax.plot(x, q5, color='k', alpha=0.25, label='5%', **kwds)
-
-        # plot pixels
-        if isinstance(indices, tuple): indices = [indices]
-        for idx in indices:
-            ax.plot(x, self.data[idx][minb:maxb], **kwds)
+            # plot specific spectra
+            if isinstance(indices, tuple): indices = [indices]
+            for i,idx in enumerate(indices):
+                if isinstance(colours, list):
+                    ax.plot(x, C[idx], color=colours[i], **kwds)
+                else:
+                    ax.plot(x, C[idx], color=colours, **kwds)
 
         # plot labels
         if not labels is None:  # plot labels?
 
             # parse string labels
-            if isinstance(labels,str):
-                if 'silicate' in labels.lower(): # plot common minerals theme
+            if isinstance(labels, str):
+                if 'silicate' in labels.lower():  # plot common minerals theme
                     labels = ref.Themes.CLAY
-                elif 'carbonates' in labels.lower(): # plot carbonate minerals
+                elif 'carbonates' in labels.lower():  # plot carbonate minerals
                     labels = ref.Themes.CARBONATE
-                elif 'ree' in labels.lower(): # plot REE features
-                    labels = None # todo - add REE features
+                elif 'ree' in labels.lower():  # plot REE features
+                    labels = None  # todo - add REE features
 
             i = 0
             for l in labels:
@@ -632,20 +668,12 @@ class HyData(object):
                         l.quick_plot(ax=ax, method='fill+line', label=i)
                         i += 1
 
-        # add major x-ticks
-        mn, mx = ax.get_xlim()
-        ticks = range(int(mn/100)*100, int(mx/100)*100,100)
-        ax.set_xticks( ticks)
-        ax.set_xticklabels(ticks, rotation=45)
-
-        # add minor x-ticks
-        order = int(np.log10(ax.get_xlim()[1] - ax.get_xlim()[0])) - 1
-        mn = np.around(ax.get_xlim()[0], -order)
-        mx = np.around(ax.get_xlim()[1], -order)
-        ax.set_xticks(np.arange(mn, mx, 10 ** order)[1::], minor=True)
-        ax.set_xticklabels([], minor=True)
+        # add grid x-ticks
+        ax.xaxis.set_minor_locator(AutoMinorLocator())
         ax.grid(which='major', axis='x', alpha=0.75)
         ax.grid(which='minor', axis='x', alpha=0.2)
+        ax.set_xlabel("Wavelength (%s)" % self.header.get('wavelength units', 'nm'))
+        ax.set_ylabel("Reflectance")
         return ax.get_figure(), ax
 
     ###################################
