@@ -708,6 +708,8 @@ class HyData(object):
         """
         Expand data array to floats to get actual values
         """
+        if (np.nanmax(self.data) <= 1) and (np.nanmin(self.data) >= 0):
+            return # datset is already decompressed
 
         # get min/max data
         sf = float(self.header.get("reflectance scale factor", 65535))
