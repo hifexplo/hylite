@@ -689,7 +689,7 @@ class HyData(object):
         if self.data.dtype == np.uint16: return
 
         assert np.nanmin(self.data) >= 0, "Error - to compress data range must be 0 - 1 but min is %s." % np.nanmin(self.data)
-        assert np.nanmax(self.data) <= 0, "Error - to compress data range must be 0 - 1 but max is %s." % np.nanmax(self.data)
+        assert np.nanmax(self.data) <= 1.0, "Error - to compress data range must be 0 - 1 but max is %s." % np.nanmax(self.data)
 
         #map to range 1 - 65535
         self.data = 65535 * (self.data)
@@ -708,7 +708,7 @@ class HyData(object):
         """
         Expand data array to floats to get actual values
         """
-        if (np.nanmax(self.data) <= 1) and (np.nanmin(self.data) >= 0):
+        if (np.nanmax(self.data) <= 1.0) and (np.nanmin(self.data) >= 0.0):
             return # datset is already decompressed
 
         # get min/max data
