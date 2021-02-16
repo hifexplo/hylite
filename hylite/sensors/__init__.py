@@ -7,6 +7,7 @@ from .sensor import Sensor
 from .fx import FX10
 from .fx import FX17
 from .fx import FX50
+from .owl import OWL
 from .fenix import Fenix
 from .rikola import Rikola, Rikola_HSC2, Rikola_RSC1
 from .fx import *
