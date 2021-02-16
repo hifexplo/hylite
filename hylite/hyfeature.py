@@ -65,10 +65,10 @@ class HyFeature(object):
         *Arguments*:
          - x = wavelengths (nanometres) to evaluate the feature over
          - pos = the position of the features (nanometres)
-         - depth = the depth of the feature (max to min)
          - width = parameter controlling the width of the feature.
                    Scaled such that pos - width / 2 -> pos + width / 2 contains ~99% of an equivalent
                    gaussian feature.
+         - depth = the depth of the feature (max to min)
          - offset = the vertical offset of the feature (i.e. value where no absorption exists). Default is 1.0.
         """
 
@@ -83,9 +83,9 @@ class HyFeature(object):
         *Arguments*:
          - x = wavelengths (nanometres) to evaluate the feature over
          - pos = the position of the features (nanometres)
-         - depth = the depth of the feature (max to min)
          - width = parameter controlling the width of the feature (= standard deviation / 6).
                    Scaled such that pos - width / 2 -> pos + width / 2 contains ~99% of the feature.
+         - depth = the depth of the feature (max to min)
          - offset = the vertical offset of the feature (i.e. value where no absorption exists). Default is 1.0.
         """
 
@@ -100,8 +100,8 @@ class HyFeature(object):
         *Arguments*:
          - x = wavelengths (nanometres) to evaluate the feature over
          - pos = a list of positions for each individual lorentzian function (nanometres)
-         - depth = a list of depths for each individual lorentzian function (max to min)
          - width = a list of widths for each individual lorentzian function.
+         - depth = a list of depths for each individual lorentzian function (max to min)
          - offset = the vertical offset of the functions. Default is 1.0.
         """
 
@@ -118,8 +118,8 @@ class HyFeature(object):
         *Arguments*:
          - x = wavelengths (nanometres) to evaluate the feature over
          - pos = a list of positions for each individual gaussian function (nanometres)
-         - depth = a list of depths for each individual gaussian function (max to min)
          - width = a list of widths for each individual gaussian function.
+         - depth = a list of depths for each individual gaussian function (max to min)
          - offset = the vertical offset of the functions. Default is 1.0.
         """
 
