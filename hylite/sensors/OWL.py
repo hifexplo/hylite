@@ -1,7 +1,8 @@
 import numpy as np
 from pathlib import Path
 import hylite.io as io
-from .sensor import Sensor
+from hylite.sensors import Sensor
+from scipy.ndimage import median_filter
 
 
 class OWL(Sensor):
