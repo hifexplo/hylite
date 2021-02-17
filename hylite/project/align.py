@@ -265,7 +265,25 @@ def align_images(image1, image2, warp=True, **kwds):
         dst_mask = np.expand_dims(dst_mask, axis=1)
         src_mask = np.expand_dims(src_mask, axis=1)
         M = cv2.estimateRigidTransform(src_mask, dst_mask, False) # estimate affine transform
-        mapped = cv2.warpAffine(image1.data, M, (image2.data.shape[1], image2.data.shape[0])) # apply
+
+        # if > 512 bands, cut in half for open-cv compatability
+        if image1.band_count() > 1025:
+            assert False, "Too many baaaands!!!"
+        if image1.band_count() < 512: # easy
+            #mapped = cv2.warpPerspective(image1.data, M, (image2.ydim(), image2.xdim()))
+            mapped = cv2.warpAffine(image1.data, M, (image2.data.shape[1], image2.data.shape[0])) # apply
+        else: # slightly less easy
+            div = int(image1.data.shape[2] / 2) # split dataset
+
+            # map each part
+            mapped1 = cv2.warpAffine(image1.data[...,:div], M, (image2.data.shape[1], image2.data.shape[0]))
+            mapped2 = cv2.warpAffine(image1.data[...,div:], M, (image2.data.shape[1], image2.data.shape[0]))
+            #mapped1 = cv2.warpPerspective(image1.data[..., :div], H, (image2.ydim(), image2.xdim()))
+            #mapped2 = cv2.warpPerspective(image1.data[..., div:], H, (image2.ydim(), image2.xdim()))
+
+            # rejoin
+            mapped = np.concatenate((mapped1, mapped2), axis=2)
+
     elif 'poly' in method: # warp with polynomial
         from skimage import transform as tf
         tform3 = tf.estimate_transform('polynomial', dst_mask, src_mask)

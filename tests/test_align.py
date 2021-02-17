@@ -11,6 +11,7 @@ class MyTestCase(unittest.TestCase):
     def test_mwl(self):
         # load test image
         image1 = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+        image1.data = np.dstack( [ image1.data, image1.data ] ) # make dataset > 512 bands
 
         # create slightly offset second image
         image2 = image1.copy()
