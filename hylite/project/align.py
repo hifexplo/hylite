@@ -203,7 +203,7 @@ def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
 
 def align_images(image1, image2, warp=True, **kwds):
     """
-    Coregsiter an image or numpy array to a target image.
+    Coregister an image or numpy array to a target image.
 
     *Arguments*:
      - image1= the image to transform
@@ -217,7 +217,17 @@ def align_images(image1, image2, warp=True, **kwds):
      - target_bands = the band(s) in the target image to use, in the same format as image_bands. Default
                       is (0,3) (i.e. the first 3-bands).
      - method = the method used for image warping. Default is 'affine'.
+     - features = the feature detector to use. Can be 'sift' (default) or 'orb'.
      - warp = use dense flow to warp the image to better fit the target. Default is True.
+     - dist = the distance threshold used for keypoint matching. Default is 0.75.
+     - rthresh = the ransac inlier threshold for ransac outlier detection. Default is 10.0. Increase for more tolerance.
+
+    *Returns*:
+     - a numpy array containing the coregistered image data.
+    ethod = the matching method to use. Can be 'sift' (default) or 'orb'.
+     - warp = use dense flow to warp the image to better fit the target. Default is True.
+     - dist = the distance threshold used for keypoint matching. Default is 0.75.
+     - rthresh = the ransac inlier threshold for ransac outlier detection. Default is 10.0. Increase for more tolerance.
 
     *Returns*:
      - a numpy array containing the coregistered image data.
@@ -227,40 +237,46 @@ def align_images(image1, image2, warp=True, **kwds):
 
     #get image features
     bands = kwds.get("image_bands",(0,3))
-    k_image, d_image = image1.get_keypoints(bands,method='sift',mask=True)
+    k_image, d_image = image1.get_keypoints(bands,method=kwds.get('features', 'sift'), mask=True)
 
     #get target features
     bands = kwds.get("target_bands",(0,3))
-    k_target, d_target = image2.get_keypoints(bands,method='sift',mask=True)
+    k_target, d_target = image2.get_keypoints(bands,method=kwds.get('features', 'sift'), mask=True)
 
     #match features
     k_image,k_target = image2.match_keypoints(k_image, k_target,
-                                              d_image, d_target, method='sift')
+                                              d_image, d_target,
+                                              method=kwds.get('features', 'sift'), dist=kwds.get('dist',0.75))
 
     #filter dodgy points using ransac model
     src_pts = k_image
     dst_pts = k_target
 
     #filter dodgy points using ransac model
-    H, status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+    assert (src_pts is not None) and (dst_pts is not None), "Error - no valid matches found."
+    H, status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, kwds.get('rthresh', 10.0))
     dst_mask = dst_pts[:, 0, :] * status
     src_mask = src_pts[:, 0, :] * status
     dst_mask = dst_mask[dst_mask.all(1)]
     src_mask = src_mask[src_mask.all(1)]
-    dst_mask = np.expand_dims(dst_mask, axis=1)
-    src_mask = np.expand_dims(src_mask, axis=1)
 
-    #calculate affine transform
-    M = cv2.estimateRigidTransform(src_mask, dst_mask, False)
-
-    #project image onto target
-    mapped = cv2.warpAffine(image1.data, M, (image2.data.shape[1], image2.data.shape[0]))
+    method = kwds.get('method', 'affine').lower() # get transform method
+    if 'affine' in method: # warp with affine transform
+        dst_mask = np.expand_dims(dst_mask, axis=1)
+        src_mask = np.expand_dims(src_mask, axis=1)
+        M = cv2.estimateRigidTransform(src_mask, dst_mask, False) # estimate affine transform
+        mapped = cv2.warpAffine(image1.data, M, (image2.data.shape[1], image2.data.shape[0])) # apply
+    elif 'poly' in method: # warp with polynomial
+        from skimage import transform as tf
+        tform3 = tf.estimate_transform('polynomial', dst_mask, src_mask)
+        mapped = tf.warp(image1.data, tform3, output_shape=(image2.xdim(), image2.ydim()))
+    else:
+        assert False, "Unknown transform method %s." % method
 
     #refine using deep flow?
     if warp:
-        _, dmap = deepWarp( mapped[:,:,0], image2.data[:,:,80])
+        _, dmap = deepWarp( np.nanmean( mapped, axis=2 ), np.nanmean( image2.data, axis=2) )
         mapped = cv2.remap( mapped, dmap, None, cv2.INTER_LINEAR)
-
     return mapped
 
 

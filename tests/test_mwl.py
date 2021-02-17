@@ -5,13 +5,14 @@ from pathlib import Path
 from hylite.analyse.mwl import *
 import shutil
 from tempfile import mkdtemp
-
+import numpy as np
 class MyTestCase(unittest.TestCase):
     def test_mwl(self):
         image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
         image.data = image.data[0:20,:,:] # crop to speed up
 
         # test normal mwl
+        np.warnings.filterwarnings('ignore')  # supress warnings when comparing to nan
         mwl = minimum_wavelength( image, 2100., 2380., trend='hull', method='gauss', n=3, threads=1, vb=False )
 
         # test sort function

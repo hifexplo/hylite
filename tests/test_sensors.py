@@ -24,8 +24,7 @@ class TestSensors(unittest.TestCase):
         Fenix.set_white_ref_spectra( R90 )
         Fenix.set_white_ref( white )
         Fenix.correct_image( scene, verbose=False )
-
-        self.assertEqual( np.isfinite(scene.data).all(), True )
+        self.assertEqual( np.isfinite(scene.data).any(), True )
 
     def test_fx(self):
         scene = genImage(FX10.ypixels(),500,224)
