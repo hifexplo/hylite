@@ -127,7 +127,6 @@ class OWL(Sensor):
         # rotate image so that scanning direction is horizontal rather than vertical)
         image.data = np.rot90(image.data)  # np.transpose(remap, (1, 0, 2))
         image.data = np.flip(image.data, axis=1)
-        image.data *= 10000
 
     @classmethod
     def correct_folder(cls, path, **kwds):
