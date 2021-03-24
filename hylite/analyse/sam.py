@@ -26,3 +26,41 @@ def spectral_angles(reference, spectra):
         out[i, :] = np.arccos(np.dot(reference[i], spectra.T))
 
     return out
+
+
+def SAM(data, ref_spec):
+    """
+    Apply a spectral angle classification based on reference spectra.
+
+    *Arguments*:
+     - data = the HyData instance (e.g. image or cloud) to apply the classification to.
+     - ref_spec = a list containing lists of spectra for each class. i.e.:
+                    ref_spect = [ [class1_spec1, class1_spec2],[class2_spec1, class2_spec2], ... ]
+    *Returns*:
+     - a HyData instance with the same type as data containing two bands: the class index, and the
+       spectral angle to this (closest) class.
+    """
+    R = []
+    L = []
+    for i, S in enumerate(ref_spec):
+        for s in S:
+            L.append(i)  # label of this spectra
+            R.append(s)  # append spectra
+
+    # calculate angles
+    ang = spectral_angles(np.array(R), data.X())
+
+    # extract classifications
+    sam = np.take(L, np.argmin(ang, axis=0)).astype(np.float32)  # find best matching class
+    ang = np.rad2deg(np.min(ang, axis=0)).astype(np.float32)  # calculate spectral angle
+
+    # mask
+    sam[np.isnan(data.X()).all(axis=-1)] = np.nan
+    ang[np.isnan(data.X()).all(axis=-1)] = np.nan
+
+    # reshape and return
+    out = data.copy(data=False)
+    out.set_raveled(np.array([sam, ang]).T, shape=data.data.shape[:-1] + (2,))
+    out.set_wavelengths(None)
+    out.set_band_names(["Class", "Angle"])
+    return out
