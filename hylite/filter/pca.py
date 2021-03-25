@@ -4,8 +4,8 @@ import numpy as np
 from hylite.filter.mnf import plotMNF
 from hylite import HyData
 
-def PCA( hydata, output_bands = 20, band_range=None, step=5 ):
 
+def PCA(hydata, output_bands=20, band_range=None, step=5):
     """
     Apply a PCA dimensionality reduction to the hyperspectral dataset using singular vector decomposition (SVD).
 
@@ -39,56 +39,60 @@ def PCA( hydata, output_bands = 20, band_range=None, step=5 ):
     else:
         data = hydata.copy()
 
-    #get band range
+    # get band range
     if band_range is None:  # default to all bands
         minb = 0
         maxb = data.shape[-1]
     else:
-        if isinstance(band_range[0],int) and isinstance(band_range[1],int):
+        if isinstance(band_range[0], int) and isinstance(band_range[1], int):
             minb, maxb = band_range
         else:
             assert isinstance(hydata, HyData), "Error - no wavelength information found."
             minb = hydata.get_band_index(band_range[0])
             maxb = hydata.get_band_index(band_range[1])
 
-    #prepare feature vectors
-    X = data[...,:].reshape(-1, data.shape[-1] )
-    #print(minb,maxb)
-    X = X[::step , minb:maxb ] #subsample
+    # prepare feature vectors
+    X = data[..., :].reshape(-1, data.shape[-1])
+    # print(minb,maxb)
+    X = X[::step, minb:maxb]  # subsample
     X = X[np.isfinite(np.sum(X, axis=1)), :]  # drop vectors containing nans
     X = X[np.sum(X, axis=1) > 0, :]  # drop vectors containing all zeros
 
-    #calculate mean and center
-    mean = np.mean(X,axis=0)
+    # calculate mean and center
+    mean = np.mean(X, axis=0)
     X = X - mean[None, :]
 
-    #calcualte covariance
+    # calculate covariance
     cov = np.dot(X.T, X) / (X.shape[0] - 1)
 
-    #and eigens (sorted from biggest to smallest)
+    # and eigens (sorted from biggest to smallest)
     eigval, eigvec = np.linalg.eig(cov)
     idx = np.argsort(eigval)[::-1]
     eigvec = eigvec[:, idx]
+    eigval = np.abs(eigval[idx])
 
-    #project data
-    data = data[...,minb:maxb] - mean
+    # project data
+    data = data[..., minb:maxb] - mean
     out = np.zeros_like(data)
-    for b in range( min(output_bands, data.shape[-1]) ):
-        out[..., b] = np.dot( data, eigvec[:, b] )
+    for b in range(min(output_bands, data.shape[-1])):
+        out[..., b] = np.dot(data, eigvec[:, b])
 
-    #filter wavelengths for return
+    # compute variance percentage of each eigenvalue
+    eigval /= np.sum(eigval)  # sum to 1
+
+    # filter wavelengths for return
     if not wav is None:
         wav = wav[minb:maxb]
-    #compress?
+    # compress?
     if decomp:
         hydata.compress()
 
-    #prepare output
+    # prepare output
     outobj = hydata.copy(data=False)
     outobj.header.drop_all_bands()  # drop band specific attributes
     outobj.data = out[..., 0:output_bands]
+    outobj.set_wavelengths(np.cumsum(eigval[0:output_bands]))  # wavelengths are % of explained variance
     outobj.push_to_header()
-    outobj.set_wavelengths( list(range(0,output_bands)) )
     return outobj, eigvec.T, wav
 
 
