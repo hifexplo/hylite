@@ -78,13 +78,19 @@ class Resample( object ):
                STANDARD SATELLITE NOTATION!
         """
         assert n >= 1 and (n-1) < len(self.bands), "Error - Band %d is not defined in this resampling scheme." % n
-        idx0 = data.get_band_index( self.bands[n-1][0] )
-        idx1 = data.get_band_index( self.bands[n-1][1] )
+        idx0 = data.get_band_index( self.bands[n-1][0], thresh=np.inf )
+        idx1 = data.get_band_index( self.bands[n-1][1], thresh=np.inf )
 
         if idx1 != idx0:
             return np.nanmean( data.data[...,idx0:idx1], axis=-1 )
         else:
-            return data.data[..., idx0]
+            # is data within sampling range at all?
+            minw,maxw = data.get_wavelengths()[[0,-1]]
+            if (minw > self.bands[n-1][0]) and (maxw > self.bands[n-1][0]) \
+                or (minw < self.bands[n-1][0]) and (maxw < self.bands[n-1][0]):
+                return np.full( data.data.shape[:-1], np.nan ) # no data
+            else:
+                return data.data[..., idx0] # return this band
 
     def print_bands(self):
         """

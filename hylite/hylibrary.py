@@ -65,7 +65,7 @@ class HyLibrary(HyData):
 
     def copy(self,data=True):
         """
-        Make a deep copy of this image instance.
+        Make a deep copy of this HyLibrary instance.
         *Arguments*:
          - data = True if a copy of the data should be made, otherwise only copy header.
         *Returns*
@@ -136,7 +136,7 @@ class HyLibrary(HyData):
 
     def set_sample_labels(self, labels):
         """
-        Set sample names
+        Set sample labels
         """
         assert isinstance(labels, list) or isinstance(labels, np.ndarray), "Error - sample labels must be a list."
         assert self.data.shape[0] == len(labels), "Error - sample labels must be specified for each sample."
@@ -144,9 +144,9 @@ class HyLibrary(HyData):
 
     def get_sample_labels(self):
         """
-        Get list of sample names.
+        Get list of sample labels.
         """
-        assert self.has_sample_names(), "Error - sample names are not defined."
+        assert self.has_sample_names(), "Error - sample names are not labels."
         if isinstance(self.header['class names'], str):  # sample names not yet parsed to list
             self.header['class names'] = self.header['class names'].split(',')
         return self.header['class names']

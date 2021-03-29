@@ -71,7 +71,7 @@ def estimate_sun_vec(lat, lon, time):
 
 def estimate_incidence( normals, sunvec ):
     """
-    Estimate the cosign of incidence angles based on normals and calculated sun position.
+    Estimate the cosine of incidence angles based on normals and calculated sun position.
 
     *Arguments*:
      - normals = either: (1) a HyImage with band 0 = nx, band 1 = ny and band 2 = nz, (2) HyCloud instance containing
@@ -96,7 +96,7 @@ def estimate_incidence( normals, sunvec ):
     # normalize normals (just to be safe)
     N = N / np.linalg.norm(N, axis=1)[:, None]
 
-    # calculate cosign of angles used in correction
+    # calculate cosine of angles used in correction
     cosInc = np.dot(-N, sunvec)  # cos incidence angle
 
     # return in same shape as original data
@@ -109,7 +109,7 @@ def estimate_ambient(data, cosInc, shadow_mask=None):
 
     *Arguments*:
      - data = a hyperspectral dataset (HyData incidence)
-     - cosinc = the cosign of the incidence angle for each pixel/point.
+     - cosinc = the cosine of the incidence angle for each pixel/point.
      - shadow_thresh = boolean array with True for pixels that are shadows. Or None if no shadow mask applied.
     """
 
@@ -122,7 +122,7 @@ def estimate_ambient(data, cosInc, shadow_mask=None):
     cosInc = cosInc.reshape(X.shape[:-1])
     assert X.shape[0] == cosInc.shape[0], "Error - X and cosinc must contain the same number of data points."
 
-    # compute diffuse component using lamberts cosign law
+    # compute diffuse component using lamberts cosine law
     #d = 1.0 / cosInc
 
     # calculate shadow mask
@@ -154,10 +154,10 @@ def correct_topo(data, cosInc, method="cfac", **kwds):
     *Arguments*:
      - data = a HyImage or HyCloud instance. If a HyCloud instance then normals must be specified. If a HyImage instance
               then the normals keyword must be passed.
-     - cosinc = the cosign of the incidence angle for each pixel/point.
+     - cosinc = the cosine of the incidence angle for each pixel/point.
      - method = the topographic correction method to use (string). Options are:
-        - "cos" = correction using the cosign method.
-        - "icos" = correction using the improved cosign method.
+        - "cos" = correction using the cosine method.
+        - "icos" = correction using the improved cosine method.
         - "percent" = correction using the percent method.
         - "cfac" = correction using the c-factor method (default).
         - "minnaert" = correction using the minnaert method.
@@ -249,8 +249,8 @@ def correct_topo(data, cosInc, method="cfac", **kwds):
         intercept, k = np.polynomial.polynomial.polyfit(np.log(cosInc[mask] / cosZen),  # x
                                                         np.log(X[mask, :]), 1)  # y
         m += np.power((cosZen / cosInc[:, None]), k[None, :])
-    elif "icos" in method.lower():  # improved cosign correction
-        # improved cosign
+    elif "icos" in method.lower():  # improved cosine correction
+        # improved cosine
         cos_i_mean = np.nanmean(cosInc[i_mask])
         m += ((cos_i_mean - cosInc) / cos_i_mean)[:, None]
         c += X  # refl = refl + refl * fac

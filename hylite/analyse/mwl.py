@@ -8,7 +8,7 @@ from hylite.correct.detrend import hull, polynomial
 from hylite.hyfeature import HyFeature, MixedFeature
 from hylite.multiprocessing import parallel_chunks
 
-def minimum_wavelength(data, minw, maxw, method='lorentz', trend='poly', n=1, ftol=1e-2, order=3, threads=1, constraints=True, vb=True):
+def minimum_wavelength(data, minw, maxw, method='lorentz', trend='hull', n=1, ftol=1e-2, order=3, threads=1, constraints=True, vb=True):
     """
     Perform minimum wavelength mapping to map the position of absorbtion features.
 

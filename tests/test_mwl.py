@@ -39,5 +39,12 @@ class MyTestCase(unittest.TestCase):
         for n in range(3): # check results more-or-less match single-threaded ones
             self.assertAlmostEquals(np.nanmax(mwl[n].data[..., 0]), np.nanmax(mwl3[n].data[..., 0]),
                                     2, msg="Error - multi mwl is incorrect.")
+    def test_TPT(self):
+
+        from hylite.filter import TPT
+        image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+        tpt,p,d = TPT(image, sigma=10., window=7, thresh=0, vb=False)
+
+
 if __name__ == '__main__':
     unittest.main()

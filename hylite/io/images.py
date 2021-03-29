@@ -37,13 +37,12 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
         header = loadHeader(header)
 
     #load image
-    try:
-        raster = gdal.Open(image)  # open image
-    except:
-        print( "Could not load image at '%s'" % image )
-        return None
+    assert os.path.exists(image), "Error - %s does not exist." % image
+    raster = gdal.Open(image)  # open image
+    data = raster.ReadAsArray().T
 
     #create image object
+    assert data is not None, "Error - GDAL could not retrieve valid image data from %s" % path
     data = raster.ReadAsArray().T
     pj = raster.GetProjection()
     gt = raster.GetGeoTransform()
