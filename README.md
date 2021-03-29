@@ -50,7 +50,7 @@ conda activate hylite
 
 3. Check gdal works by opening a python console and trying to import it
 ```python
-import gdal
+from osgeo import gdal
 ```
 On some environments GDAL can be difficult to install.
 
