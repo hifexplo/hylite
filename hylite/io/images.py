@@ -1,6 +1,6 @@
 import sys, os
 import numpy as np
-
+import spectral
 from hylite.hyimage import HyImage
 from .headers import matchHeader, makeDirs, loadHeader, saveHeader
 
@@ -43,7 +43,6 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
 
     #create image object
     assert data is not None, "Error - GDAL could not retrieve valid image data from %s" % path
-    data = raster.ReadAsArray().T
     pj = raster.GetProjection()
     gt = raster.GetGeoTransform()
     img = HyImage(data, projection=pj, affine=gt, header=header, dtype=dtype)
@@ -54,7 +53,50 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
     return img
 
 def loadWithSPy( path, dtype=np.float32, mask_zero = True):
-    pass
+    """
+    Load an image using spectral python. This works for most envi images, but doesn not load
+    georeferencing information (in which case loadWithGDAL(...) should be used).
+
+    *Arguments*:
+     - path = file path to the image to load
+     - mask_zero = True if zero values should be masked (replaced with nan). Default is true.
+    *Returns*:
+     - a hyImage object
+    """
+
+    assert os.path.exists(path), "Error - %s does not exist." % path
+
+    # parse file format
+    _, ext = os.path.splitext(path)
+    if len(ext) == 0 or 'hdr' in ext.lower() or 'dat' in ext.lower():  # load ENVI file?
+        header, image = matchHeader(path)
+        print(header,image)
+
+        # load image with SPy
+        assert os.path.exists(image), "Error - %s does not exist." % image
+        img = spectral.open_image(header) # load with SPy
+        data = np.transpose( np.array(img.load()), (1,0,2) )
+
+        # load header
+        if not header is None:
+            header = loadHeader(header)
+
+    elif 'tif' in ext.lower() or 'png' in ext.lower() or 'jpg' in ext.lower():  # standard image formats
+        # load with matplotlib
+        import matplotlib.image as mpimg
+        data = mpimg(path)
+        header = None
+    else:
+        assert False, "Error - %s is an unknown/unsupported file format." % ext
+
+    # create image object
+    assert data is not None, "Error - GDAL could not retrieve valid image data from %s" % path
+    img = HyImage(data, projection=None, affine=None, header=header, dtype=dtype)
+
+    if mask_zero and img.dtype == np.float:
+        img.data[img.data == 0] = np.nan  # note to self: np.nan is float...
+
+    return img
 
 # noinspection PyUnusedLocal
 def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
@@ -143,4 +185,20 @@ def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
     output = None  # close file
 
 def saveWithSPy( path, image, writeHeader=True, interleave='BSQ'):
-    pass
+    # make directories if need be
+    makeDirs(path)
+
+    path, ext = os.path.splitext(path)
+
+    # set byte order
+    if 'little' in sys.byteorder:
+        image.header['byte order'] = 0
+        byteorder = 0
+    else:
+        image.header['byte order'] = 1
+        byteorder = 1
+
+    image.push_to_header()
+    spectral.envi.save_image( path + ".hdr", np.transpose(image.data,(1,0,2)),
+                                dtype=image.data.dtype, force=True,
+                                ext='dat', byteorder=byteorder, metadata=image.header)

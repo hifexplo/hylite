@@ -22,7 +22,11 @@ def save(path, data):
     """
 
     if isinstance(data, HyImage):
-        save_func = saveWithGDAL
+        try:
+            from osgeo import gdal  # is gdal installed?
+            save_func = saveWithGDAL
+        except ModuleNotFoundError:  # no gdal, use SPy
+            save_func = saveWithSPy
     elif isinstance(data, HyCloud):
         save_func = saveCloudPLY
     elif isinstance(data, HyLibrary):
@@ -58,5 +62,10 @@ def load(path):
         return loadLibrarySED(path)
     elif 'tsg' in ext: # spectral library
         return loadLibraryTSG(path)
-    else: # image - load with gdal
-        return loadWithGDAL(path)
+    else: # image - load with SPy
+        try:
+            from osgeo import gdal # is gdal installed?
+            return loadWithGDAL(path)
+        except ModuleNotFoundError: # no gdal, use SPy
+            return loadWithSPy(path)
+
