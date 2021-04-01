@@ -52,7 +52,14 @@ PCA
 
 ---------------------------------
 
+Turning point analysis
+---------------------------
+.. automodule:: hylite.filter.tpt
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
+---------------------------------
 
 Band resampling
 ------------------------

@@ -33,8 +33,8 @@ and (b) a hypercloud of an open-pit mine.*
 ----------
 
 
-Installation
--------------
+Installation (using PIP)
+--------------
 
 1. Create and activate a new python environment (anacona users only)
 
@@ -43,59 +43,49 @@ conda create -n hylite
 conda activate hylite
 ````
 
-2. Install GDAL
-
-`conda install gdal`
-
-
-3. Check gdal works by opening a python console and trying to import it
-```python
-from osgeo import gdal
-```
-On some environments GDAL can be difficult to install.
-
-<details>
-  <summary>Install with PIP</summary>
 
 ------------
 
-4.1 Install *hylite* with pip.
+2 Install *hylite* with pip.
 
 `pip install hylite`
 
-------------
 
-</details>
+Installation (from GitHub)
+--------------
 
-<details>
-  <summary>Install from Github</summary>
+1. Create and activate a new python environment (anacona users only)
 
-------------
+```
+conda create -n hylite
+conda activate hylite
+````
 
-4.1 Download the *hylite* directory from Github.
+2. Download and unzip hylite from GitHub (or clone it using `git clone https://github.com/samthiele/hylite.git`)
 
-4.2 Unzip this directory and navigate to it in a terminal.
-
-4.3 Install with setuptools by typing the following into terminal:
+3. Navigate into the hylite directory using terminal and install using setuptools:
 
 `python setup.py install`
 
-4.4 Fix any issues  ¯\_(ツ)_/¯
 
+Optional dependencies:
 ------------
 
-</details>
+A variety of other python packages might be needed depending on how you use _hylite_. These include:
+ - _GDAL_: needed if working with georeferenced images (e.g. geotiffs, some envi files).
+ - _jupyter_: recommended as coding interface when using hylite for exploratory data analysis.
 
-5. Check *hylite* is installed by opening a python console and running:
+
+Testing installation
+----------------------
+
+Check *hylite* is installed by opening a python console and running:
 
 ```python
 import hylite
 ```
 
-Testing installation
-----------------------
-
-A simple test of the installation can be performed by downloading the test data included in this repository, launching python or a jupyter notebook
+A better test of the installation can be performed by downloading the test data included in this repository, launching python or a jupyter notebook
 and running the following code:
 
 ```python
@@ -113,10 +103,12 @@ cloud = io.load( 'test_data/hypercloud.ply' )
 cloud.quick_plot(cloud.header.get_camera(0), hylite.RGB)
 ```
 
+Other test functionality is included in the _tests_ directory.
+
 Next steps
 -------------
 
-1. Navigate to the *template_notebooks* directory and launch a jupyter notebook server.
+1. Navigate to the template_notebooks directory and launch a jupyter notebook server.
 2. Find a notebook that does what you need (or extend one to do what you want).
 3. Happy processing! :D
 
@@ -125,8 +117,10 @@ Citing *hylite*
 
 If you use *hylite* for your work then please cite:
 
-***Thiele, S. T., Lorenz, S., et al., (2021). Multi-scale, multi-sensor data
-integration for automated 3-D geological mapping using hylite. Ore Geology Reviews.***
+```
+Thiele, S. T., Lorenz, S., et al., (2021). Multi-scale, multi-sensor data
+integration for automated 3-D geological mapping using hylite. Ore Geology Reviews.
+```
 
 (currently under review; stay tuned!)
 

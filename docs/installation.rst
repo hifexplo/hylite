@@ -1,57 +1,34 @@
 Install
 ========================================================
 
-1. Create and activate a new python environment (anaconda users only).
+Create and activate a new python environment (anaconda users only).
 
 .. code:: shell
 
   conda create -n hylite
   conda activate hylite
 
-2. Install GDAL
-
-.. code:: shell
-
-    conda install gdal
-
-
-3. Check gdal works by opening a python console and trying to import it
-
-.. code:: python
-
-    import gdal
-
-On some environments GDAL can be difficult to install.
-
--------
-
-4. Install *hylite* (PIP):
-
-4a. Install hylite from PIP
+*hylite* can then be most easily installed via pip:
 
 .. code:: shell
     pip install hylite
 
 ----------------------
 
-4. Install *hylite* (Github):
+If you want the newest version of *hylite* then you can install it directly from GitHub.
 
+First, download and unzip hylite from GitHub (or clone it using `git clone https://github.com/samthiele/hylite.git`)
 
-4a. Download the hylite directory from Github.
-
-4b. Unzip this directory and navigate to it in a terminal.
-
-4c. Install with setuptools by typing the following into terminal:
+Then navigate into the hylite directory using terminal and install using setuptools:
 
 .. code:: shell
-
     python setup.py install
 
-4d. Fix any issues  ¯\_(ツ)_/¯
+And.... Fix any issues  ¯\_(ツ)_/¯
 
 ------
 
-5. Check hylite is installed by opening a python console and running:
+Finally, check hylite is installed by opening a python console and running:
 
 .. code:: python
 
@@ -76,3 +53,13 @@ and running the following code:
 
     cloud = io.load( 'test_data/hypercloud.ply' )
     cloud.quick_plot(cloud.header.get_camera(0), hylite.RGB)
+
+Other test functionality is included in the _tests_ directory.
+
+Optional dependencies:
+------------
+
+A variety of other python packages might be needed depending on how you use *hylite*. These include:
+ - _GDAL_: needed if working with georeferenced images (e.g. geotiffs, some envi files).
+ - _jupyter_: recommended as coding interface when using hylite for exploratory data analysis.
+
