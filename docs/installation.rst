@@ -11,7 +11,8 @@ Create and activate a new python environment (anaconda users only).
 *hylite* can then be most easily installed via pip:
 
 .. code:: shell
-    pip install hylite
+
+  pip install hylite
 
 ----------------------
 
@@ -22,7 +23,8 @@ First, download and unzip hylite from GitHub (or clone it using `git clone https
 Then navigate into the hylite directory using terminal and install using setuptools:
 
 .. code:: shell
-    python setup.py install
+
+  python setup.py install
 
 And.... Fix any issues  ¯\_(ツ)_/¯
 
@@ -32,7 +34,7 @@ Finally, check hylite is installed by opening a python console and running:
 
 .. code:: python
 
-    import hylite
+  import hylite
 
 Testing installation
 ----------------------
@@ -60,6 +62,6 @@ Optional dependencies:
 ------------
 
 A variety of other python packages might be needed depending on how you use *hylite*. These include:
- - _GDAL_: needed if working with georeferenced images (e.g. geotiffs, some envi files).
- - _jupyter_: recommended as coding interface when using hylite for exploratory data analysis.
+ - *GDAL*: needed if working with georeferenced images (e.g. geotiffs, some envi files).
+ - *jupyter*: recommended as coding interface when using hylite for exploratory data analysis.
 
