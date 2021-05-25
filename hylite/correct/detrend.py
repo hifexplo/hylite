@@ -74,7 +74,6 @@ def hull(spectra, div=True):
     else:
         return 1 + spectra - y, y
 
-
 def get_hull_corrected(data, band_range=None, method='div', vb=True):
     """
     Apply a hull correction to an entire HyData instance (HyImage, HyCloud or HyLibrary). Returns a corrected copy of

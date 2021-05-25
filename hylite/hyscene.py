@@ -1,13 +1,8 @@
 from tqdm import tqdm
-import matplotlib.pyplot as plt
-
 import hylite
 from hylite import HyImage
-from hylite.correct.topography import sph2cart
-from hylite.correct import estimate_sun_vec, estimate_incidence, estimate_ambient, correct_topo, ELC, norm_eq, hist_eq
+from hylite.correct import norm_eq, hist_eq
 from hylite.project.basic import *
-from hylite.correct import get_hull_corrected
-from hylite.multiprocessing import parallel_chunks
 class HyScene(object):
     """
     A class that combines a hyperspectral image with known camera pose and a 3D point cloud into a 2.5D scene. The scene
@@ -50,6 +45,7 @@ class HyScene(object):
         self.point_depth = {}  # map point IDs to depths
         self.depth = np.full((image.data.shape[0], image.data.shape[1]),
                              np.inf)  # also store depth buffer as this is handy
+        self.xyz = np.full((image.data.shape[0], image.data.shape[1], 3), np.nan)  # rendered point positions
         self.normals = np.full((image.data.shape[0], image.data.shape[1], 3), np.nan)  # and point normals
         self.obliquity = np.full((image.data.shape[0], image.data.shape[1]), np.nan)  # and incidence rays
         # project point cloud using camera
@@ -94,10 +90,12 @@ class HyScene(object):
             else:  # no points in pixel yet
                 self.image_to_cloud[(x, y)] = [ids[i]]
 
-            # update depth buffers
+            # update depth, position and normal buffers
             if z < self.depth[x, y]:  # in front of depth buffer?
                 self.depth[x - s:x + s + 1, y - s:y + s + 1] = z
-
+                self.xyz[x - s:x + s + 1, y - s:y + s + 1] = self.cloud.xyz[ ids[i] ]
+                if cloud.has_normals():
+                    self.normals[x - s:x + s + 1, y - s:y + s + 1] = self.cloud.normals[ ids[i] ]
         if vb: pp.clear(nolock=False)  # remove progress bar
 
         # remove occluded points
@@ -119,7 +117,7 @@ class HyScene(object):
             for idx in to_del:
                 del self.cloud_to_image[idx]
 
-        # compute normals and obliquity
+        # compute normals, per-pixel position and obliquity
         self.valid = np.full((self.image.xdim(), self.image.ydim()), False,
                              dtype=np.bool)  # also store pixels with valid mappings
         if cloud.has_normals():
@@ -248,6 +246,12 @@ class HyScene(object):
         else:
             return None, None
 
+    def get_xyz(self):
+        """
+        Get per-pixel positions in world coords
+        """
+        return self.xyz
+
     def get_normals(self):
         """
         Get per-pixel normals array.
@@ -291,11 +295,19 @@ class HyScene(object):
 
         return self.obliquity
 
+    def get_view_dir(self):
+        """
+        Get per-pixel viewing direction vector (normalised to length = 1).
+        """
+        view = self.get_xyz()
+        view -= self.camera.pos
+        view /= np.linalg.norm(view, axis=-1)[..., None]
+        return view
+
     def get_slope(self):
         """
         Get array of slope angles for each pixel (based on the surface normal vectors).
         """
-
         return np.rad2deg(np.arccos(np.abs(self.normals[..., 2])))
 
     def intersect(self, scene2):
@@ -350,208 +362,6 @@ class HyScene(object):
 
         return np.array(list(matches.keys())), np.array(list(matches.values()))
 
-    #################################################
-    ##Expose topographic correction functionality
-    #################################################
-
-    def calculate_sunvec(self, lat, lon, time, tz="Etc/GMT-1", fmt="%d/%m/%Y %H:%M"):
-        """
-        Estimate the illumination vector from position and time, as calculateded and with
-        hylite.correct.correct.estimate_sun_vec( ... ).
-
-        *Arguments*:
-         - lat = the latitude at which to calculate the illumination vector.
-         - lon = the longitude at which to calculate the illumination vector.
-         - time = string describing the time and date to calculate illumination vector on, in a format
-                  described by fmt.
-         - tz = the timezone name (string), as recognised by pytz.
-         - fmt = the format string used to parse the time/date. Default is "%d/%m/%Y %H:%M".
-        *Returns*:
-         - a numpy array containing the sunvector.
-        """
-
-        time = (time, fmt, tz)
-        return estimate_sun_vec(lat, lon, time)
-
-    def get_lighting(self, sunvec):
-        """
-        Calculate the Lambert shading based on the specified sun vector and associated cloud normals.
-
-        *Arguments*:
-         - sunvec = the illumination vector, as calculated with calculate_sunvec(...).
-        *Returns*:
-         - a 2D numpy array containing the shading factors.
-        """
-
-        # calculate cos incidence angles (~direct illumination)
-        return estimate_incidence(self.get_normals(), sunvec)
-
-    def estimate_ambient(self, sunvec, shadow_mask=None):
-        """
-        Estimates the ambient light spectra (and intensity relative to direct light) as described in
-        hylite.correct.correct.estimate_ambient( ... ).
-
-        *Arguments*:
-         - sunvec = the illumination vector (pointing downwards).
-
-        *Returns*:
-         - array containing the estimated ambient light intensity fo reach band in
-           the image associated with this project.
-        """
-
-        return estimate_ambient(self.image, self.get_lighting(sunvec), shadow_mask)
-
-    def correct(self, atmos=True, topo=True, **kwds):
-        """
-        Apply topographic and atmospheric corrections to this scene using information on sun orientation and
-        calibration targets in the image header.
-
-        *Arguments*:
-         - atmos = True if an atmospheric correction should be applied using calibration targets (ELC). Default is True.
-         - topo = True if a topographic correction should be applied. Default is True.
-
-        *Keywords*:
-         - method = the method of topographic correction to apply (see hylite.correct.correct_topo(...)). Default is 'cfac'.
-         - topo_kwds = a dictionary of keywords to pass to hylite.correct.correct_topo(...).
-         - low_thresh = pixels darker than this percentile will be removed from the corrected scene (e.g. shadows). Default
-                        is 0 (keep all pixels).
-         - high_thresh = pixels brighter than this percentile will be removed from the corrected scene (e.g. overcorrected
-                         highlights. Default is 100 (keep all pixels).
-         - vb = True if outputs (progress text and plots to check quality of corrections) should be generated. Default is True.
-         - name = a scene name for plots generated by this function.
-         - bands = bands to use for plot of corrected scene. Default is hylite.RGB.
-         - bbl_thresh = the threshold to use to define band bands during ELC correction. Default is the 85th percentile. Set to None
-                        to disable ELC thresholding (i.e. retain all bands, regardless of noise amplification).
-        *Returns*: True if correction was succesfully applied. False if information was missing in header (e.g. calibration data).
-        """
-
-        # get kwds
-        vb = kwds.get('vb',True)
-        high_thresh = kwds.get('high_thresh', 100)
-        low_thresh = kwds.get('low_thresh', 0)
-        topo_kwds = kwds.get('topo_kwds', {})
-        method = kwds.get('method', 'cfac')
-        name = kwds.get('name', "Correction")
-
-        #############################
-        # gather required information
-        ##############################
-        if atmos:
-            # get calibration panels
-            names = self.image.header.get_panel_names()
-            if len(names) == 0:
-                return False # no calibration panels
-
-            # calculate ELC correction (but don't apply it yet)
-            panels = [self.image.header.get_panel(n) for n in names]
-            elc = ELC(panels)
-
-            # store elc info in header file
-            bbl_thresh = kwds.get('bbl_thresh', np.nanpercentile(elc.slope, 85) )
-            if bbl_thresh is not None:
-                self.image.header.set_bbl( np.logical_not(elc.get_bad_bands(thresh=bbl_thresh)))
-            self.image.header['elc slope'] = elc.slope
-            self.image.header['ecl intercept'] = elc.intercept
-
-            # plot for reference
-            if vb:
-                fig, ax = elc.quick_plot()
-                ax.set_title("%s: Empirical line correction." % name)
-                fig.show()
-
-        if topo:
-
-            # get sun vector
-            if 'sunvec' in topo_kwds:
-                sunvec = topo_kwds['sunvec']
-            else:
-                if not ('sun azimuth' in self.image.header and 'sun elevation' in self.image.header):
-                    return False  # no sun vector
-                az = float(self.image.header['sun azimuth'])
-                el = float(self.image.header['sun elevation'])
-                sunvec = sph2cart(az+180, el) #n.b. +180 converts vector to sun to vector from sun
-
-            # calculate cos illumination angle (lambertian shading)
-            assert self.cloud.has_normals(), "Error - cannot correct topography as cloud has no normals."
-            cosI = self.get_lighting(sunvec)
-
-            # plot for reference
-            if vb:
-                fig, ax = plt.subplots(figsize=(18, 8))
-                ax.imshow(cosI.T, vmin=0, vmax=1, cmap='gray')
-                ax.set_title("%s: Lambertian shading" % name)
-                ax.set_xticks([])
-                ax.set_yticks([])
-                fig.show()
-
-        #######################
-        # apply corrections
-        #######################
-        if topo:
-            topo_kwds['sunvec'] = sunvec
-            if 'ambient' in method:  # special case - ambient applies a combined atmospheric and topo correction
-                # apply atmospheric correction first
-                if atmos:
-                    elc.apply(self.image) # todo - remove this once 'ambient' does topo correction
-
-                ambient = estimate_ambient(self.image, cosI, shadow_mask=None)
-                correct_topo(self.image, cosInc=cosI, method=method, ambient=ambient, **topo_kwds)
-
-                if vb:
-                    plt.figure(figsize=(10,3))
-                    plt.plot( self.image.get_wavelengths(), ambient, color='b' )
-                    plt.title("%s: Estimated ambient spectra" % name )
-                    plt.show()
-
-            else:
-                # apply atmospheric correction first
-                if atmos:
-                    elc.apply(self.image)
-
-                # apply topographic correction
-                correct_topo(self.image, cosInc=cosI, method=method, **topo_kwds)
-        elif atmos:  # apply only ELC (atmospheric correction)
-            elc.apply(self.image)
-
-
-        # apply high/low threshold postprocessing
-        brightness = np.nansum(self.image.data, axis=2)
-        vmax = np.nanpercentile(brightness, high_thresh)
-        vmin = np.nanpercentile(brightness, low_thresh)
-        mask = self.image.mask(np.logical_or(brightness > vmax, brightness < vmin))
-
-        if vb: # plot corrected scene
-            fig, ax = self.quick_plot(kwds.get('bands',hylite.RGB), vmin=0.0, vmax=1.0)
-            ax.set_title("%s: Final result" % name)
-            ax.set_xticks([])
-            ax.set_yticks([])
-            fig.show()
-
-        return True # success!!
-
-    def correct_topography(self, sunvec, method='ambient', thresh=10.0, **kwds):
-         """
-         Calculates the illumination based on normal vectors stored in this project and the specified sunvector, and
-         then applices the specified topographic correction to the image associated with this project.
-
-         See hylite.correct.correct.correct_topo(...) for a more detailed description.
-
-         *Arguments*:
-          - sunvec = the illumination vector (pointing downwards), as calculated by calculate_sunvec( ... ).
-          - method = the correction method to apply (cf. hylite.correct.correct.correct_topo ).
-
-         *Keywords*:
-          - keyword arguments are passed to hylite.correct.correct.correct_topo( ... ).
-
-         *Returns*:
-          - m, c = linear correction factors, such that i_corrected = m*i_initial + c
-          - illum_mask = boolean array containing False for datapoints/pixels that are not directly illuminated.
-         """
-
-         cosI = self.get_lighting(sunvec)
-         kwds['sunvec'] = kwds.get('sunvec', sunvec)
-         return correct_topo(self.image, cosInc=cosI, method=method, thresh=thresh, **kwds)
-
     def match_colour_to(self, reference, uniform=True, method='norm', inplace=True):
 
         """
@@ -603,78 +413,6 @@ class HyScene(object):
             assert False, "Error - %s is an unrecognised colour correction method." % method
 
         return image
-
-    def correct_atmosphere(self, ref_feature=1125., cdepth=90, indices=[], maxp=98, nthreads=1, vb=True):
-        """
-        Correct for atmospheric absorbtions that are not captured by the calibration panel due to e.g., large distance
-        between sensor/calib panel and target using the method described
-        by Lorenz et al., 2018, https://doi.org/10.3390/rs10020176
-
-        *Arguments*:
-         - ref_feature = The reference absorbtion feature to quantify atmospheric influence with (and hence calculate the
-                         magnitude of the correction. Cf. Lorenz et al., 2018 for more details. Default is the water
-                         absorbion feature at 1225 nm.
-         - cdepth = The percentile depth cutoff used to select pixels with large atmospheric effects. Default is 90, meaning
-                   the atmospheric absorbtion spectra is characterised using the farthest 10% of pixels.
-         - indices = individual pixel indices to include in output plots (if vb is True). See HyImage.quick_plot(...) for details.
-         - maxp = Post-hull correction threshold used to distinguish atmospheric effects present in all pixels from mineralogical
-                  features that only exist in some pixels. Default is 98.
-         - nthreads = number of threads used to compute the hull corrections. Default is 1.
-         - vb = True if comparison plots should be created showing the correction spectra and adjusted spectra. Default is True.
-        """
-
-        # get reference pixels with "largest" distance (and hence atmospheric effects)
-        depth = self.get_depth()
-        depth[np.isinf(depth)] = np.nan
-        refpx = np.argwhere(depth > np.nanpercentile(depth, cdepth))
-
-        # plot these to check that they cover most of the "geological" variation in the scene
-        if vb:
-            fig, ax = plt.subplots(1, 3, figsize=(25, 8))
-            self.image.quick_plot(hylite.RGB, ax=ax[0])
-            ax[0].set_title("Pixels used to estimate atmospheric spectra.")
-            ax[0].scatter(refpx[..., 0], refpx[..., 1], s=1, alpha=0.1)
-
-        ## extract these pixels
-        refpx = hylite.HyData(self.image.data[refpx[..., 0], refpx[..., 1], :],
-                              wavelengths=self.image.get_wavelengths())
-
-        ## apply hull correction and extract atmospheric signal (this will be the "max" of the hc spectra)
-        hc = get_hull_corrected(refpx)
-        atmos = np.nanpercentile(hc.data, maxp, axis=0)
-
-        # plot results before correction
-        if vb:
-            ax[1].set_title("Uncorrected spectra + estimated atmospheric spectra")
-            ax[1].set_ylabel("Uncorrected pixel reflectance")
-            self.image.plot_spectra(indices=indices, ax=ax[1])
-            ax2 = ax[1].twinx()
-            ax2.plot( self.image.get_wavelengths(), atmos, color='b', alpha=0.5)
-            ax2.set_ylabel("Estimated atmospheric absorbtions (%)")
-            ax2.spines['right'].set_color('blue')
-            ax2.yaxis.label.set_color('blue')
-            ax2.tick_params(axis='y',colors='blue')
-            ax[1].axvline(ref_feature, color='b', lw=4, alpha=0.5) # plot reference feature
-
-        # calculate correction factor and scale to match depth of reference water feature
-        if ref_feature == 1125.:
-            refdepth = parallel_chunks(get_hull_corrected, self.image, (1050., 1250.), nthreads=nthreads) # just hull-correct relevant part of spectra (faster)
-        else:
-            refdepth = parallel_chunks(get_hull_corrected, self.image, (0, -1), nthreads=nthreads) # hull correct whole spectra....
-
-        r1025 = refdepth.get_band(ref_feature)  # observed reflectance at r1025 feature
-        f = r1025 / atmos[self.image.get_band_index(ref_feature)] # adjustment factor such that correction removes reference feature
-        fac = atmos[None, None, :] * f[:, :, None] # resulting per-pixel atmospheric correction factor
-
-        # apply correction
-        self.image.data /= fac
-
-        # plot results
-        if vb:
-            ax[2].set_title("Corrected spectra")
-            self.image.plot_spectra(indices=indices, ax=ax[2])
-            ax[2].axvline(ref_feature, color='b', lw=4, alpha=0.5)
-            fig.show()
 
     ###################################
     ##PLOTTING AND EXPORT FUNCTIONS
