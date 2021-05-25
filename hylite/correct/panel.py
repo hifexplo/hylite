@@ -5,6 +5,7 @@ from scipy import stats
 from scipy.optimize import least_squares
 import matplotlib.patches as patches
 import cv2
+import warnings
 
 import hylite
 from hylite.reference.features import HyFeature
@@ -344,7 +345,8 @@ class Panel( HyData ):
 
 class ELC(object):
     """
-    Class that gathers one or more Panels and computes calculates an empirical line correction.
+    Class that gathers one or more Panels and computes calculates an empirical line correction. Depreciated - use the
+    hylite.correct.illumination.IlluminationModel class instead.
     """
 
     def __init__(self, panels):

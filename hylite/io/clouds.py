@@ -145,7 +145,6 @@ def loadCloudCSV(path, delimiter=' ', order='xyzrgbklm'):
     # return point cloud
     return HyCloud(xyz, rgb=rgb, normals=norm, bands=scal, header=header)
 
-
 def saveCloudLAS(path, cloud):
     """
     Write a point cloud object to .las. Note that LAS file formats cannot handle scalar field data.
