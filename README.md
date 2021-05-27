@@ -117,12 +117,13 @@ Citing *hylite*
 
 If you use *hylite* for your work then please cite:
 
+
 ```
 Thiele, S. T., Lorenz, S., et al., (2021). Multi-scale, multi-sensor data
-integration for automated 3-D geological mapping using hylite. Ore Geology Reviews.
+integration for automated 3-D geological mapping. Ore Geology Reviews. DOI: j.oregeorev.2021.104252
 ```
+https://doi.org/10.1016/j.oregeorev.2021.104252
 
-(currently under review; stay tuned!)
 
 Contributing to  hylite
 -------------------------
