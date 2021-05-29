@@ -114,10 +114,10 @@ def _call(func, path, arg, kwd, n):
         assert isinstance(result, HyCloud), "Error - function %s does not return a HyCloud." % func
         io.saveCloudPLY(path, result)  # save point cloud
     else:
-        data = io.loadWithGDAL(path)  # load image
+        data = io.load(path)  # load image
         result = func(data, *arg, **kwd)  # compute results
         assert isinstance(result, HyImage), "Error - function %s does not return a HyImage." % func
-        io.saveWithGDAL(path, result)  # save result
+        io.save(path, result)  # save result
 
     return True  # done
 
@@ -171,7 +171,7 @@ def parallel_chunks(function, data, *args, **kwds):
             io.saveCloudPLY(p, c)
         else:
             p = os.path.join(pth, '%d.hdr' % i)
-            io.saveWithGDAL(p, c)
+            io.save(p, c)
         paths.append(p)
 
     # make sure we don't multithread twice when using advanced scipy/numpy functions...
@@ -191,7 +191,7 @@ def parallel_chunks(function, data, *args, **kwds):
         if isinstance(data, HyCloud):
             chunks = [io.loadCloudPLY(p) for p in paths]
         else:
-            chunks = [io.loadWithGDAL(p) for p in paths]
+            chunks = [io.load(p) for p in paths]
 
         # remove temp directory
         shutil.rmtree(pth)  # delete temp directory

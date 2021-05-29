@@ -99,19 +99,19 @@ class Fenix(Sensor):
             if image.xdim() == 384:
                 if binning == 2:
                     if Fenix.cal2 is None:
-                        Fenix.cal2 = io.loadWithGDAL(
+                        Fenix.cal2 = io.load(
                             str(Path(__file__).parent / "calibration_data/fenix/Radiometric_2x2_1x1.hdr"))
                     cal = Fenix.cal2.data[:, 0, :]
                     calw = Fenix.cal2.get_wavelengths()
                 elif binning == 4:
                     if Fenix.cal4 is None:
-                        Fenix.cal4 = io.loadWithGDAL(
+                        Fenix.cal4 = io.load(
                             str(Path(__file__).parent / "calibration_data/fenix/Radiometric_4x2_1x1.hdr"))
                     cal = Fenix.cal4.data[:, 0, :]
                     calw = Fenix.cal4.get_wavelengths()
                 elif binning == 8:
                     if Fenix.cal8 is None:
-                        Fenix.cal8 = io.loadWithGDAL(
+                        Fenix.cal8 = io.load(
                             str(Path(__file__).parent / "calibration_data/fenix/Radiometric_8x2_1x1.hdr"))
                     cal = Fenix.cal8.data[:, 0, :]
                     calw = Fenix.cal8.get_wavelengths()
@@ -120,19 +120,19 @@ class Fenix(Sensor):
             elif image.xdim() == 1024:
                 if binning == 2:
                     if Fenix.cal2 is None:
-                        Fenix.cal2 = io.loadWithGDAL(
+                        Fenix.cal2 = io.load(
                             str(Path(__file__).parent / "calibration_data/fenix1k/Radiometric_2x2_1x1.hdr"))
                     cal = Fenix.cal2.data[:, 0, :]
                     calw = Fenix.cal2.get_wavelengths()
                 elif binning == 4:
                     if Fenix.cal4 is None:
-                        Fenix.cal4 = io.loadWithGDAL(
+                        Fenix.cal4 = io.load(
                             str(Path(__file__).parent / "calibration_data/fenix1k/Radiometric_4x2_1x1.hdr"))
                     cal = Fenix.cal4.data[:, 0, :]
                     calw = Fenix.cal4.get_wavelengths()
                 elif binning == 8:
                     if Fenix.cal8 is None:
-                        Fenix.cal8 = io.loadWithGDAL(
+                        Fenix.cal8 = io.load(
                             str(Path(__file__).parent / "calibration_data/fenix1k/Radiometric_8x2_1x1.hdr"))
                     cal = Fenix.cal8.data[:, 0, :]
                     calw = Fenix.cal8.get_wavelengths()
@@ -223,7 +223,8 @@ class Fenix(Sensor):
             src_mask = np.expand_dims(src_mask, axis=1)
 
             # estimate translation matrix
-            M = cv2.estimateRigidTransform(dst_mask, src_mask, False)
+            #M = cv2.estimateRigidTransform(dst_mask, src_mask, False)
+            M = cv2.estimateAffinePartial2D(src_mask, dst_mask)[0]
 
             # transform bands from second sensor (>175)
             r = image.get_band_index(975.)
@@ -349,7 +350,7 @@ class Fenix(Sensor):
         if verbose: print('\nLoading image %s' % imgs[0])
 
         # load image
-        image = io.loadWithGDAL(imgs[0])
+        image = io.load(imgs[0])
         Fenix.set_dark_ref(dark[0])
         if len(white) > 0:  # white reference exists
             Fenix.set_white_ref(white[0])

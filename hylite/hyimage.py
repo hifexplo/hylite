@@ -8,7 +8,6 @@ import imageio
 import cv2
 import scipy as sp
 from scipy import ndimage
-
 import hylite
 from hylite.hydata import HyData
 from hylite.hylibrary import HyLibrary
@@ -94,20 +93,20 @@ class HyImage( HyData ):
         *Arguments*:
          - proj = the project to use as osgeo.osr.SpatialReference or GDAL georeference string.
         """
-        try:
-            from osgeo.osr import SpatialReference
-        except:
-            assert False, "Error - GDAL must be installed to work with spatial projections in hylite."
-
         if proj is None:
             self.projection = None
-        elif isinstance(proj, SpatialReference):
-            self.projection = proj
-        elif isinstance(proj, str):
-            self.projection = SpatialReference(proj)
         else:
-            print("Invalid project %s" % proj)
-            raise
+            try:
+                from osgeo.osr import SpatialReference
+            except:
+                assert False, "Error - GDAL must be installed to work with spatial projections in hylite."
+            if isinstance(proj, SpatialReference):
+                self.projection = proj
+            elif isinstance(proj, str):
+                self.projection = SpatialReference(proj)
+            else:
+                print("Invalid project %s" % proj)
+                raise
 
     def set_projection_EPSG(self,EPSG):
         """
@@ -429,7 +428,8 @@ class HyImage( HyData ):
             kwds["sigma"] = kwds.get("sigma", 1.0)
 
             # make feature detector
-            alg = cv2.xfeatures2d.SIFT_create(**kwds)
+            #alg = cv2.xfeatures2d.SIFT_create(**kwds)
+            alg = cv2.SIFT_create()
         elif 'orb' in method.lower():  # orb
             kwds['nfeatures'] = kwds.get('nfeatures', 5000)
             alg = cv2.ORB_create(scoreType=cv2.ORB_FAST_SCORE, **kwds)

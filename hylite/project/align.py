@@ -264,7 +264,8 @@ def align_images(image1, image2, warp=True, **kwds):
     if 'affine' in method: # warp with affine transform
         dst_mask = np.expand_dims(dst_mask, axis=1)
         src_mask = np.expand_dims(src_mask, axis=1)
-        M = cv2.estimateRigidTransform(src_mask, dst_mask, False) # estimate affine transform
+        #M = cv2.estimateRigidTransform(src_mask, dst_mask, False) # estimate affine transform
+        M = cv2.estimateAffinePartial2D(src_mask, dst_mask)[0]
 
         # if > 512 bands, cut in half for open-cv compatability
         if image1.band_count() > 1025:
@@ -285,7 +286,10 @@ def align_images(image1, image2, warp=True, **kwds):
             mapped = np.concatenate((mapped1, mapped2), axis=2)
 
     elif 'poly' in method: # warp with polynomial
-        from skimage import transform as tf
+        try:
+            from skimage import transform as tf
+        except:
+            assert False, "Error - please install scikit image to use poly mode: pip install scikit-image"
         tform3 = tf.estimate_transform('polynomial', dst_mask, src_mask)
         mapped = tf.warp(image1.data, tform3, output_shape=(image2.xdim(), image2.ydim()))
     else:

@@ -235,7 +235,8 @@ class Rikola(Sensor):
                         src_mask = src_mask[src_mask.all(1)]
                         dst_mask = np.expand_dims(dst_mask, axis=1)
                         src_mask = np.expand_dims(src_mask, axis=1)
-                        M = cv2.estimateRigidTransform(src_mask, dst_mask, False)
+                        #M = cv2.estimateRigidTransform(src_mask, dst_mask, False)
+                        M = cv2.estimateAffinePartial2D(src_mask, dst_mask)[0]
 
                         # apply to image
                         image.data[:, :, b] = cv2.warpAffine(image.data[:, :, b], M,
