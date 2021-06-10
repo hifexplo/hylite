@@ -32,6 +32,13 @@ and (b) a hypercloud of an open-pit mine.*
 
 ----------
 
+Examples
+--------------
+
+Try the *hylite* hyperspectral toolbox using some example notebooks on Binder:
+
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/samthiele/hylite_demo/HEAD)
+
 
 Installation (using PIP)
 --------------
