@@ -70,7 +70,6 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
     _, ext = os.path.splitext(path)
     if len(ext) == 0 or 'hdr' in ext.lower() or 'dat' in ext.lower():  # load ENVI file?
         header, image = matchHeader(path)
-        print(header,image)
 
         # load image with SPy
         assert os.path.exists(image), "Error - %s does not exist." % image
