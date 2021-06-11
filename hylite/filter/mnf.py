@@ -157,7 +157,7 @@ def plotMNF(data, n, factors, wavelengths=None, flip=False, **kwds):
         aspx = cam.dims[1] / cam.dims[0]
         fig, ax = plt.subplots(1, 2, figsize=(18 * 1.15, 18 * aspx),
                                gridspec_kw={'width_ratios': [10, 1], 'wspace': -0.11})
-        data.quick_plot(bands=n, ax=ax[0],**kwds)
+        data.quick_plot(band=n, ax=ax[0],**kwds)
     ax[0].set_xticks([])
     ax[0].set_yticks([])
 

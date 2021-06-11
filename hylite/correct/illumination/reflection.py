@@ -5,9 +5,10 @@ import matplotlib.pyplot as plt
 
 import hylite
 from hylite import HyCloud, HyScene
+from hylite.correct.illumination.source import SourceModel
+from hylite.correct.illumination.occlusion import OccModel
 
-
-def estimate_incidence( normals, sunvec ):
+def estimate_incidence(normals, sunvec):
     """
     Utility function to estimate the cosine of incidence angles based on normals and calculated sun position.
 
@@ -21,10 +22,10 @@ def estimate_incidence( normals, sunvec ):
     """
 
     # extract normal vectors
-    if isinstance( normals, hylite.HyCloud):
-        N = normals.normals[:,:3]
+    if isinstance(normals, hylite.HyCloud):
+        N = normals.normals[:, :3]
         outshape = normals.point_count()
-    elif isinstance( normals, hylite.HyImage ):
+    elif isinstance(normals, hylite.HyImage):
         N = normals.get_raveled()[:, :3]
         outshape = (normals.xdim(), normals.ydim())
     else:
@@ -38,57 +39,59 @@ def estimate_incidence( normals, sunvec ):
     cosInc = np.dot(-N, sunvec)  # cos incidence angle
 
     # return in same shape as original data
-    return cosInc.reshape( outshape )
+    return cosInc.reshape(outshape)
 
 
-class ReflModel( object ):
+class ReflModel(object):
     """
     Model the fraction of downwelling light reflected into the sensor from each pixel based on scene geometry and/or
     statistical reflection models. Generally this takes the form of a physical reflection model ( e.g., Lambert, Oren-Nayer)
-    that can be statistically adjusted using an empirical correction (cfac, minnaert) if necessary.
+    that can be statistically adjusted using an empirical correction (cfac, minnaert) if necessary. Note that the physical models
+    will calculate this as a constant (wavelength independent) value, but that statistical adjustments expand this to a per-band
+    reflectance factor. Hence ReflModel.data will be a HyData instance containing either 1 band, or the number of bands that were
+    used during empirical correction.
     """
-    def __init__(self, geometry, source=None, occ=None, radiance=None, method='cfac'):
+
+    def __init__(self, geometry):
         """
         Create a new reflectance model.
 
         *Arguments*:
          - geometry = a HyData instance containing the 3-D geometry (xyz) and associated normal vectors (klm). This
                       can either be a HyCloud instance with normals, or a HyScene instance.
-         - source = a SourceModel instance defining the downwelling light direction. Default is None.
-         - occ = an OccModel giving occlusion factors for incorporating shadows etc.
-         - radiance = Optional: radiance data to fit reflectivity to.
-         - method = Optional: fitting method to use. Can be 'cfac' or 'minnaert'.
         """
 
         assert isinstance(geometry, HyScene) or \
                isinstance(geometry,
                           HyCloud), "Error - scene geometry must either be a HyImage, HyCloud or HyScene instance."
         self.geometry = geometry
-        self.source = source
-        self.occ = occ
-        self.radiance = radiance
-        self.method = method
-        self.model = None # adjusted (modelled) reflectivity using cfac or minnaert.
+        self.data = None  # modelled reflectance factors will be put here
+        self.prior = None  # if fitting is used, this stores initial estimates
 
-    def fit(self, prior, radiance, method):
+    def fit(self, radiance, method='cfac'):
         """
         Adjust this reflectance model using c-factor or minnaert corrections.
 
         *Arguments*:
-         - prior = the initial (theoretical) reflectivity to fit to the observed radiance. Usually this is self.evaluate().
-         - radiance = a HyData instance containing point or pixel radiance spectra.
+         - radiance = a HyData instance containing point or pixel radiance spectra to fit reflectance too.
          - method = the correction method to apply. Options are 'cfac' or 'minnaert'. Default is 'cfac'.
 
         *Returns:
          - A HyData instance as returned by evaluate( ... ), but adjusted using the cfac or minnaert method. This adjustment
            is calculated per-band, so the returned HyData instance will contain the same number of bands as the passed
-           radiance data.
+           radiance data. The self.data variable will also be updated accordingly, and the uncorrected model stored as self.prior.
         """
 
+        assert self.data is not None, "Error - please compute reflectance model using self.compute(...) before fitting step."
+
         # get initial reflectance estimates and check input shape is appropriate
-        self.prior = prior
-        alpha = self.prior.X()[..., 0]
-        self.r25, self.r50, self.r75 = np.nanpercentile(alpha, (25,50,75)) # reference value to compare adjusted reflectance with
+        if self.prior is None:
+            self.prior = self.data  # define prior
+
+        alpha = self.prior.X()[...,0]
+
+        self.r25, self.r50, self.r75 = np.nanpercentile(alpha, (
+        25, 50, 75))  # reference value to compare adjusted reflectance with
 
         # get radiance vector and deal with invalid pixels
         X = radiance.X().copy()
@@ -108,7 +111,6 @@ class ReflModel( object ):
         assert mask.any(), "Error - all pixels are invalid. Check shadow mask and remove bands that are all nan or 0."
 
         # regress against observed reflectance and calculate correction
-        m = np.zeros_like(X)
         if 'cfac' in method.lower():
             (self.intercept, self.slope), resid = np.polynomial.polynomial.polyfit(alpha[mask], X[mask, :], 1,
                                                                                    full=True)
@@ -119,37 +121,52 @@ class ReflModel( object ):
                                                                                    np.log(X[mask, :]), 1,
                                                                                    full=True)  # y
             m = np.power((1.0 / alpha[:, None]), -self.slope[None, :])
+        else:
+            assert False, "Error - %s is an unknown correction method." % method
+
         self.residual = np.sqrt((resid[0] / X.shape[0]))
 
         # store adjusted reflectance factor
-        self.model = radiance.copy()
-        self.model.data = m.reshape(radiance.data.shape)
+        self.data = radiance.copy()
+        self.data.data = m.reshape(radiance.data.shape)
 
         # add nan bands back in
-        mask = np.logical_not( np.isfinite( radiance.data ).any(axis=(0,1)))
-        self.model.data[..., mask  ] = np.nan
+        mask = np.logical_not(np.isfinite(radiance.data).any(axis=(0, 1)))
+        self.data.data[..., mask] = np.nan
         self.residual[mask] = np.nan
         self.intercept[mask] = np.nan
         self.slope[mask] = np.nan
 
         # return it
-        return self.model
+        return self.data
+
+    def quick_plot(self, **kwds):
+        """
+        Plot this model (must be evaluated first).
+
+        *Keywords*:
+         - keyword arguments are passed to self.data.quick_plot( ... ).
+        """
+        assert self.data is not None, "Error - please compute reflectance model using self.compute(...) first."
+        kwds['band'] = 0
+        kwds['cmap'] = kwds.get('cmap', 'gray')
+        return self.data.quick_plot(**kwds)
 
     def plot_fit(self):
-        assert self.model is not None, "Error - no model has been fitted."
-
+        assert (self.data is not None) and (
+                    self.prior is not None), "Error - no model has been fitted. Do so using self.fit(...)."
         fig, ax = plt.subplots(2, 2, figsize=(18, 8))
-        x = self.model.get_wavelengths()
+        x = self.data.get_wavelengths()
 
         # plot prior
-        ax[0, 0].set_title("Prior reflectivity")
+        ax[0, 0].set_title("Prior reflectance factor")
         self.prior.quick_plot(0, cmap='gray', vmin=0, vmax=1.1, ax=ax[0, 0])
 
         # plot adjusted
-        n = self.model.band_count()
+        n = self.data.band_count()
         b = [x[int(n * i)] for i in (.25, .5, .75)]
-        ax[0, 1].set_title("Adjusted reflectivity (%d, %d, %d nm)" % tuple(b))
-        self.model.quick_plot(b, vmin=0, vmax=1.1, ax=ax[0, 1])
+        ax[0, 1].set_title("Adjusted reflectance factor (%d, %d, %d nm)" % tuple(b))
+        self.data.quick_plot(b, vmin=0, vmax=1.1, ax=ax[0, 1])
 
         ax[1, 0]
         # plot regression coeff
@@ -170,47 +187,45 @@ class ReflModel( object ):
         ax[1, 0].legend()
 
         ax[1, 1].set_title("Adjustment fraction")
-        self.model.plot_spectra(ax=ax[1, 1])
+        self.data.plot_spectra(ax=ax[1, 1])
         ax[1, 1].axhline(self.r25, alpha=0.2, label='Original (quartile)')
         ax[1, 1].axhline(self.r75, alpha=0.2)
         ax[1, 1].axhline(self.r50, alpha=0.7, label='Original (median)')
         [ax[1, 1].axvline(_x, color=c) for _x, c in zip(b, ['r', 'g', 'b'])]
         ax[1, 1].set_ylabel("Reflected fraction")
-        # ax[1].legend()
         return fig, ax
 
-    def evaluate(self, viewpos):
+    def evaluate(self, source, viewpos=None, occ=None):
         """
         Calculate the per-point and per band reflected light fraction (alpha).
 
         *Arguments*
-         - viewpos = the viewing position to evaluate reflectance from (for BRDF models). Default is None.
+         - source = the illumination source to compute reflectance from.
+         - viewpos = numpy array with the viewing position to evaluate reflectance from (for BRDF models). Default is None.
+         - occ = an occlusion model to apply. Default is None. If a list is passed, these will all be applied.
         *Returns*:
          - A HyData instance containing a single band with the per-point or per-pixel reflectance factor.
         """
 
-        # update position
-        self.pos  = viewpos
-
         # gather necessary information
-        xyz = None # raveled position vector
-        klm = None # raveled normal vector
+        xyz = None  # raveled position vector
+        klm = None  # raveled normal vector
         if isinstance(self.geometry, HyCloud):
             # create output object
             outshape = (self.geometry.point_count(),)
-            out = self.geometry.copy( data = False )
+            out = self.geometry.copy(data=False)
 
             # get geometry data
-            klm = self.geometry.normals.reshape((-1,3))
-            xyz = self.geometry.xyz.reshape((-1,3))
+            klm = self.geometry.normals.reshape((-1, 3))
+            xyz = self.geometry.xyz.reshape((-1, 3))
         elif isinstance(self.geometry, HyScene):
             # create output object
             outshape = (self.geometry.image.data.shape[:-1] + (1,))
             out = self.geometry.image.copy(data=False)
 
             # get geometry data
-            klm = self.geometry.normals.reshape((-1,3))
-            xyz = self.geometry.xyz.reshape((-1,3))
+            klm = self.geometry.normals.reshape((-1, 3))
+            xyz = self.geometry.xyz.reshape((-1, 3))
 
         else:
             assert False, "Error - scene geometry must either be a HyImage, HyCloud or HyScene instance."
@@ -218,29 +233,38 @@ class ReflModel( object ):
         # get incidence source direction and viewing direction.
         i = None
         v = None
-        if self.source is not None:
-            i = self.source.illuVec
-        if self.pos is not None:
-            v = xyz - self.pos  # calculate view vectors
+        if source is not None:
+            assert isinstance(source, SourceModel), "Error - illu must be a SourceModel."
+            i = source.illuVec
+        if viewpos is not None:
+            assert isinstance(viewpos, np.ndarray), "Error - view position must be a numpy array."
+            v = xyz - viewpos  # calculate view vectors
             v /= np.linalg.norm(v, axis=-1)[..., None]  # normalize
 
         # calculate reflection ignoring occlusions
-        alpha = self.calculateReflection(i, klm, v )
+        alpha = self.calculateReflection(i, klm, v)
 
         # apply occlusions
-        if self.occ is not None:
-            o = self.occ.evaluate()
-            assert o.shape == alpha.shape, "Error - occlusion and alpha shapes do not match; %s != %s." % (o.shape, alpha.shape)
-            alpha *= o # apply occlusion mask
+        if occ is not None:
+            if not isinstance(occ, list):
+                occ = [occ]
+            for o in occ:
+                assert o.data != None, "Error - please evaluate all occlusion models before using."
+                _o = o.data.data.ravel()
+                assert _o.shape == alpha.shape, "Error - occlusion and alpha shapes do not match; %s != %s." % (
+                _o.shape, alpha.shape)
+                alpha *= (1 - _o)  # apply occlusion mask
 
         # reshape and return
         out.data = alpha.reshape(outshape)
+        self.data = out  # store results
+        return out  # return
 
-        # apply fitting routine?
-        if self.radiance is not None and self.method is not None:
-            return self.fit(out, self.radiance, self.method)
-        else: # don't apply fitting routine
-            return out
+    def isEvaluated(self):
+        """
+        Return true if this occlusion model has been evaluated.
+        """
+        return self.data is not None
 
     @abstractmethod
     def calculateReflection(self, I, N, V):
@@ -256,23 +280,27 @@ class ReflModel( object ):
         """
         pass
 
+
 ########################################
 ## Reflectance model implementations
 #######################################
-class IdealRefl( ReflModel ):
+class IdealRefl(ReflModel):
     """
     A perfectly reflective material (reflects all downwelling light to the sensor).
     """
+
     def calculateReflection(self, I, N, V):
         """
         Simply returns 100% reflectance for each point/pixel.
         """
-        return N[:,0] / N[:, 0] # return list of ones and nans.
+        return N[:, 0] / N[:, 0]  # return list of ones and nans.
 
-class LambertRefl( ReflModel ):
+
+class LambertRefl(ReflModel):
     """
     A perfectly reflective material (reflects all downwelling light to the sensor).
     """
+
     def calculateReflection(self, I, N, V):
         """
         Return the cosine of the incidence angle as per lamberts law.
@@ -282,9 +310,10 @@ class LambertRefl( ReflModel ):
         assert N is not None, "Error: Normal vectors need to be defined for Lambert Reflection."
 
         # calculate alpha = cos( incidence angle ) = I . N
-        a = estimate_incidence( N, I )
-        a[ a < 0 ] = 0 # remove backfaces
+        a = estimate_incidence(N, I)
+        a[a < 0] = 0  # remove backfaces
         return a
+
 
 class OrenNayar(ReflModel):
     """

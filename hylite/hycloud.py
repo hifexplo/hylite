@@ -224,7 +224,7 @@ class HyCloud( HyData ):
         Renders this point cloud to a HyImage using the specified camera.
 
         *Arguments*:
-         - cam = the camera to render with.
+         - cam = the camera to render with. Either a Camera instance or a direction string ('x', 'y', 'z' or '-x', '-y', '-z').
          - step = the image pixel angular step (in x) for panoramic images. Default is None == square pixels.
          - bands = List defining the bands to include in the output image. Elements should be one of:
                     - 'rgb' = rgb
@@ -421,14 +421,14 @@ class HyCloud( HyData ):
             img.despeckle(int(despeckle))
         return img
 
-    def quick_plot(self, cam, bands='rgb', s=1, step=1, fill_holes=False, blur=False, despeckle=False, **kwds):
+    def quick_plot(self, cam, band='rgb', s=1, step=1, fill_holes=False, blur=False, despeckle=False, **kwds):
 
         """
         Renders this point cloud using the specified camera.
 x
         *Arguments*:
          - cam = the camera to render with.
-         - bands = the bands to plot. 'rgb' will plot colour, 'norm' will plot normals, 'xyz' will plot
+         - band = the bands to plot. 'rgb' will plot colour, 'norm' will plot normals, 'xyz' will plot
                    coordinates. Or an index or tuple of 3-indices (mapped to rgb) can be passed to plot scalar fields.
          - s = point size (in pixels; must be an integer).
          - step = skip through n points for quicker plotting (default is 1 = draw all points).
@@ -443,10 +443,10 @@ x
          - ax = the plot axis
         """
 
-        img = self.render(cam, bands, s=s, step=step, fill_holes=fill_holes, blur=blur, despeckle=despeckle)
+        img = self.render(cam, band, s=s, step=step, fill_holes=fill_holes, blur=blur, despeckle=despeckle)
 
         if img.band_count() >= 3:  # we have enough bands to map to rgb
-            if 'rgb' in bands: # edge case - rgb values should map from 0 to 1!
+            if 'rgb' in band: # edge case - rgb values should map from 0 to 1!
                 kwds['vmin'] = kwds.get('vmin', 0)
                 if np.issubdtype(self.rgb.dtype, np.integer):
                     kwds['vmax'] = kwds.get('vmax', 255)
