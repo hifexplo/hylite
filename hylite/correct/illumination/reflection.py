@@ -68,78 +68,6 @@ class ReflModel(object):
         self.data = None  # modelled reflectance factors will be put here
         self.prior = None  # if fitting is used, this stores initial estimates
 
-    def fit(self, radiance, method='cfac'):
-        """
-        Adjust this reflectance model using c-factor or minnaert corrections.
-
-        *Arguments*:
-         - radiance = a HyData instance containing point or pixel radiance spectra to fit reflectance too.
-         - method = the correction method to apply. Options are 'cfac' or 'minnaert'. Default is 'cfac'.
-
-        *Returns:
-         - A HyData instance as returned by evaluate( ... ), but adjusted using the cfac or minnaert method. This adjustment
-           is calculated per-band, so the returned HyData instance will contain the same number of bands as the passed
-           radiance data. The self.data variable will also be updated accordingly, and the uncorrected model stored as self.prior.
-        """
-
-        assert self.data is not None, "Error - please compute reflectance model using self.compute(...) before fitting step."
-
-        # get initial reflectance estimates and check input shape is appropriate
-        if self.prior is None:
-            self.prior = self.data  # define prior
-
-        alpha = self.prior.X()[...,0]
-
-        self.r25, self.r50, self.r75 = np.nanpercentile(alpha, (
-        25, 50, 75))  # reference value to compare adjusted reflectance with
-
-        # get radiance vector and deal with invalid pixels
-        X = radiance.X().copy()
-        assert alpha.shape[0] == X.shape[0], "Error - radiance data has incorrect shape."
-
-        nans = np.logical_or(np.logical_not(np.isfinite(X).any(axis=0)), (X == 0).all(
-            axis=0))  # replace any bands that are all nan with 1.0 (hack that avoids issues when calculating regressions)
-        X[:, nans] = 1.0  # regressions will now give 0 slope ( == 0 correction ) for nan bands
-        X[
-            X <= 0] = 1e-6  # get rid of zeros and negative numbers [ should be impossible and causes errors for log in minnaert]
-
-        # calculate direct illumination mask
-        i_mask = alpha > 0.01  # non-illuminated pixels; remove from regression.
-
-        # calculate mask to use for regressions
-        mask = np.isfinite(X).all(axis=1) & (X != 0).any(axis=1) & np.isfinite(alpha) & i_mask
-        assert mask.any(), "Error - all pixels are invalid. Check shadow mask and remove bands that are all nan or 0."
-
-        # regress against observed reflectance and calculate correction
-        if 'cfac' in method.lower():
-            (self.intercept, self.slope), resid = np.polynomial.polynomial.polyfit(alpha[mask], X[mask, :], 1,
-                                                                                   full=True)
-            self.cfac = self.intercept / self.slope
-            m = (alpha[:, None] + self.cfac[None, :]) / (1 + self.cfac[None, :])
-        elif 'minn' in method.lower():
-            (self.intercept, self.slope), resid = np.polynomial.polynomial.polyfit(np.log(alpha[mask]),  # x
-                                                                                   np.log(X[mask, :]), 1,
-                                                                                   full=True)  # y
-            m = np.power((1.0 / alpha[:, None]), -self.slope[None, :])
-        else:
-            assert False, "Error - %s is an unknown correction method." % method
-
-        self.residual = np.sqrt((resid[0] / X.shape[0]))
-
-        # store adjusted reflectance factor
-        self.data = radiance.copy()
-        self.data.data = m.reshape(radiance.data.shape)
-
-        # add nan bands back in
-        mask = np.logical_not(np.isfinite(radiance.data).any(axis=(0, 1)))
-        self.data.data[..., mask] = np.nan
-        self.residual[mask] = np.nan
-        self.intercept[mask] = np.nan
-        self.slope[mask] = np.nan
-
-        # return it
-        return self.data
-
     def quick_plot(self, **kwds):
         """
         Plot this model (must be evaluated first).
@@ -151,49 +79,6 @@ class ReflModel(object):
         kwds['band'] = 0
         kwds['cmap'] = kwds.get('cmap', 'gray')
         return self.data.quick_plot(**kwds)
-
-    def plot_fit(self):
-        assert (self.data is not None) and (
-                    self.prior is not None), "Error - no model has been fitted. Do so using self.fit(...)."
-        fig, ax = plt.subplots(2, 2, figsize=(18, 8))
-        x = self.data.get_wavelengths()
-
-        # plot prior
-        ax[0, 0].set_title("Prior reflectance factor")
-        self.prior.quick_plot(0, cmap='gray', vmin=0, vmax=1.1, ax=ax[0, 0])
-
-        # plot adjusted
-        n = self.data.band_count()
-        b = [x[int(n * i)] for i in (.25, .5, .75)]
-        ax[0, 1].set_title("Adjusted reflectance factor (%d, %d, %d nm)" % tuple(b))
-        self.data.quick_plot(b, vmin=0, vmax=1.1, ax=ax[0, 1])
-
-        ax[1, 0]
-        # plot regression coeff
-        ax[1, 0].set_title("Regression coefficients")
-        ax[1, 0].plot(x, self.intercept, color='b', alpha=0.4, label='Intercept')
-        ax[1, 0].plot(x, self.slope, color='g', alpha=0.4, label='Slope')
-
-        # plot bounds
-        mask = np.isfinite(self.intercept)
-        mask = np.hstack([mask, mask[::-1]])
-        ymin = self.intercept - self.residual
-        ymax = self.intercept + self.residual
-        ax[1, 0].fill(np.hstack([x, x[::-1]])[mask], np.hstack([ymin, ymax[::-1]])[mask], color='b', alpha=0.2)
-
-        ymin = self.slope - self.residual
-        ymax = self.slope + self.residual
-        ax[1, 0].fill(np.hstack([x, x[::-1]])[mask], np.hstack([ymin, ymax[::-1]])[mask], color='g', alpha=0.2)
-        ax[1, 0].legend()
-
-        ax[1, 1].set_title("Adjustment fraction")
-        self.data.plot_spectra(ax=ax[1, 1])
-        ax[1, 1].axhline(self.r25, alpha=0.2, label='Original (quartile)')
-        ax[1, 1].axhline(self.r75, alpha=0.2)
-        ax[1, 1].axhline(self.r50, alpha=0.7, label='Original (median)')
-        [ax[1, 1].axvline(_x, color=c) for _x, c in zip(b, ['r', 'g', 'b'])]
-        ax[1, 1].set_ylabel("Reflected fraction")
-        return fig, ax
 
     def evaluate(self, source, viewpos=None, occ=None):
         """
@@ -212,7 +97,7 @@ class ReflModel(object):
         klm = None  # raveled normal vector
         if isinstance(self.geometry, HyCloud):
             # create output object
-            outshape = (self.geometry.point_count(),)
+            outshape = (self.geometry.point_count(),1)
             out = self.geometry.copy(data=False)
 
             # get geometry data

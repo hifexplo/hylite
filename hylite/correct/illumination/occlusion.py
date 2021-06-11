@@ -76,7 +76,7 @@ class OccModel(object):
             if hasattr(self.geometry, 'data'):
                 rad = self.geometry.copy()
             self.data = self.geometry.copy( data=False )
-            self.data.data = self.compute(source, xyz, klm, rad, **kwds)[..., 0]
+            self.data.data = self.compute(source, xyz, klm, rad, **kwds)
         else:
             assert False, "Error, self.geometry must be an instance of HyScene or HyCloud."
 
@@ -118,12 +118,6 @@ class OccModel(object):
         kwds['band'] = 0
         kwds['cmap'] = 'gray_r'
 
-        if isinstance(self.data, hylite.HyCloud):
-            if 'cam' not in kwds:
-                try:
-                    kwds['cam'] = kwds.get("cam", self.data.header.get_camera(0))
-                except:
-                    assert False, "Error - please pass a camera instance (cam keyword) for plotting."
         return self.data.quick_plot(**kwds)
 
     def isEvaluated(self):
@@ -185,7 +179,7 @@ class SkyOcc(OccModel):
          - A numpy array containg occlusion factors for each point.
         """
         if isinstance(self.geometry, hylite.HyCloud):
-            return 1. - self.geometry.data[..., 0]
+            return 1. - self.geometry.data
         elif isinstance(self.geometry, hylite.HyScene):
             return 1. - self.geometry.cloud.render(self.geometry.camera, 0, fill_holes=True).data
         else:

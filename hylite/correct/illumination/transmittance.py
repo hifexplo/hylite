@@ -13,7 +13,7 @@ class TransModel(object):
         Create a new occlusion model.
 
         *Arguments*:
-         - geometry = a HyCloud instance containing the 3-D scene geometry.
+         - geometry = a HyCloud or HyScene instance containing the 3-D scene geometry.
          - pos = a (3,) numpy array containing the viewing position.
         """
         self.geometry = geometry
