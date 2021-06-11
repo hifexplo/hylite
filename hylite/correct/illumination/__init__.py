@@ -75,7 +75,7 @@ def estimate_sun_vec(lat, lon, time):
     return sunvec, azimuth, elevation
 
 ##############################
-## Generic illumination model
+## Define generic illumination model
 ###############################
 
 from .occlusion import *
@@ -83,96 +83,99 @@ from .reflection import *
 from .source import *
 from .transmittance import *
 
-class IlluModel( object ):
+
+class IlluModel(object):
     """
-    Combine source and reflection models (as well as optional occlusion and transmittance models) to
-    model the illumination effect of a single light source (e.g. the sun or sky). For modelling multiple light
-    sources IlluModels can be added together to calculate overall scene illumination.
+    Combine source, reflection, occlusion and transmittance models to simulate
+    the illumination within a scene. A single IlluModel can include multiple
+    light sources.
     """
 
-    def __init__(self, sourceModel, reflModel, transModel=None):
+    def __init__(self):
         """
-        Create a new illumination model.
+        Create a new (empty) illumination model.
+        """
+        self.names = []
+        self.sources = []  # source models
+        self.refl = []  # reflection models
+        self.trans = None  # transmittance model
+        self.data = None
 
-        *Arguments*:
-         - sourceModel = the light source properties.
-         - reflModel = the material reflectance model (e.g. Oren-Nayar, Lambert, etc.)
-         - occModel = the occlusion model (shadows, sky view factor etc.). Default is None.
-         - transModel = the atmospheric transmittance model for modelling path radiance. Default is None.
+    def addSource(self, name, source, refl):
+        """
+        Add a light source (e.g. sun, sky) to this illumination model.
         """
 
-        self.source = sourceModel
-        self.refl = reflModel
-        self.transModel = transModel
+        # check variables
+        assert isinstance(name, str), "Error - source name must be a string."
+        assert isinstance(source, SourceModel), "Error - source must be a SourceModel instance."
+        assert isinstance(refl, ReflModel), "Error - refl must be a ReflModel instance."
+        assert refl.isEvaluated(), "Error - reflection model must be evaluated. Call refl.evaluate(...) first!"
 
-    def get_illumination(self, viewpos, radiance):
+        # add to lists
+        self.names.append(name)
+        self.sources.append(source)
+        self.refl.append(refl)
+
+    def setTrans(self, trans):
         """
-        Return the per-pixel illumination spectra as viewed through the specified camera. This (theoretically)
-        gives what the camera would see if material reflectance is constant and equal to 1.0. Hence it can be used
-        to convert radiance to reflectance.
+        Set the target -> sensor transmittance model.
+        """
+        assert isinstance(trans, TransModel), "Error - trans must be a ReflModel instance."
+        assert trans.isEvaluated(), "Error - transmittance model must be evaluated. Call trans.evaluate(...) first!"
+        self.trans = trans
+
+    def evaluate(self):
+        """
+        Evaluate the per-pixel illumination spectra. This (theoretically) gives what the camera would see if
+        material reflectance is constant and equal to 1.0. Hence it can be used to convert radiance to reflectance.
 
         *Arguments*:
          - viewpos = the viewing position.
          - radiance = a
         *Returns*:
-         - a HyImage instance containing the illumination spectra per pixel.
+         - a HyData instance containing the illumination spectra per pixel. This is also stored in self.data.
         """
 
-        # get illumination spectra
-        I = self.source.r()
+        # if there is no light, you can't see!
+        if len(self.refl) == 0:
+            print("Warning - no reflectance models or illumination sources. Returning 0 (no light).")
+            return 0
 
-        # get reflectivity model
-        a = self.refl.evaluate() # n.b. this can either be shaped (x,y,b) or (x,y,1)
+        # calculate and check number of bands
+        nbands = 1  # default to only one band
+        for s, r in zip(self.sources, self.refl):
+            if isinstance(s.spectra, np.ndarray):
+                assert nbands == 1 \
+                       or nbands == s.spectra.shape[0], "Error - light sources have different number of bands."
+                nbands = s.spectra.shape[0]
+            else:
+                nbands = max(nbands, r.data.data.shape[
+                    -1])  # we could also find number of bands if refl model is fitted to data
 
-        # get transmittance factors
-        t = np.ones_like(a)
-        if self.transModel is not None:
-            t = self.transModel.evaluate()
-        pass
+        # loop through light sources and accumulate light
+        self.data = self.refl[0].data.copy(data=False)
+        self.data.data = np.zeros(on.data.data.shape[:-1] + (nbands,))  # init output array
+        for s, r in zip(self.sources, self.refl):
+            if isinstance(s.spectra, float):  # constance illumination
+                self.data.data[..., :] += r.data.data * s.spectra
+            else:
+                self.data.data += r.data.data * s.spectra  # accumulate illuminatino
+
+        # apply transmittance model
+        if self.trans is not None:
+            self.data.data *= self.trans.data.data
+
+        return self.data
+
+    def isEvaluated(self):
+        return self.data is not None
 
 
 ####################################################
 ## Functions for constructing illumination models
 ####################################################
-def estimate_sun_vec(lat, lon, time):
-    """
-    Calculate the sun illumination vector at the specified position and time.
 
-    *Arguments*:
-     - lat = the latitude of the position to calculate the sun vector at (in decimal degrees).
-     - lon = the longitude of the position to calculate the sun vector at (in decimal degrees).
-     - time = the time the dataset was acquired. This, and the position defined by the "pos"
-              argument will be used to calculate the sun direction. Should be an instance of datetime.datetime,
-              or a tuple containing (timestring, formatstring, pytz timezone).
-              E.g. time = ("19/04/2019 12:28","%d/%m/%Y %H:%M", 'Europe/Madrid')
-    *Returns*:
-     - sunvec = the sun illumination direction (i.e. from the sun to the observer) in cartesian coords
-     - azimuth = the azimuth of the sun (bearing towards sun)
-     - elevation = the elevation of the sun (angle above horizon)
-    """
-
-    # get time
-    if isinstance(time, tuple):  # parse time from strings
-        tz = time[2]
-        time = datetime.strptime(time[0], time[1])
-        tz = pytz.timezone(tz)
-        time = tz.localize(time)
-
-    # time = time.astimezone(pytz.utc) #convert to UTC
-
-    assert isinstance(time, datetime), "Error - time must be a datetime.datetime instance"
-    assert not time.tzinfo is None, "Error - time zone must be specified (e.g. using tz='timezone')."
-
-    # calculate illumination vector from time/position
-    import astral.sun
-    pos = astral.Observer(lat, lon, 0)
-    azimuth = astral.sun.azimuth(pos, time)
-    elevation = astral.sun.elevation(pos, time)
-
-    sunvec = sph2cart(azimuth + 180, elevation)  # n.b. +180 flips direction from vector point at sun to vector
-    # pointing away from the sun.
-
-    return sunvec, azimuth, elevation
 
 def buildIlluModel_ELC( sundir, sunpanel, refl, occ=None ):
     """
@@ -236,7 +239,7 @@ def estimateIlluModel_Joint( radiance, sunpanel, refl, occSun, occSky ):
 ##########################
 ## Correction functions
 ##########################
-def rad2refl(self, radiance, illu, trans=None):
+def rad2refl(self, radiance, illu):
     """
     Convert from radiance to reflectance given the specified illumination models and viewing direction.
 
@@ -247,7 +250,7 @@ def rad2refl(self, radiance, illu, trans=None):
     """
     pass
 
-def refl2rad(self, reflectance, illu, trans):
+def refl2rad(self, reflectance, illu):
     """
     Convert from reflectance to radiance given the specified illumination model and viewing direction.
 

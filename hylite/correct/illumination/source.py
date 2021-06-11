@@ -7,14 +7,14 @@ class SourceModel(object):
     """
     Class for encapsulating light source propertes (spectra, position, etc.)
     """
-    def __init__(self, spectra, direction):
+    def __init__(self, direction=None, spectra=1.0, ):
         """
         Create a new light source.
 
         *Arguments*:
-         - spectra = a n-d numpy array defining the radiance of the light source in each band. E.g. downwelling illumination
-                     calculated using calibration panels.
          - direction = the (downward pointing) illumination vector. Can be none if illumination is omnidirectional.
+         - spectra = a n-d numpy array defining the radiance of the light source in each band. E.g. downwelling illumination
+                     calculated using calibration panels. Default is 1.0 (pure white).
         """
 
         self.spectra = spectra
@@ -30,12 +30,12 @@ class SourceModel(object):
 
     def r(self):
         """
-        Return the radiance spectra for this source.
+        Return the radiance spectra for this source.sdfdfdfdfd
         """
         return self.spectra
 
     def d(self):
         """
-        Return the direction vector for this source.
+        Return the direction vector for this source, or None if the source is omnidirectional.
         """
         return self.illuVec

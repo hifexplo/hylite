@@ -1,74 +1,90 @@
 """
 Classes containing different occlusion models (e.g. estimators for shadows, sky view factor etc.)
 """
-from abc import ABCMeta, abstractmethod
 
-"""
-Classes containing different occlusion models (e.g. estimators for shadows, sky view factor etc.)
-"""
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import hylite
 from hylite.correct.illumination.source import SourceModel
 from hylite.analyse import band_ratio
 
+"""
+Classes containing different occlusion models (e.g. estimators for shadows, sky view factor etc.)
+"""
+from abc import ABCMeta, abstractmethod
+
+"""
+Classes containing different occlusion models (e.g. estimators for shadows, sky view factor etc.)
+"""
+from abc import ABCMeta, abstractmethod
+
+
 class OccModel(object):
     """
     Base class for modelling occlusions (e.g. shadows) within a scene based on a specific light source (e.g. sunlight, skylight).
     """
 
-    def __init__(self, geometry, source=None):
+    def __init__(self, geometry):
         """
         Create a new occlusion model.
 
         *Arguments*:
          - geometry = a HyData instance containing the 3-D scene geometry. This can either be a HyImage instance where the
                       first three bands correspond to xyz, or a HyCloud instance.
-         - source = a SourceModel containing the light source geometry (direction).
         """
         self.geometry = geometry
-        self.source = source
-        self.occ = None
+        self.data = None
         assert isinstance(self.geometry, hylite.HyScene) \
                or isinstance(self.geometry, hylite.HyCloud), \
             "Error, self.geometry must be an instance of HyScene or HyCloud."
-        assert isinstance(source, SourceModel)
 
-    def evaluate(self, **kwds):
+    def evaluate(self, source=None, **kwds):
         """
         Calculate the fraction of incoming light blocked by this occlusion (0 - 1) as a HyData instance.
 
+        *Arguments*:
+         - source = the light source to calculate occlusions from.
         *Optional Keywords*:
          - see child class for details.
         *Returns*:
-         - A HyCloud or HyImage instance containing the occlusion factor (0-1) for each point.
+         - A HyCloud or HyImage instance containing the occlusion factor (0-1) for each point. This dataset
+           is also stored as self.data.
         """
+
+        if source is not None:
+            assert isinstance(source, SourceModel), "Error, source must be an instance of SourceModel (or None)."
 
         # apply to HyScene (image data)
         if isinstance(self.geometry, hylite.HyScene):
+            # gather relevant data
             shape = (self.geometry.image.xdim(), self.geometry.image.ydim())
             xyz = self.geometry.get_xyz().reshape((shape[0] * shape[1], 3)).copy()
             klm = self.geometry.get_normals().reshape((shape[0] * shape[1], 3)).copy()
             rad = self.geometry.image.data.reshape((shape[0] * shape[1], -1)).copy()
             rad = hylite.HyData(rad)
-            rad.set_wavelengths(image.get_wavelengths())
-            self.occ = hylite.HyImage(self.compute(xyz, klm, rad, **kwds).reshape(shape + (1,)))
+            rad.set_wavelengths(self.geometry.image.get_wavelengths())
+
+            # compute occlusions
+            self.data = hylite.HyImage(self.compute(source, xyz, klm, rad, **kwds).reshape(shape + (1,)))
 
         # apply to HyCloud data
         elif isinstance(self.geometry, hylite.HyCloud):
+            # gather relevant data
             xyz = self.geometry.xyz.copy()
             klm = self.geometry.normals.copy()
-            rad = self.geometry.copy()
-            self.occ = self.geometry.cloud.copy()
-            self.occ.data = self.compute(xyz, klm, rad, **kwds)[..., 0]
+            rad = None
+            if hasattr(self.geometry, 'data'):
+                rad = self.geometry.copy()
+            self.data = self.geometry.copy( data=False )
+            self.data.data = self.compute(source, xyz, klm, rad, **kwds)[..., 0]
         else:
             assert False, "Error, self.geometry must be an instance of HyScene or HyCloud."
 
         # return
-        return self.occ
+        return self.data
 
     @abstractmethod
-    def compute(self, xyz, klm, rad, **kwds):
+    def compute(self, source, xyz, klm, rad, **kwds):
         """
         *Arguments*:
          - xyz = a (n,3) array of point or pixel coordinates in 3-D space.
@@ -88,30 +104,40 @@ class OccModel(object):
         Plot this illumination mask. If not previously calculate, then self.evaluate() will be called.
 
         *Optional Keywords*:
-         - cam = a camera instance if self.geometry as a HyCloud instance.
+         - keywords are passed to self.data.quick_plot( ... ).
         *Returns*:
          - fig, ax = the plot figure.
         """
 
-        if self.occ is None:
+        if self.data is None:
             try:
                 self.evaluate()
             except:
                 assert False, "Error: call evaluate(...) first to compute occlusions before plotting."
 
-        if isinstance(self.geometry, hylite.HyCloud):
-            cam = kwds.get("cam", scene.geometry.get_camera(0))
-            return self.occ.quick_plot(0, cam)
-        else:
-            return self.occ.quick_plot(0)
+        kwds['band'] = 0
+        kwds['cmap'] = 'gray_r'
 
+        if isinstance(self.data, hylite.HyCloud):
+            if 'cam' not in kwds:
+                try:
+                    kwds['cam'] = kwds.get("cam", self.data.header.get_camera(0))
+                except:
+                    assert False, "Error - please pass a camera instance (cam keyword) for plotting."
+        return self.data.quick_plot(**kwds)
 
-class selfOcc(OccModel):
+    def isEvaluated(self):
+        """
+        Return true if this occlusion model has been evaluated.
+        """
+        return self.data is not None
+
+class SelfOcc(OccModel):
     """
     Model self occlusions using a band ratio.
     """
 
-    def compute(self, xyz, klm, rad, **kwds):
+    def compute(self, source, xyz, klm, rad, **kwds):
         """
         Calculate self-occlusions using the angle of incidience (occlude if > 90 deg).
         """
@@ -119,12 +145,12 @@ class selfOcc(OccModel):
         return (a < 0).astype(np.float)  # return True for self-occ areas
 
 
-class bandOcc(OccModel):
+class BandOcc(OccModel):
     """
     Model occlusion using a band ratio to identify shadows that are significantly "bluer" than their surroundings.
     """
 
-    def compute(self, xyz, klm, rad, **kwds):
+    def compute(self, source, xyz, klm, rad, **kwds):
         """
         Calculate the fraction of incoming light blocked by this occlusion (0 - 1) as a HyData instance.
 
@@ -142,3 +168,27 @@ class bandOcc(OccModel):
         out /= kwds.get('b', 1.3) - kwds.get('a', 1.2)
         out = np.clip(out, 0, 1)
         return out
+
+class SkyOcc(OccModel):
+    """
+    Model occlusion of the sky by loading precalculated sky view factors. These could be calculated using e.g. CloudCompare.
+
+    N.B. this simply assumes that self.geometry.data[...,0] gives an array of sky view factors. Hence when creating this
+    type of occlusion, the 'geometry' argument should be a HyCloud or HyScene instance with band 0 = sky view factors
+    (ranging from 0 [ no view of sky ] to 1 [ full view of sky ].
+    """
+    def compute(self, source, xyz, klm, rad, **kwds):
+        """
+        Calculate the fraction of incoming light blocked by this occlusion (0 - 1) as a HyData instance.
+
+        *Returns*:
+         - A numpy array containg occlusion factors for each point.
+        """
+        if isinstance(self.geometry, hylite.HyCloud):
+            return 1. - self.geometry.data[..., 0]
+        elif isinstance(self.geometry, hylite.HyScene):
+            return 1. - self.geometry.cloud.render(self.geometry.camera, 0, fill_holes=True).data
+        else:
+            assert False, "Error, unknown geometry type."
+
+        return (a < 0).astype(np.float)  # return True for self-occ areas
