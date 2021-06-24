@@ -3,7 +3,7 @@
 Import and export hyperspectral data. For hyperspectral images this is mostly done using GDAL,
 while for point clouds and hyperspectral libraries a variety of different methods are included.
 """
-
+import os
 from .headers import *
 from .images import *
 from .clouds import *
@@ -22,11 +22,20 @@ def save(path, data):
     """
 
     if isinstance(data, HyImage):
-        try:
-            from osgeo import gdal  # is gdal installed?
-            save_func = saveWithGDAL
-        except ModuleNotFoundError:  # no gdal, use SPy
-            save_func = saveWithSPy
+
+        # special case - save ternary image to png or jpg or bmp
+        ext = os.path.splitext(path)[1].lower()
+        if 'jpg' in ext or 'bmp' in ext or 'png' in ext or 'pdf' in ext:
+            if data.band_count() == 1 or data.band_count() == 3 or data.band_count == 4:
+                from matplotlib.pyplot import imsave
+                imsave( path, np.transpose( data.data, (1,0,2) ).copy() ) # save the image
+                return
+        else: # save hyperspectral image
+            try:
+                from osgeo import gdal  # is gdal installed?
+                save_func = saveWithGDAL
+            except ModuleNotFoundError:  # no gdal, use SPy
+                save_func = saveWithSPy
     elif isinstance(data, HyCloud):
         save_func = saveCloudPLY
     elif isinstance(data, HyLibrary):
@@ -62,7 +71,13 @@ def load(path):
         return loadLibrarySED(path)
     elif 'tsg' in ext: # spectral library
         return loadLibraryTSG(path)
-    else: # image - load with SPy
+    else: # image
+
+        # load conventional images with PIL
+        if 'png' in ext or 'jpg' in ext or 'bmp' in ext:
+            # load image with matplotlib
+            from matplotlib.pyplot import imread
+            return HyImage(np.transpose(imread(path), (1, 0, 2)))
         try:
             from osgeo import gdal # is gdal installed?
             return loadWithGDAL(path)
