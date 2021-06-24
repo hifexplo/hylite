@@ -346,6 +346,8 @@ class HyHeader( dict ):
         name = name.lower()  # use lower case
         self['target %s reflectance' % name] = panel.get_reflectance()
         self['target %s radiance' % name] = panel.get_mean_radiance()
+        if panel.normal is not None: # store normal vector
+            self['target %s normal' % name] = panel.normal
 
     def get_panel(self, name):
         """
@@ -374,9 +376,18 @@ class HyHeader( dict ):
         reflectance = reflectance.astype(np.float32) # check type
         radiance = radiance.astype(np.float32)
 
-        # create Target instance
+        # get normal vector (if defined)
+        normal = None
+        if ('target %s normal' % name) in self:
+            normal = np.fromstring( self['target %s normal' % name], sep=",")
+
+        # create dummy Target instance
         material = Target(self.get_wavelengths(), reflectance, name=name)
-        return Panel( material, radiance, wavelengths=self.get_wavelengths() )
+
+        # create Panel instance and return
+        P = Panel( material, radiance, wavelengths=self.get_wavelengths() )
+        P.set_normal(normal)
+        return P
 
     def remove_panel(self, name = None):
         """

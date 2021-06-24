@@ -46,6 +46,8 @@ class Panel( HyData ):
 
         super().__init__(None)  # initialise header etc.
         self.source_image = None  # init defaults
+        self.outline = None
+        self.normal = None
 
         if isinstance(radiance, np.ndarray):  # radiance is a list of pixels
 
@@ -219,69 +221,120 @@ class Panel( HyData ):
         """
         return self.reflectance
 
-    def get_normal(self, cam):
+    def get_normal(self, cam=None, recalc=False):
         """
         Get the normal vector of this panel by assuming its outline is square (prior to projection onto the camera).
 
         *Arguments*:
-         - a Camera object describing the pose of the camera from which the panel is viewed.
-
+         - cam = a Camera object describing the pose of the camera from which the panel is viewed. Default is None (to retrieve
+                 previously stored normals)
+         - recalc = True if a precomputed (or otherwise defined) normal vector should be recalculated. Default is False.
         *Returns*:
-         - norm, err = the normal vector of the panel (in world coordinates) and the residual error of the orientation
-                       estimation procedure.
+         - norm = the normal vector of the panel (in world coordinates). This is also stored as self.normal.
         """
 
-        # get corners of panel and convert to rays
-        corners = np.array([self.outline.vertices[i, :] for i in range(4)])
+        if recalc or self.normal is None:
 
-        if cam.is_panoramic():
-            ray1 = pix_to_ray_pano(corners[0, 0], corners[0, 1], cam.fov, cam.step, cam.dims)
-            ray2 = pix_to_ray_pano(corners[1, 0], corners[1, 1], cam.fov, cam.step, cam.dims)
-            ray3 = pix_to_ray_pano(corners[2, 0], corners[2, 1], cam.fov, cam.step, cam.dims)
-            ray4 = pix_to_ray_pano(corners[3, 0], corners[3, 1], cam.fov, cam.step, cam.dims)
+            # check outline is available
+            assert cam is not None, "Error - normal vector not previously defined. Please specify a camera object (cam) to estimate normal."
+            assert self.outline is not None, "Error - self.outline must contain four points to estimate this panels normal vector..."
+
+            # get corners of panel and convert to rays
+            corners = np.array([self.outline.vertices[i, :] for i in range(4)])
+
+            if cam.is_panoramic():
+                ray1 = pix_to_ray_pano(corners[0, 0], corners[0, 1], cam.fov, cam.step, cam.dims)
+                ray2 = pix_to_ray_pano(corners[1, 0], corners[1, 1], cam.fov, cam.step, cam.dims)
+                ray3 = pix_to_ray_pano(corners[2, 0], corners[2, 1], cam.fov, cam.step, cam.dims)
+                ray4 = pix_to_ray_pano(corners[3, 0], corners[3, 1], cam.fov, cam.step, cam.dims)
+            else:
+                ray1 = pix_to_ray_persp(corners[0, 0], corners[0, 1], cam.fov, cam.dims)
+                ray2 = pix_to_ray_persp(corners[1, 0], corners[1, 1], cam.fov, cam.dims)
+                ray3 = pix_to_ray_persp(corners[2, 0], corners[2, 1], cam.fov, cam.dims)
+                ray4 = pix_to_ray_persp(corners[3, 0], corners[3, 1], cam.fov, cam.dims)
+
+            a = 1.0  # length of each square (in arbitrary coordinates)
+            h = np.sqrt(2)  # length of hypot relative to sides
+
+            def opt(x, sol=False):
+                # get test depths
+                z1, z2, z3, z4 = x
+
+                # calculate edge coordinates
+                A = ray1 * z1
+                B = ray2 * z2
+                C = ray3 * z3
+                D = ray4 * z4
+
+                # and errors with edge lengths
+                AB = np.linalg.norm(B - A)
+                BC = np.linalg.norm(C - B)
+                CD = np.linalg.norm(D - C)
+                DA = np.linalg.norm(A - D)
+                AC = np.linalg.norm(C - A)
+                BD = np.linalg.norm(D - B)
+
+                if not sol:
+                    return [AB - a, BC - a, CD - a, DA - a, AC - h, BD - h]  # return for optimiser
+                else:  # return solution (normal vector)
+                    AB = (B - A) / AB
+                    BC = (C - B) / BC
+                    return np.cross(AB, BC)
+
+            # get normal vector in camera coords
+            sol = least_squares(opt, (10.0, 10.0, 10.0, 10.0))
+            norm = opt(sol.x, sol=True)
+
+            # rotate to world coords
+            norm = np.dot(cam.get_rotation_matrix(), norm)
+            self.set_normal(norm)
+
+        return self.normal
+
+    def set_normal(self, n ):
+        """
+        Set panel normal vector to a known vector.
+
+        *Arguments*:
+         - n = a (3,) numpy array containing the normal vector in world coordinates.
+        """
+        if n is None:
+            self.normal = None # remove normal
         else:
-            ray1 = pix_to_ray_persp(corners[0, 0], corners[0, 1], cam.fov, cam.dims)
-            ray2 = pix_to_ray_persp(corners[1, 0], corners[1, 1], cam.fov, cam.dims)
-            ray3 = pix_to_ray_persp(corners[2, 0], corners[2, 1], cam.fov, cam.dims)
-            ray4 = pix_to_ray_persp(corners[3, 0], corners[3, 1], cam.fov, cam.dims)
+            assert len(n) == 3, "Error - n must be a (3,) normal vector."
+            self.normal = np.array(n) / np.linalg.norm(n) # enforce n has length 1.0
+            if self.normal[2] < 0:
+                self.normal *= -1 # panel always points upwards
 
-        a = 1.0  # length of each square (in arbitrary coordinates)
-        h = np.sqrt(2)  # length of hypot relative to sides
+    def get_skyview(self, hori_elev=0.0, up=np.array([0, 0, 1])):
+        """
+        Get this panels skyview factor. Normal vector must be defined, otherwise an error will be thrown.
 
-        def opt(x, sol=False):
-            # get test depths
-            z1, z2, z3, z4 = x
+        *Arguments*:
+         - hori_elev = the angle from the panel to the horizon (perpendicular to the panel's orientation) in degrees.
+                       Used to reduce the sky view factor if the panel is below the horizon (e.g. in an open pit mine).
+                       Default is 0.0 (i.e. assume a flat horizon). Can also be negative if sky is visible below the
+                       (flat) horizon.
+         - up = the vertical (up) vector. Default is [0,0,1].
+        *Returns*:
+         - this panels sky view factor (assuming the panel is relatively unoccluded and the horizon is flat).
+        """
 
-            # calculate edge coordinates
-            A = ray1 * z1
-            B = ray2 * z2
-            C = ray3 * z3
-            D = ray4 * z4
+        # proportion of sky visible assuming horizontal horizon
+        s = (np.pi - np.arccos(np.dot(up, self.normal))) / np.pi
 
-            # and errors with edge lengths
-            AB = np.linalg.norm(B - A)
-            BC = np.linalg.norm(C - B)
-            CD = np.linalg.norm(D - C)
-            DA = np.linalg.norm(A - D)
-            AC = np.linalg.norm(C - A)
-            BD = np.linalg.norm(D - B)
+        # adjust according to hori_elev [ and enforce range from 0 - 1.0
+        return min(max(0, s - (np.deg2rad(hori_elev) / np.pi)), 1.0)
 
-            if not sol:
-                return [AB - a, BC - a, CD - a, DA - a, AC - h, BD - h]  # return for optimiser
-            else:  # return solution (normal vector)
-                AB = (B - A) / AB
-                BC = (C - B) / BC
-                return np.cross(AB, BC)
-
-        # get normal vector in camera coords
-        sol = least_squares(opt, (10.0, 10.0, 10.0, 10.0))
-        norm = opt(sol.x, sol=True)
-
-        # rotate to world coords
-        norm = np.dot(cam.get_rotation_matrix(), norm)
-        if norm[2] < 0:
-            norm *= -1
-        return norm
+    def get_alpha(self, illudir):
+        """
+        Return the reflected light fraction of this panel based on the specified illumination direction using
+        Lamberts' cosine law.
+        """
+        assert len(illudir) == 3, "Error - illudir must be a (3,) numpy array."
+        if illudir[2] > 0: # check illudir is pointing downwards
+            illudir = illudir * -1
+        return max( 0, np.dot( -self.normal, illudir ) )
 
     def quick_plot(self, bands=hylite.RGB, **kwds):
 

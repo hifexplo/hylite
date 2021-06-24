@@ -42,7 +42,7 @@ def proj_persp( xyz, C, a, fov, dims, normals=None):
     #calculate mask showing 'visible' points based on image dimensions
     vis = vis & (pz > 0) & (px > 0) & (px < 1) & (py > 0) & (py < 1)
 
-    #conver to pixels
+    #convert to pixels
     px *= dims[0]
     py *= dims[1]
 

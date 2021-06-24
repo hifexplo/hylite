@@ -489,7 +489,7 @@ class HyImage( HyData ):
     ############################
     ## Visualisation methods
     ############################
-    def quick_plot(self, band=0, ax=None, bfac=0.0, cfac=0.0, samples=False,
+    def quick_plot(self, band=0, ax=None, bfac=0.0, cfac=0.0, samples=False, tscale=False,
                    **kwds):
         """
         Plot a band using matplotlib.imshow(...).
@@ -501,6 +501,9 @@ class HyImage( HyData ):
          - bfac = a brightness adjustment to apply to RGB mappings (-1 to 1)
          - cfac = a contrast adjustment to apply to RGB mappings (-1 to 1)
          - samples = True if sample points (defined in the header file) should be plotted. Default is False.
+         - tscale = True if each band (for ternary images) should be scaled independently. Default is False.
+                    When using scaling, vmin and vmax can be used to set the clipping percentiles (integers) or
+                    (constant) values (float).
         *Keywords*:
          - keywords are passed to matplotlib.imshow( ... ).
 
@@ -538,14 +541,33 @@ class HyImage( HyData ):
                 rgb.append( self.get_band_index( b ) )
 
             #slice image (as copy) and map to 0 - 1
-            img = np.array(self.data[:, :, rgb])
+            img = np.array(self.data[:, :, rgb]).copy()
             if np.isnan(img).all():
                 print("Warning - image contains no data.")
                 return ax.get_figure(), ax
 
-            mn = kwds.get("vmin", np.nanmin(img))
-            mx = kwds.get("vmax", np.nanmax(img))
-            img = (img - mn) / (mx - mn)
+            # do scaling
+            if tscale: # scale bands independently
+                for b in range(3):
+                    mn = kwds.get("vmin", np.nanmin(img))
+                    mx = kwds.get("vmax", np.nanmax(img))
+                    if isinstance (mn, int):
+                        assert mn > 0 and mn < 100, "Error - integer vmin values must be a percentile."
+                        mn = np.nanpercentile(img[...,b], mn )
+                    if isinstance (mx, int):
+                        assert mx > 0 and mx < 100, "Error - integer vmin values must be a percentile."
+                        mx = np.nanpercentile(img[...,b], mx )
+                    img[...,b] = (img[..., b] - mn) / (mx - mn)
+            else: # scale bands together
+                mn = kwds.get("vmin", np.nanmin(img))
+                mx = kwds.get("vmax", np.nanmax(img))
+                if isinstance(mn, int):
+                    assert mn > 0 and mn < 100, "Error - integer vmin values must be a percentile."
+                    mn = np.nanpercentile(img, mn)
+                if isinstance(mx, int):
+                    assert mx > 0 and mx < 100, "Error - integer vmin values must be a percentile."
+                    mx = np.nanpercentile(img, mx)
+                img = (img - mn) / (mx - mn)
 
             #apply brightness/contrast mapping
             img = (1.0 + cfac) * img + bfac

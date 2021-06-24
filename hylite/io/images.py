@@ -24,13 +24,14 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
 
     #parse file format
     _, ext = os.path.splitext(path)
-    if len(ext) == 0 or 'hdr' in ext.lower() or 'dat' in ext.lower(): #load ENVI file?
+    if len(ext) == 0 or 'hdr' in ext.lower() or 'dat' in ext.lower() or 'img' in ext.lower(): #load ENVI file?
         header, image = matchHeader(path)
     elif 'tif' in ext.lower() or 'png' in ext.lower() or 'jpg' in ext.lower(): #standard image formats
         image = path
         header = None
     else:
-        assert False, "Error - %s is an unknown/unsupported file format." % ext
+        print( 'Warning - %s is an unknown/unsupported file format. Trying to load anyway....')
+        #assert False, "Error - %s is an unknown/unsupported file format." % ext
 
     # load header
     if not header is None:
@@ -68,7 +69,7 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
 
     # parse file format
     _, ext = os.path.splitext(path)
-    if len(ext) == 0 or 'hdr' in ext.lower() or 'dat' in ext.lower():  # load ENVI file?
+    if len(ext) == 0 or 'hdr' in ext.lower() or 'dat' in ext.lower() or 'img' in ext.lower():  # load ENVI file?
         header, image = matchHeader(path)
 
         # load image with SPy
@@ -86,7 +87,8 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
         data = mpimg(path)
         header = None
     else:
-        assert False, "Error - %s is an unknown/unsupported file format." % ext
+        print('Warning - %s is an unknown/unsupported file format. Trying to load anyway...')
+        #assert False, "Error - %s is an unknown/unsupported file format." % ext
 
     # create image object
     assert data is not None, "Error - GDAL could not retrieve valid image data from %s" % path

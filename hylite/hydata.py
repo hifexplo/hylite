@@ -229,6 +229,10 @@ class HyData(object):
                      (2) a list of bands or boolean mask such that image.data[:,:,range] is exported to the new image.
         """
 
+        # wrap individual integers or floats in a list
+        if isinstance(bands, int) or isinstance(bands, float):
+            bands = [bands]  # wrap in list
+
         # calculate bands to remove
         mask = np.full( self.band_count(), True )
         if isinstance(bands, np.ndarray) and bands.dtype == np.bool:
