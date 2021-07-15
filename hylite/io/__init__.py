@@ -28,7 +28,7 @@ def save(path, data):
         if 'jpg' in ext or 'bmp' in ext or 'png' in ext or 'pdf' in ext:
             if data.band_count() == 1 or data.band_count() == 3 or data.band_count == 4:
                 from matplotlib.pyplot import imsave
-                imsave( path, np.transpose( data.data, (1,0,2) ).copy() ) # save the image
+                imsave( path, np.transpose( data.data, (1,0,2) ) ) # save the image
                 return
         else: # save hyperspectral image
             try:

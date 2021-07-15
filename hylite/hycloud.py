@@ -443,13 +443,15 @@ class HyCloud( HyData ):
          - ax = the plot axis
         """
 
+        # render image
         img = self.render(cam, band, s=s, step=step, fill_holes=fill_holes, blur=blur, despeckle=despeckle, res=res)
 
+        # plot image
         if img.band_count() >= 3:  # we have enough bands to map to rgb
             if 'rgb' in band: # edge case - rgb values should map from 0 to 1!
-                kwds['vmin'] = kwds.get('vmin', 0)
+                kwds['vmin'] = kwds.get('vmin', 0.)
                 if np.issubdtype(self.rgb.dtype, np.integer):
-                    kwds['vmax'] = kwds.get('vmax', 255)
+                    kwds['vmax'] = kwds.get('vmax', 255.)
                 else:
                     kwds['vmax'] = kwds.get('vmax', 1.0)
                 return img.quick_plot((0, 1, 2), **kwds)

@@ -9,7 +9,7 @@ def proj_persp( xyz, C, a, fov, dims, normals=None):
     *Arguments*:
      - xyz = a nx3 numpy array with a position vector (x,y,z) in each column.
      - C = the position of the camera.
-     - a = the three camera rotatation euler angles (appled around x, then y, then z). In DEGREES.
+     - a = the three camera rotatation euler angles (appled around x, then y, then z == pitch, roll, yaw). In DEGREES.
      - fov = the vertical field of view.
      - dims = the image dimensions (width, height)
      - normals = per-point normals. Used to do backface culling if specified. Default is None (not used).
@@ -56,7 +56,7 @@ def proj_pano(xyz, C, a, fov, dims, step=None, normals=None):
     *Arguments*:
      - xyz = a nx3 numpy array with a position vector (x,y,z) in each column.
      - C = the position of the camera.
-     - a = the three camera rotatation euler angles (appled around x, then y, then z). In DEGREES.
+     - a = the three camera rotatation euler angles (appled around x, then y, then z == pitch, roll, yaw). In DEGREES.
      - fov = the vertical field of view.
      - dims = the image dimensions (width, height)
      - step = the angular step (degrees) between pixels in x.  If None, this is calculated to ensure square pixels.
