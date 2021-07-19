@@ -38,6 +38,13 @@ class OccModel(object):
                or isinstance(self.geometry, hylite.HyCloud), \
             "Error, self.geometry must be an instance of HyScene or HyCloud."
 
+    def X(self):
+        """
+        Return a ravelled form of the underlying occlusion values. Equivalent to HyData.X().
+        """
+        assert self.data is not None, "Error - please compute reflectance model using self.evaluate(...) first."
+        return self.data.X()
+
     def evaluate(self, source=None, **kwds):
         """
         Calculate the fraction of incoming light blocked by this occlusion (0 - 1) as a HyData instance.
@@ -76,7 +83,7 @@ class OccModel(object):
             if hasattr(self.geometry, 'data'):
                 rad = self.geometry.copy()
             self.data = self.geometry.copy( data=False )
-            self.data.data = self.compute(source, xyz, klm, rad, **kwds)
+            self.data.data = self.compute(source, xyz, klm, rad, **kwds)[:, None]
         else:
             assert False, "Error, self.geometry must be an instance of HyScene or HyCloud."
 
@@ -136,7 +143,9 @@ class SelfOcc(OccModel):
         Calculate self-occlusions using the angle of incidience (occlude if > 90 deg).
         """
         a = np.dot(klm, -source.illuVec)  # calculate angle of incidence
-        return (a < 0).astype(np.float)  # return True for self-occ areas
+        out = (a < 0).astype(np.float) # convert to float
+        out[ np.logical_not( np.isfinite(a)) ] = np.nan # propagate nans
+        return out  # return 1.0 for self-occ areas
 
 
 class BandOcc(OccModel):

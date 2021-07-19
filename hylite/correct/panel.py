@@ -369,7 +369,7 @@ class Panel( HyData ):
         else: # no image data, just plot spectra
             kwds['labels'] = kwds.get('labels', HyFeature.Themes.ATMOSPHERE)
             fig, ax = self.plot_spectra(**kwds)
-
+            ax.set_ylabel('Downwelling Radiance')
         return fig, ax
 
     def plot_ratio(self, ax = None):

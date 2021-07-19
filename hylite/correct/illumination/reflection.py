@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import hylite
-from hylite import HyCloud, HyScene
+from hylite import HyCloud, HyImage, HyScene
 from hylite.correct.illumination.source import SourceModel
 from hylite.correct.illumination.occlusion import OccModel
 
@@ -60,8 +60,8 @@ class ReflModel(object):
          - geometry = a HyData instance containing the 3-D geometry (xyz) and associated normal vectors (klm). This
                       can either be a HyCloud instance with normals, or a HyScene instance.
         """
-
-        assert isinstance(geometry, HyScene) or \
+        assert isinstance(geometry, HyImage) or \
+               isinstance(geometry, HyScene) or \
                isinstance(geometry,
                           HyCloud), "Error - scene geometry must either be a HyImage, HyCloud or HyScene instance."
         self.geometry = geometry
@@ -75,10 +75,17 @@ class ReflModel(object):
         *Keywords*:
          - keyword arguments are passed to self.data.quick_plot( ... ).
         """
-        assert self.data is not None, "Error - please compute reflectance model using self.compute(...) first."
+        assert self.data is not None, "Error - please compute reflectance model using self.evaluate(...) first."
         kwds['band'] = 0
         kwds['cmap'] = kwds.get('cmap', 'gray')
         return self.data.quick_plot(**kwds)
+
+    def X(self):
+        """
+        Return a ravelled form of the underlying reflectance values. Equivalent to HyData.X().
+        """
+        assert self.data is not None, "Error - please compute reflectance model using self.evaluate(...) first."
+        return self.data.X()
 
     def evaluate(self, source, viewpos=None, occ=None):
         """
@@ -103,6 +110,14 @@ class ReflModel(object):
             # get geometry data
             klm = self.geometry.normals.reshape((-1, 3))
             xyz = self.geometry.xyz.reshape((-1, 3))
+        elif isinstance( self.geometry, HyImage):
+            # create output object
+            outshape = (self.geometry.data.shape[:-1] + (1,))
+            out = self.geometry.copy(data=False)
+
+            # get geometry data
+            klm = self.geometry.X()[:, :3]
+            xyz = self.geometry.X()[:, 3:]
         elif isinstance(self.geometry, HyScene):
             # create output object
             outshape = (self.geometry.image.data.shape[:-1] + (1,))
@@ -111,7 +126,6 @@ class ReflModel(object):
             # get geometry data
             klm = self.geometry.normals.reshape((-1, 3))
             xyz = self.geometry.xyz.reshape((-1, 3))
-
         else:
             assert False, "Error - scene geometry must either be a HyImage, HyCloud or HyScene instance."
 

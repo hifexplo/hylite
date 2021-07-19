@@ -4,6 +4,8 @@ import pytz
 import hylite
 import warnings
 import datetime
+import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 #####################
 ## Utility functions
@@ -19,7 +21,6 @@ def sph2cart(az, el, r=1.0):
         np.sin(az) * np.cos(el),
         np.cos(az) * np.cos(el),
         -np.sin(el) ]) * r
-
 
 def cart2sph(x, y, z):
     """
@@ -74,6 +75,46 @@ def estimate_sun_vec(lat, lon, time):
 
     return sunvec, azimuth, elevation
 
+def _regress(x, y, split=True, clip=(10, 90)):
+    """ Loop through all bands in specified arrays and fit a line. Used for statistical adjustments (e.g. c-factor)"""
+
+    assert x.shape == y.shape, "Error - x and y have incompatible shapes (%s != %s)." % (x.shape, y.shape)
+
+    if not split:  # easy!
+        x = x.ravel()
+        y = y.ravel()
+
+        # calculate percentile clip
+        xmn, xmx = np.nanpercentile(x, clip)
+        ymn, ymx = np.nanpercentile(y, clip)
+
+        # calculate valid mask
+        mask = np.isfinite(x) & np.isfinite(y) & (x > xmn) & (y > ymn) & (x < xmx) & (y < ymx)
+        if not mask.any():  # no data to regress... return boring line.
+            i = 0.0
+            s = 0.0
+            r = np.array([[np.nan]])
+        else:
+            (i, s), r = np.polynomial.polynomial.polyfit(x[mask], y[mask], 1, full=True)
+
+            # plt.plot(x,y,alpha=0.2)
+            # sx = np.nanmin(x[mask])
+            # ex = np.nanmax(x[mask])
+            # plt.plot( [sx,ex], [s*sx+i, s*ex+i])
+            # plt.show()
+            # assert False
+        return s, i, np.sqrt((r[0][0] / np.sum(mask)))
+    else:
+        out = []
+
+        # loop through bands
+        for b in range(x.shape[1]):
+            out.append(_regress(x[:, b], y[:, b], split=False))  # do regression
+
+        # return output
+        out = np.array(out)
+        return out[:, 1], out[:, 0], out[:, 2]
+
 ##############################
 ## Define generic illumination model
 ###############################
@@ -100,6 +141,9 @@ class IlluModel(object):
         self.refl = []  # reflection models
         self.trans = None  # transmittance model
         self.data = None
+        self.cfac = None # c-factor adjustment (mysterious light)
+        self.rfac = None # radiance adjustment (additional path radiance).
+        self.r = None # radiance data used for fitting
 
     def addSource(self, name, source, refl):
         """
@@ -130,9 +174,6 @@ class IlluModel(object):
         Evaluate the per-pixel illumination spectra. This (theoretically) gives what the camera would see if
         material reflectance is constant and equal to 1.0. Hence it can be used to convert radiance to reflectance.
 
-        *Arguments*:
-         - viewpos = the viewing position.
-         - radiance = a
         *Returns*:
          - a HyData instance containing the illumination spectra per pixel. This is also stored in self.data.
         """
@@ -160,139 +201,261 @@ class IlluModel(object):
             if isinstance(s.spectra, float):  # constance illumination
                 self.data.data[..., :] += r.data.data * s.spectra
             else:
-                self.data.data += r.data.data * s.spectra  # accumulate illuminatino
+                self.data.data += r.data.data * s.spectra  # accumulate illumination
 
         # apply transmittance model
         if self.trans is not None:
             self.data.data *= self.trans.data.data
 
+        # add c-factor correction (if calculated)
+        #if self.cfac is not None:
+        #    self.data.data += self.cfac
+
         return self.data
 
-    def fit(self, radiance, method='cfac'):
+    def fit(self, radiance, shift='x'):
         """
-        Adjust this illumination model using c-factor or minnaert corrections. This takes the self.data array (which
-        must be populated by calling self.evaluate( ... ) and computes correlation with the specified radiance. This
-        correlation is used to adjust the illumination estimates (per band) using the cfactor or minnaert methods.
+        Compute c-factor offsets. This assumes a linear relationship between illumination and measured radiance, and
+        increases/decreases either (1) the illumination component [y-shift] or (2) the measured radiance [x-shift] to
+        force the regression line to pass through (0,0). Reflectance outliers are then detected and can be masked or
+        corrected.
 
         *Arguments*:
-         - radiance = a HyData instance containing point or pixel radiance spectra to fit reflectance too.
-         - method = the correction method to apply. Options are 'cfac' or 'minnaert'. Default is 'cfac'.
+         - radiance = radiance data to fit to. Must have the same shape as self.data.
+         - shift = apply the correction in the y-direction (adjust measured radiance to simulate the influence of path
+                   radiance) or in the x-direction (adjust modelled illumination to account for unknown light source). Default
+                   is 'x' (this is the typical c-factor correction).
+        """
+        #assert self.data is not None, "Error - please compute reflectance model using self.compute(...) before fitting step."
+        if self.data is None:
+            self.evaluate() # evaluate if need be
+        self.r = radiance # store radiance
 
-        *Returns:
-         - A HyData instance as returned by evaluate( ... ), but adjusted using the cfac or minnaert method. This adjustment
-           is calculated per-band, so the returned HyData instance will contain the same number of bands as the passed
-           radiance data. The self.data variable will also be updated accordingly, and the uncorrected model stored as self.prior.
+        # get data
+        x = self.data.X()
+        y = radiance.X()
+
+        # remove any mischevous negative radiances... (these are noise)
+        x[x < 0] = np.nan
+
+        # compute slope and intercepts of regression
+        s, i, r = _regress(x, y)  # fit linear regressions
+        if 'x' in shift: # typical c-factor adjustment (add/subtract illumination)
+            self.cfac = np.array(i) / np.array(s)  # calculate cfacor (x-intercept)
+            mn = np.nanmin(x, axis=0)  # calculate floor cfactor to avoid negative values
+            self.cfac[self.cfac < mn] = mn[self.cfac < mn]  # apply floor and store
+        elif 'y' in shift: # alternative adjustment ("r-factor"); add/subtract irradiance.
+            self.rfac = -np.array(s)  # calculate alternative c-factor (y-intercept) and store
+        else:
+            assert False, 'Error - %s should be either "x" or "y"' % shift
+
+    def plot_fit(self, bands=None, n=100, nb=5, **kwds):
+        """
+        Plot the relationship between illumination and measured radiance.
+
+        *Arguments*:
+         - radiance = the radiance data (HyImage or HyCloud) to compare too. Shape must match internal self.data array.
+         - bands = the band (integer or float), band range (tuple) or bands (list) to include on the regression plot. Default
+                   is None (use all bands).
+         - n = plot every nth point (only) to speed up plotting. Default is 100. This value does not affect the regressions.
+         - nb = only calculate / plot every nb'th band if bands is a (min,max) tuple. Default is 5.
+        *Keywords*:
+         - keywords are passed to plt.scatter(...).
         """
 
-        assert self.data is not None, "Error - please compute reflectance model using self.compute(...) before fitting step."
+        assert self.data is not None, "Error - please compute reflectance model using self.compute(...) before plotting."
+        assert self.r is not None, "Error - please fit reflectance model using self.fit(...) before plotting."
 
-        # get initial reflectance estimates and check input shape is appropriate
-        if self.prior is None:
-            self.prior = self.data  # define prior
-
-        alpha = self.prior.X()[...,0]
-
-        self.r25, self.r50, self.r75 = np.nanpercentile(alpha, (
-        25, 50, 75))  # reference value to compare adjusted reflectance with
-
-        # get radiance vector and deal with invalid pixels
-        X = radiance.X().copy()
-        assert alpha.shape[0] == X.shape[0], "Error - radiance data has incorrect shape."
-
-        nans = np.logical_or(np.logical_not(np.isfinite(X).any(axis=0)), (X == 0).all(
-            axis=0))  # replace any bands that are all nan with 1.0 (hack that avoids issues when calculating regressions)
-        X[:, nans] = 1.0  # regressions will now give 0 slope ( == 0 correction ) for nan bands
-        X[
-            X <= 0] = 1e-6  # get rid of zeros and negative numbers [ should be impossible and causes errors for log in minnaert]
-
-        # calculate direct illumination mask
-        i_mask = alpha > 0.01  # non-illuminated pixels; remove from regression.
-
-        # calculate mask to use for regressions
-        mask = np.isfinite(X).all(axis=1) & (X != 0).any(axis=1) & np.isfinite(alpha) & i_mask
-        assert mask.any(), "Error - all pixels are invalid. Check shadow mask and remove bands that are all nan or 0."
-
-        # regress against observed reflectance and calculate correction
-        if 'cfac' in method.lower():
-            (self.intercept, self.slope), resid = np.polynomial.polynomial.polyfit(alpha[mask], X[mask, :], 1,
-                                                                                   full=True)
-            self.cfac = self.intercept / self.slope
-            m = (alpha[:, None] + self.cfac[None, :]) / (1 + self.cfac[None, :])
-        elif 'minn' in method.lower():
-            (self.intercept, self.slope), resid = np.polynomial.polynomial.polyfit(np.log(alpha[mask]),  # x
-                                                                                   np.log(X[mask, :]), 1,
-                                                                                   full=True)  # y
-            m = np.power((1.0 / alpha[:, None]), -self.slope[None, :])
+        # get relevant bands
+        if bands is None:
+            bands = (0, -1)
+        if isinstance(bands, float) or isinstance(bands, int):
+            idx = self.r.get_band_index(bands)
+            x = self.data.X()[:, idx][:, None]
+            y = self.r.X()[:, idx][:, None]
+            w = self.r.get_wavelengths()[idx]
+        elif isinstance(bands, tuple) and len(bands) == 2:
+            mn,mx = [self.r.get_band_index(b) for b in bands]
+            idx = np.array(range(self.r.band_count()))[mn:mx]  # band indices
+            x = self.data.X()[:, idx][:, ::nb]
+            y = self.r.X()[:, idx][:, ::nb]
+            w = self.r.get_wavelengths()[idx][::nb]
+        elif isinstance(bands, list) or isinstance(bands, tuple):
+            idx = np.array([self.r.get_band_index(b) for b in bands])
+            nb = 1
+            x = self.data.X()[:, idx][::nb]
+            y = self.r.X()[:, idx][::nb]
+            w = self.r.get_wavelengths()[idx][::nb]
         else:
-            assert False, "Error - %s is an unknown correction method." % method
+            assert False, "Error - %s is an unknown band type. Should be int, float, list or tuple." % type(bands)
 
-        self.residual = np.sqrt((resid[0] / X.shape[0]))
+        # remove any mischevous negative radiances... (these are noise)
+        x[x < 0] = np.nan
 
-        # store adjusted reflectance factor
-        self.data = radiance.copy()
-        self.data.data = m.reshape(radiance.data.shape)
+        # build plot
+        if self.cfac is None and self.rfac is None:  # no adjustment applied
+            fig, ax = plt.subplots(2, 1, figsize=(10, 10))  # only two axes needed if no shift applied
+            ax = [ax[0], ax[0], ax[1]]
+        else:
+            fig, ax = plt.subplots(3, 1, figsize=(10, 10))
 
-        # add nan bands back in
-        mask = np.logical_not(np.isfinite(radiance.data).any(axis=(0, 1)))
-        self.data.data[..., mask] = np.nan
-        self.residual[mask] = np.nan
-        self.intercept[mask] = np.nan
-        self.slope[mask] = np.nan
+        ###################
+        # (a) plot points
+        ###################
+        cmap = plt.get_cmap('rainbow')
+        kwds['s'] = kwds.get('s', 3.0)
+        kwds['alpha'] = kwds.get('alpha', 0.1)
+        for b in range(x.shape[-1]):
+            kwds['color'] = cmap((w[b] - np.min(w)) / np.ptp(w))
+            ax[0].scatter(x[::n, b], y[::n, b], **kwds)
+        ax[0].set_xlabel("Modelled radiance")
+        ax[0].set_ylabel("Measured radiance")
+        ax[0].set_title("a. Radiance")
 
-        # return it
-        return self.data
+        ###################
+        # (b) plot c-factor
+        ###################
+        if self.cfac is not None:
+            ax[1].plot(w, self.cfac[idx][::nb])
+            ax[1].axhline(0, color='k', lw=2)
+            ax[1].set_ylabel("Illumination boost")
+            ax[1].set_xlabel("Wavelength (nm)")
+            ax[1].set_title("b. Adjustment (c-factor adjustment)")
 
-    def plot_fit(self):
-        assert (self.data is not None) and (
-                    self.prior is not None), "Error - no model has been fitted. Do so using self.fit(...)."
-        fig, ax = plt.subplots(2, 2, figsize=(18, 8))
-        x = self.data.get_wavelengths()
+            # apply adjustment for plotting
+            x += self.cfac[idx][::nb]
 
-        # plot prior
-        ax[0, 0].set_title("Prior reflectance factor")
-        self.prior.quick_plot(0, cmap='gray', vmin=0, vmax=1.1, ax=ax[0, 0])
+        elif self.rfac is not None:  # n.b. cfac and rfac should never both be set
+            ax[1].plot(w, self.rfac[idx][::nb])
+            ax[1].axhline(0, color='k', lw=2)
+            ax[1].set_ylabel("Irradiance boost")
+            ax[1].set_xlabel("Wavelength (nm)")
+            ax[1].set_title("b. Adjustment (alternate c-factor adjustment)")
 
-        # plot adjusted
-        n = self.data.band_count()
-        b = [x[int(n * i)] for i in (.25, .5, .75)]
-        ax[0, 1].set_title("Adjusted reflectance factor (%d, %d, %d nm)" % tuple(b))
-        self.data.quick_plot(b, vmin=0, vmax=1.1, ax=ax[0, 1])
+            # apply adjustment for plotting
+            y += self.rfac[idx][::nb]
 
-        ax[1, 0]
-        # plot regression coeff
-        ax[1, 0].set_title("Regression coefficients")
-        ax[1, 0].plot(x, self.intercept, color='b', alpha=0.4, label='Intercept')
-        ax[1, 0].plot(x, self.slope, color='g', alpha=0.4, label='Slope')
+        #############################################
+        # (b) plot reflectance vs at target radiance
+        #############################################
+        y = y / x  # convert to reflectance
 
-        # plot bounds
-        mask = np.isfinite(self.intercept)
-        mask = np.hstack([mask, mask[::-1]])
-        ymin = self.intercept - self.residual
-        ymax = self.intercept + self.residual
-        ax[1, 0].fill(np.hstack([x, x[::-1]])[mask], np.hstack([ymin, ymax[::-1]])[mask], color='b', alpha=0.2)
+        cmap = plt.get_cmap('rainbow')
+        kwds['s'] = kwds.get('s', 3.0)
+        kwds['alpha'] = kwds.get('alpha', 0.1)
+        for b in range(x.shape[-1]):
+            kwds['color'] = cmap((w[b] - np.min(w)) / np.ptp(w))
+            ax[2].scatter(x[::n, b], y[::n, b], **kwds)
 
-        ymin = self.slope - self.residual
-        ymax = self.slope + self.residual
-        ax[1, 0].fill(np.hstack([x, x[::-1]])[mask], np.hstack([ymin, ymax[::-1]])[mask], color='g', alpha=0.2)
-        ax[1, 0].legend()
+        p5, p10, p50, p90, p95 = np.nanpercentile(y, (5, 10, 50, 90, 95))
+        ax[2].axhline(p10, color='k', ls='--')
+        ax[2].axhline(p90, color='k', ls='--')
+        ax[2].axhline(p50, color='k', lw=2)
 
-        ax[1, 1].set_title("Adjustment fraction")
-        self.data.plot_spectra(ax=ax[1, 1])
-        ax[1, 1].axhline(self.r25, alpha=0.2, label='Original (quartile)')
-        ax[1, 1].axhline(self.r75, alpha=0.2)
-        ax[1, 1].axhline(self.r50, alpha=0.7, label='Original (median)')
-        [ax[1, 1].axvline(_x, color=c) for _x, c in zip(b, ['r', 'g', 'b'])]
-        ax[1, 1].set_ylabel("Reflected fraction")
+        ax[2].set_ylim(p5, p95)
+        ax[2].set_ylabel("Reflectance")
+        ax[2].set_xlabel("Modelled Radiance")
+        ax[2].set_title("c. Reflectance")
+
+        # add a wavelength colorbar
+        sc = ax[0].scatter([np.nan, np.nan], [np.nan, np.nan], c=[np.min(w), np.max(w)],
+                           vmin=np.min(w), vmax=np.max(w), cmap='rainbow')  # build colormap
+        cbar = fig.colorbar(sc, orientation='horizontal', shrink=0.5, pad=0.25)  # plot
+        cbar.set_label('Wavelength (nm)')
+
+        fig.tight_layout()
         return fig, ax
 
     def isEvaluated(self):
         return self.data is not None
 
+    def rad2ref(self, radiance, outliers='clip', thresh=(5, 95), vb=True):
+        """
+        Use this illumination model to correct radiance data to reflectance estimates.
+
+        *Arguments*:
+         - radiance = the measured radiance spectra.
+         - outliers = the outlier correction method to apply. Options are "mask" and "clip". Mask sets outlier
+                          reflectance to nan, while "clip" will add / remove illumination until these pixels have a reflectance
+                          that is equal to the specified threshold percentile. None disables outlier detection.
+         - thresh = percentile thresholds for low and high reflectance outliers. Default is (5,95).
+         - vb = True if a progress bar should be created while filtering outliers.
+        """
+
+        # evaluate if need be
+        if self.data is None:
+            self.evaluate()
+
+        # check shape
+        assert self.data.data.shape == radiance.data.shape, \
+            "Error - illumination model has shape %s but radiance data has shape %s." % (
+            self.data.data.shape, radiance.data.shape,)
+
+        # get radiance and apply cfactor (radiance) adjustment if specified
+        r = radiance.data
+        if self.rfac is not None:
+            r = r + self.rfac
+
+        # get illumination and apply cfactor (illumination) adjustment if specified
+        i = self.data.data
+        if self.cfac is not None:
+            i = i + self.cfac
+
+        # compute reflectance dataset
+        out = radiance.copy(data=False)
+        out.data = r / i
+
+        # deal with outliers
+        if outliers is not None:
+            loop = range(out.band_count())
+            if vb:
+                loop = tqdm(loop, leave=False, desc="Filtering outliers")
+            for b in loop:
+                mn, mx = np.nanpercentile(out.data[..., b], thresh)
+                if 'clip' in outliers.lower():
+                    out.data[..., b] = np.clip(out.data[..., b], mn, mx)
+                elif 'mask' in outliers.lower():
+                    out.data[out.data[..., b] < mn, b] = np.nan
+                    out.data[out.data[..., b] > mn, b] = np.nan
+                else:
+                    assert False, "Error - %s is an unknown outlier detection method." % outliers
+
+        # return
+        return out
+
+    def ref2rad(self, reflectance):
+        """
+        Take known reflectance spectra (e.g. from a simulation) and apply this lighting
+        to generate simulated at-sensor radiance spectra.
+        """
+        # evaluate if need be
+        if self.data is None:
+            self.evaluate()
+
+        # check shape
+        assert self.data.data.shape == reflectance.data.shape, \
+            "Error - illumination model has shape %s but radiance data has shape %s." % (
+                self.data.data.shape, reflectance.data.shape,)
+
+        # get reflectance and apply illumination model
+        if self.cfac is not None:
+            r = reflectance.data * (self.data.data + self.cfac)
+        else:
+            r = reflectance.data * (self.data.data)
+
+        # add c-factor (radiance) adjustment if it was calculated
+        if self.rfac is not None:
+            r -= self.rfac
+
+        # compute reflectance dataset
+        out = reflectance.copy(data=False)
+        out.data = r
+
+        return out
 
 ####################################################
 ## Functions for constructing illumination models
 ####################################################
-
 
 def buildIlluModel_ELC( sundir, sunpanel, refl, occ=None ):
     """
@@ -353,28 +516,3 @@ def estimateIlluModel_Joint( radiance, sunpanel, refl, occSun, occSky ):
     """
     pass
 
-##########################
-## Correction functions
-##########################
-def rad2refl(self, radiance, illu):
-    """
-    Convert from radiance to reflectance given the specified illumination models and viewing direction.
-
-    *Arguments*:
-     - radiance = a HyData instance containing at-sensor radiance spectra to correct.
-     - illu = a list of IlluModel instances describing scene illumination.
-     - trans = a transmittance model describing atmospheric path radiance effects. Default is None (no path radiance).
-    """
-    pass
-
-def refl2rad(self, reflectance, illu):
-    """
-    Convert from reflectance to radiance given the specified illumination model and viewing direction.
-
-     *Arguments*:
-     - reflectance = a HyData instance containing material reflectance spectra.
-     - illu = a list of IlluModel instances describing scene illumination.
-     - camera = Camera instance containing the viewing position and direction. Can be None (default) for some illumination models.
-     - trans = a transmittance model describing atmospheric path radiance effects. Default is None (no path radiance).
-    """
-    pass

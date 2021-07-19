@@ -677,7 +677,7 @@ class HyData(object):
         ax.grid(which='major', axis='x', alpha=0.75)
         ax.grid(which='minor', axis='x', alpha=0.2)
         ax.set_xlabel("Wavelength (%s)" % self.header.get('wavelength units', 'nm'))
-        ax.set_ylabel("Reflectance")
+        #ax.set_ylabel("Reflectance") # n.b. not all images contain reflectance data...
         return ax.get_figure(), ax
 
     ###################################
