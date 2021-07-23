@@ -48,7 +48,6 @@ def proj_persp( xyz, C, a, fov, dims, normals=None):
 
     return np.array([px,py,pz]).T, vis
 
-
 def proj_pano(xyz, C, a, fov, dims, step=None, normals=None):
     """
     Project 3d point xyz based on a pinhole camera model.
@@ -119,7 +118,6 @@ def proj_ortho( xyz, C, V, s=1.0 ):
     xyz -= (V[None, :] * pz[:, None])  # project onto plane (by removing depth)
     return s*np.array([ xyz[:,0], xyz[:,1], pz]).T, pz > 0
 
-
 def rasterize(points, vis, vals, dims, s=1):
     """
     Rasterizes projected points onto an image grid.
@@ -176,7 +174,6 @@ def rasterize(points, vis, vals, dims, s=1):
 
     return out, depth
 
-
 def pix_to_ray_persp(x, y, fov, dims):
     """
     Transform pixel coordinates to a unit direction (ray) in camera coordinates using a
@@ -198,7 +195,6 @@ def pix_to_ray_persp(x, y, fov, dims):
     Py = (2 * (y / dims[1]) - 1) * h / 2
     ray = np.array([Px, -Py, -1])
     return ray / np.linalg.norm(ray)  # return normalized ray
-
 
 def pix_to_ray_pano(x, y, fov, step, dims):
     """
@@ -229,7 +225,6 @@ def pix_to_ray_pano(x, y, fov, step, dims):
     R = spatial.transform.Rotation.from_euler('Y', alpha, degrees=True).as_matrix()
 
     return np.dot(ray, R)  # return rotated ray
-
 
 def pano_to_persp(x, y, fov, step, dims):
     """

@@ -8,8 +8,10 @@ from .headers import *
 from .images import *
 from .clouds import *
 from .libraries import *
+from .pmaps import *
 
 from hylite import HyData, HyImage, HyCloud, HyLibrary
+from hylite.project import PMap
 
 def save(path, data):
     """
@@ -40,6 +42,8 @@ def save(path, data):
         save_func = saveCloudPLY
     elif isinstance(data, HyLibrary):
         save_func = saveLibraryCSV
+    elif isinstance(data, PMap ):
+        save_func = savePMap
     else:
         assert False, "Error - data must be an instance of HyImage, HyCloud or HyLibrary."
 
@@ -58,6 +62,11 @@ def load(path):
      - a HyData instance containing the loaded dataset.
     """
 
+    # load file formats with no associated header
+    if 'npz' in os.path.splitext( path )[1].lower():
+        return loadPMap(path)
+
+    # file (should/could) have header - look for it
     header, data = matchHeader( path )
     ext = os.path.splitext(data)[1].lower()
 

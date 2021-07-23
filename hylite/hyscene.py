@@ -148,103 +148,18 @@ class HyScene(object):
             # normalise normals
             self.normals = self.normals[:, :, :] / np.linalg.norm(self.normals, axis=2)[:, :, None]
 
-    def visible_point_count(self):
-        """
-        How many points are visible in this scene (i.e. how many points are mapped to pixels?)
-        """
-
-        return len(self.cloud_to_image.keys())
-
-    def valid_pixel_count(self):
-        """
-        How many pixels of the original image have points in them (i.e. have a valid mapping?)
-        """
-
-        return len(self.image_to_cloud.keys())
-
-    def valid_pixels(self):
-        """
-        Return a 2D numpy array of the same size as image scored with true if the pixel contains points.
-        """
-        return self.valid
-
-    def get_point_index(self, px, py):
-        """
-        Get the index of the closest point in the specified pixel
-
-        *Arguments*;
-         - px = the x index of the pixel.
-         - py = the y index of the pixel.
-        *Returns*:
-         - the point index or None if no points are in the specified pixel.
-        """
-
-        if (px, py) in self.image_to_cloud:
-            return self.image_to_cloud[(px, py)][0]
-        else:
-            return None
-
-    def get_point_indices(self, px, py):
-        """
-        Get the indices and depths of all points in the specified pixel.
-
-        *Arguments*;
-         - px = the x index of the pixel.
-         - py = the y index of the pixel.
-        *Returns*:
-         - a list of (index, depth) tuples for each point in this pixel, or [ ] if no points are present.
-        """
-
-        if (px, py) in self.image_to_cloud:
-            return self.image_to_cloud[(px, py)]
-        else:
-            return []
-
-    def get_pixel_depth(self, px, py):
-        """
-        Get depth to the nearest pixel at the specifed coordinates.
-        """
-
-        return self.get_depth()[px, py]
-
-    def get_point_depth(self, pointID):
-        """
-        Get the depth to the specified point. Returns np.nan if the point is not visible.
-        """
-
-        if pointID in self.point_depth:
-            return self.point_depth[pointID]
-        else:
-            return np.nan
 
     def get_pixel_normal(self, px, py):
         """
         Get the average normal vector of all points in the specified pixel.
         """
-
         return self.get_normals()[px, py]
 
     def get_point_normal(self, index):
         """
         Get the normal vector of the specified point.
         """
-
         return self.cloud.normals[index]
-
-    def get_pixel(self, idx):
-        """
-        Get the pixel coordinates and depth of the specified point.
-
-        *Arguments*:
-         - idx = the point index
-        *Returns*:
-         - px, py. Or (None, None) if the point is not visible in the image
-        """
-
-        if idx in self.cloud_to_image:
-            return self.cloud_to_image[idx]
-        else:
-            return None, None
 
     def get_xyz(self):
         """
@@ -263,7 +178,6 @@ class HyScene(object):
         """
         Get per-pixel depth array.
         """
-
         return self.depth
 
     def get_GSD(self):
@@ -309,58 +223,6 @@ class HyScene(object):
         Get array of slope angles for each pixel (based on the surface normal vectors).
         """
         return np.rad2deg(np.arccos(np.abs(self.normals[..., 2])))
-
-    def intersect(self, scene2):
-        """
-        Get point indices that exist (are visible in) this scene and another.
-
-        *Arguments*:
-         - scene2 = a hyScene instance that references the same cloud but with a different image/viewpoint.
-        *Returns*:
-         - indices = a list of point indices that are visible in both scenes.
-        """
-
-        assert self.cloud == scene2.cloud, "Error - scene2 must reference the same point cloud as this one."
-        keys_a = set(self.cloud_to_image.keys())
-        keys_b = set(scene2.cloud_to_image.keys())
-        return list(keys_a & keys_b)
-
-    def union(self, scenes):
-        """
-        Returns point that are visible in either this scene or scene2 (or both).
-
-        *Arguments*:
-         - scenes = the scene (or list of scenes) to compare with
-        *Returns*:
-         - indices = a list of point indices that are visible in either or both scenes.
-        """
-
-        if not isinstance(scenes, list):
-            scenes = [scenes]
-        assert np.array(
-            [s.cloud.point_count() == self.cloud.point_count() for s in scenes]).all(), "Error - clouds do not match."
-        sets = [set(s.cloud_to_image.keys()) for s in scenes]
-        keys_a = set(self.cloud_to_image.keys())
-        return keys_a.union(*sets)
-
-    def intersect_pixels(self, scene2):
-        """
-        Identifies matching pixels between two scenes.
-
-        *Arguments*:
-         - scene2 = the scene to match against this one
-
-        *Returns*:
-         - px1 = a numpy array of (x,y) pixel coordinates in this scene.
-         - px2 = a numpy array of corresponding (x,y) pixel coordinates in scene 2.
-        """
-
-        matches = {}  # key = scene 1 pixel (x,y), value = scene 2 pixel (x,y)
-        overlap = self.intersect(scene2)  # get points visible in both
-        for idx in overlap:
-            matches[self.get_pixel(idx)] = scene2.get_pixel(idx)
-
-        return np.array(list(matches.keys())), np.array(list(matches.values()))
 
     def match_colour_to(self, reference, uniform=True, method='norm', inplace=True):
 

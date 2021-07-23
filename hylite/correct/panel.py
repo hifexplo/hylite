@@ -1,11 +1,9 @@
 import matplotlib.pyplot as plt
 from matplotlib import path
 import numpy as np
-from scipy import stats
 from scipy.optimize import least_squares
 import matplotlib.patches as patches
 import cv2
-import warnings
 
 import hylite
 from hylite.reference.features import HyFeature
@@ -393,125 +391,6 @@ class Panel( HyData ):
         ax.plot( self.get_wavelengths(), ratio )
         ax.set_ylabel("radiance / reflectance" )
         ax.set_xlabel("Wavelength (nm)")
-
-        return fig, ax
-
-class ELC(object):
-    """
-    Class that gathers one or more Panels and computes calculates an empirical line correction. Depreciated - use the
-    hylite.correct.illumination.IlluminationModel class instead.
-    """
-
-    def __init__(self, panels):
-
-        """
-        Constructor that takes a list of Panel objects (one for each target used for the correction) and computes
-        an empirical line correction.
-
-        *Arguments*:
-          - panels = a list of Panel objects defining the reflectance and radiance of each panel in the scene.
-        """
-
-        if not isinstance(panels, list):
-            panels = [panels]
-
-        self.wav = np.array(panels[0].get_wavelengths())
-        for p in panels:
-            assert isinstance(p, Panel), "Error - ELC panels must be instances of hylite.correct.Panel"
-            assert (self.wav == np.array(
-                p.get_wavelengths())).all(), 'Error - ELC panels must cover the same wavelengths'
-
-        # compute ELC
-        self.slope = np.zeros(self.wav.shape)
-        self.intercept = np.zeros(self.wav.shape)
-        if len(panels) == 1:  # only one panel - assume intercept = 0
-            self.slope = panels[0].get_reflectance() / panels[0].get_mean_radiance()
-        else:
-            # calculate regression for each band
-            for b, w in enumerate(self.wav):
-                _x = np.array([p.get_mean_radiance()[b] for p in panels])
-                _y = np.array([p.get_reflectance()[b] for p in panels])
-                self.slope[b], self.intercept[b], _, _, _ = stats.linregress(_x, _y)
-
-    def get_wavelengths(self):
-        """
-        Get the wavelengths for which this ELC has been calculated.
-        """
-        return self.wav
-
-    def get_bad_bands(self, **kwds):
-
-        """
-        Find bands in which signal-noise ratios are amplified above a threshold (due to large correction slope).
-
-        *Keywords*:
-         - thresh = the threshold slope. Defaults to the 85th percentile.
-
-        *Returns*:
-         - a boolean numpy array containing True for bad bands and False otherwise.
-        """
-
-        thresh = kwds.get("thresh", np.nanpercentile(self.slope, 85))
-        return self.slope > thresh
-
-    def apply(self, data, **kwds):
-
-        """
-        Apply this empirical line calibration to the specified image.
-
-        *Arguments*:
-         - data = a HyData instance to correct
-
-        *Keywords*:
-         - thresh = the threshold slope. Defaults to the 90th percentile.
-
-        *Returns*:
-         - a mask containing true where the corrected values are considered reasonable - see get_bad_bands(...) for more
-           details. Note that this returns the np.logical_not( self.get_bad_bands(...) ).
-        """
-
-        assert data.band_count() == len(self.slope), "Error - data has %d bands but ELC has %d" % (
-        data.band_count(), len(self.slope))
-        data.data *= self.slope
-        data.data += self.intercept
-
-        return np.logical_not(self.get_bad_bands(**kwds))
-
-    def quick_plot(self, ax=None, **kwds):
-
-        """
-        Plots the correction factors (slope and intercept) computed for this ELC.
-
-        *Arguments*:
-         - ax = the axes to plot on. If None (default) then a new axes is created.
-        *Keywords*:
-         - thresh = the threshold to separate good vs bad correction values (see get_bad_bands(...)). Default is the
-                    85th percentile of slope values.
-        *Returns*:
-         -fig, ax = the figure and axes objects containing the plot.
-
-        """
-
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(15, 10))
-
-        # plot slope
-        _x = self.get_wavelengths()
-        _y1 = self.slope
-        _y2 = [kwds.get("thresh", np.nanpercentile(self.slope, 85))] * len(_y1)
-        ax.plot(_x, _y1, color='k', lw=1)
-        ax.plot(_x, _y2, color='gray', lw=2)
-        ax.fill_between(_x, _y1, [0] * len(_x), where=_y1 > _y2, facecolor='red', interpolate=True, alpha=0.3)
-        ax.fill_between(_x, _y1, [0] * len(_x), where=_y1 < _y2, facecolor='green', interpolate=True, alpha=0.3)
-        ax.set_xlabel("Wavelength (nm)")
-        ax.set_ylabel("ELC slope")
-        if not (self.intercept == 0).all():
-            ax2 = ax.twinx()
-            ax2.plot(_x, self.intercept, color='b')
-            ax2.set_ylabel("ELC intercept")
-            ax2.spines['right'].set_color('blue')
-            ax2.yaxis.label.set_color('blue')
-            ax2.tick_params(axis='y', colors='blue')
 
         return fig, ax
 

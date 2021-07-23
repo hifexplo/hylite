@@ -4,7 +4,6 @@ radiance to reflectance. Data detrending methods (e.g. hull corrections) are als
 """
 
 from .detrend import hull, polynomial, get_hull_corrected
-from .panel import ELC
 from .panel import Panel
 from .equalize import norm_eq, hist_eq
 

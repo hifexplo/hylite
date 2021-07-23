@@ -250,20 +250,21 @@ def saveCloudPLY(path, cloud, sfmt=None):
         assert False, "Please install plyfile (pip install plyfile) to export to PLY."
 
     # calculate format?
-    if sfmt is None:
-        if cloud.is_int():
-            sfmt='u2'
-        else:
-            sfmt='f4'
+    if cloud.has_bands():
+        if sfmt is None:
+            if cloud.is_int():
+                sfmt='u2'
+            else:
+                sfmt='f4'
 
-    #estimate size of file
-    ps = 4
-    if 'u2' in sfmt.lower(): ps = 2
-    elif 'u4' in sfmt.lower(): ps = 4
-    ps = (3 * 4 + 3 + cloud.band_count() * ps)
-    file_size = cloud.point_count() * ps
-    if file_size > 10e9:
-        print("Warning: writing large point cloud file (%.1f Gb)." % (file_size / 1e9))
+        #estimate size of file
+        ps = 4
+        if 'u2' in sfmt.lower(): ps = 2
+        elif 'u4' in sfmt.lower(): ps = 4
+        ps = (3 * 4 + 3 + cloud.band_count() * ps)
+        file_size = cloud.point_count() * ps
+        if file_size > 10e9:
+            print("Warning: writing large point cloud file (%.1f Gb)." % (file_size / 1e9))
 
     # create structured data arrays
     vertex = np.array(list(zip(cloud.xyz[:, 0], cloud.xyz[:, 1], cloud.xyz[:, 2])),
