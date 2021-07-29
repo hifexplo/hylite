@@ -31,6 +31,13 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(pm.get_point_index( (16,18) )[0], 505 )
         self.assertEqual(pm.get_pixel_index( 505 )[0], (16,18), 40.)
 
+        # test points per pixel
+        npoints = pm.points_per_pixel()
+        self.assertEqual(np.max(npoints.data), 9)
+
+        npixels = pm.pixels_per_point()
+        self.assertEqual(np.max(npixels), 1)
+
     def test_intersections(self):
         # generate a basic geometry
         x, y = np.meshgrid(np.linspace(-10, 10), np.linspace(-10, 10))

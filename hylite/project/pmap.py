@@ -8,6 +8,7 @@ workflow.
 
 import numpy as np
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
+import hylite
 
 class PMap(object):
     """
@@ -211,6 +212,55 @@ class PMap(object):
         R = self.data[point,:] # get row
         return np.array( np.unravel_index(R.nonzero()[1], (self.xdim, self.ydim), order='F')).T, R.data
 
+    def get_pixel_depths(self):
+        """
+        Return a (xdim,ydim) array containing the depth to the closest point in each pixel. Pixels with no points
+        will be given 0 values.
+        """
+        out = (1 / np.max(self.data, axis=0).toarray()).astype(np.float32)
+        out[np.logical_not(np.isfinite(out))] = 0
+        return out.reshape(self.xdim,self.ydim,order='F')
+
+    def get_point_depths(self):
+        """
+        Return a (npoints,) array containing the depth to the closest pixel from each point. Points with no
+        pixels will be given 0 values.
+        """
+        out = (1 / np.max(self.data, axis=1).toarray()).astype(np.float32)
+        out[np.logical_not(np.isfinite(out))] = 0
+        return out
+
+    def points_per_pixel(self):
+        """
+        Calculate how many points are in each pixel.
+
+        Returns:
+         - a HyImage instance containing point counts per pixel.
+        """
+        self.csr() # use row-compressed form
+        W = (self.data > 0).astype(np.float32)  # convert to binary adjacency matrix
+        npnt = np.array(W.sum(axis=0)).ravel()  # get number of points per pixel
+
+        return hylite.HyImage( npnt.reshape( self.xdim, self.ydim, 1 ), order='F' )
+
+    def pixels_per_point(self):
+        """
+        Calculates how many pixels project to each point.
+
+        Returns:
+         - a copy of self.cloud, but with a scalar field containing pixel counts per point. If self.cloud is not defined
+           then a numpy array of point counts will be returned.
+        """
+        self.csc() # use column compressed form
+        W = (self.data > 0).astype(np.float32)  # convert to binary adjacency matrix
+        npix = np.array(W.sum(axis=1)).ravel()  # get number of points per pixel
+
+        if self.cloud is not None: # return a cloud
+            out = self.cloud.copy( data = False )
+            out.data = npix[:,None]
+            return out
+        else:
+            return npix # return a numpy array
 
     def intersect(self, map2):
         """
@@ -283,6 +333,52 @@ class PMap(object):
 
         # remove zero elements
         self.data.eliminate_zeros()
+
+    def filter_footprint(self, thresh=50):
+        """
+        Filter projections in a PMap instance and remove pixels that have a
+        on-ground footprint above the specified threshold. This operation is
+        applied in-place to conserve memory.
+
+        *Arguments*:
+         - thresh = the maximum allowable pixel footprint (in points). Pixels containing > than
+                    this number of points will be removed from the projection map.
+        """
+
+        # calculate footprint
+        W = (self.data > 0).astype(np.float32)  # convert to binary adjacency matrix
+        n = np.array(W.sum(axis=0)).ravel()  # get number of points per pixel
+
+        # if isinstance(thresh, int): # calculate threshold as percentile if need be
+        #    thresh = np.percentile( n[ n > 0], thresh )
+
+        # convert to coo format
+        self.coo()
+
+        # rebuild mapping matrix
+        mask = n[self.data.col] < thresh  # valid points
+        self.data = coo_matrix((self.data.data[mask], (self.data.row[mask], self.data.col[mask])),
+                       shape=(self.npoints, self.xdim * self.ydim), dtype=np.float32)
+
+    def filter_occlusions(self, occ_tol=5.):
+        """
+        Filter projections in a PMap instance and remove points that are likely to be
+        occluded. This operation is applied in-place to conserve memory.
+
+        *Arguments*:
+         - occ_tol = the tolerance of the occlusion culling. Points within this distance of the
+                     closest point in each pixel will be retained.
+        """
+
+        zz = np.max(self.data, axis=0).power(-1)  ## calculate closest point in each pixel
+        zz.data += occ_tol
+        zz = zz.tocsc()
+        self.coo()
+
+        # rebuild mapping matrix
+        mask = self.data.data > (1 / zz[0, self.data.col].toarray()[0, :])  ## which points to include
+        self.data = coo_matrix((self.data.data[mask], (self.data.row[mask], self.data.col[mask])),
+                       shape=(self.npoints, self.xdim * self.ydim), dtype=np.float32)
 
 def push_to_cloud(pmap, bands=(0, -1), method='best'):
     """
@@ -364,4 +460,3 @@ def push_to_cloud(pmap, bands=(0, -1), method='best'):
         out.set_wavelengths(data.get_wavelengths())
 
     return out
-

@@ -79,7 +79,8 @@ class Pushbroom(object):
 
         # get indices of main track that correspond to known frames
         S = [np.argmin(np.abs(t_all - _t)) for _t in t_known]
-        assert len(np.unique(S)) == len(S), "Error - duplicate matches are present; tracks probably do not overlap properly?"
+        if len(np.unique(S)) != len(S):
+            print("Warning - duplicate matches are present; tracks probably do not overlap properly?")
 
         # compute errors
         e_p = cp_known - self.cp[S, :] # error in position
@@ -540,7 +541,7 @@ def project_pushbroom(image, cloud, cam, chunk=500, step=100, near_clip=10., vb=
 
     # build a projection map and return it
     pmap = PMap(image.xdim(), image.ydim(), cloud.point_count(), cloud=cloud, image=image)
-    pmap.set_flat(points, pixels, 1. / np.array(depths))
+    pmap.set_flat(points, pixels, np.array(depths))
 
     return pmap
 
@@ -562,14 +563,15 @@ def get_corr_coef(pmap, bands=(0, 1, 2)):
     rgb_adj = push_to_cloud(pmap, bands, method='count').data  # calculate projected RGB
 
     # filter to known points
-    mask = np.isfinite(rgb_adj.data).all(axis=-1)
+    mask = (rgb_adj > 0).any(axis=-1) & (rgb_ref > 0).any(axis=-1)
 
     # return the corellation of the red, green and blue bands.
     return [sp.stats.pearsonr(rgb_ref[mask, i], rgb_adj[mask, i])[0] for i in range(3)]
 
 
 def optimize_boresight(track, cloud, image, bands=(0, 1, 2), n=100, iv=np.array([0, 0, 0]), scale=3.,
-                       coarse_eps=0.5, fine_eps=0.05, vb=True, gf=True):
+                       coarse_eps=0.5, fine_eps=0.05, ztol=0, ftol=0,
+                       vb=True, gf=True):
     """
     Applies a least-squares solver to find boresight values that result in the best correlation
     between projected RGB and RGB stored on a photogrammetric point cloud. This can be very slow,
@@ -585,7 +587,9 @@ def optimize_boresight(track, cloud, image, bands=(0, 1, 2), n=100, iv=np.array(
      - bands = indices for the red, green and blue bands of image. Default is (0,1,2).
      - scale = The size of the search space. Default is ±3 degrees from the initial value.
      - coarse_eps = the perturbation step size for the first solution.
-     - fine_eps = the perturbation step size for subsequent refinement. Set to 0 to disable.
+     - fine_eps = the perturbation step size for subsequent refinement.
+     - ztol = the tolerance of the z-filtering step. Set to 0 to disable (default).
+     - ftol = the maximum number of points per (valid) pixel. Set to 0 to disable (default).
      - vb = True if output of the least-squares solver should be printed at each state.
      - gf = True if a plot should be generated showing the search trace. Default is True
     *Returns*:
@@ -608,6 +612,12 @@ def optimize_boresight(track, cloud, image, bands=(0, 1, 2), n=100, iv=np.array(
 
         # build projection map
         pmap = project_pushbroom(image, cloud, track, chunk=200, step=50, vb=False)
+
+        # filter
+        if ztol > 0:
+            pmap.filter_occlusions( ztol )
+        if ftol > 0:
+            pmap.filter_footprint( ftol )
 
         # return cost
         c = -np.sum(get_corr_coef(pmap, bands=bands))

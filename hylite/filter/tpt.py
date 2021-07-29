@@ -3,6 +3,7 @@ Use spectra derivatives to extract and analyse turning points (maxima and minima
 """
 
 import numpy as np
+from tqdm import tqdm
 
 def build_kernel( sigma, res ):
     """

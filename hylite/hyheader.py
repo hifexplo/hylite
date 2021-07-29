@@ -164,7 +164,9 @@ class HyHeader( dict ):
             "Error - unrecognised data type %s." % mask.dtype
 
         # check we have a value per band
-        assert len(keep) == nbands, "Error - data has %d values but mask is length %d" % (nbands, len(keep))
+        #assert len(keep) == nbands, "Error - data has %d values but mask is length %d" % (nbands, len(keep))
+        # N.B. this assert has been removed because it is triggered when a header contains no wavelength or band names
+        # (and so the header file cannot know how many bands to expect in the image)
 
         skip = ['default bands', 'temperature', 'camera',
                 'class lookup', 'class names', 'coordinate system string', 'description',

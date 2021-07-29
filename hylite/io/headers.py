@@ -177,6 +177,9 @@ def matchHeader(path):
         for m in match:
             if os.path.splitext(m)[0] == path \
                     and not "log" in str.lower(os.path.splitext(m)[1]) \
+                    and not "png" in str.lower(os.path.splitext(m)[1]) \
+                    and not "jpg" in str.lower(os.path.splitext(m)[1]) \
+                    and not "bmp" in str.lower(os.path.splitext(m)[1]) \
                     and not "hdt" in str.lower(os.path.splitext(m)[1]):
                 image = m  # store matching image file
                 break

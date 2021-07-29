@@ -80,7 +80,6 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
         # load header
         if not header is None:
             header = loadHeader(header)
-
     elif 'tif' in ext.lower() or 'png' in ext.lower() or 'jpg' in ext.lower():  # standard image formats
         # load with matplotlib
         import matplotlib.image as mpimg

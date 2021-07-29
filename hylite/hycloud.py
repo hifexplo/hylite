@@ -405,7 +405,10 @@ class HyCloud( HyData ):
         if isinstance(cam, str):
             if 'ortho' in cam:
                 img.affine = ([cloudxmin, res, 0,  cloudymax, 0, -res])
-                img.set_projection_EPSG(EPSG)
+                try:
+                    img.set_projection_EPSG(EPSG)
+                except:
+                    print("Warning - could not set orthoimage projection. Check GDAL installation.")
 
         # postprocessing
         if fill_holes:
