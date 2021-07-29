@@ -35,7 +35,7 @@ def save(path, data, **kwds):
             if data.band_count() == 1 or data.band_count() == 3 or data.band_count == 4:
                 from matplotlib.pyplot import imsave
                 rgb = np.transpose( data.data, (1,0,2) )
-                if not (rgb.is_int() and np.max(rgb.data) <= 255): # handle normalisation
+                if not (data.is_int() and np.max(rgb) <= 255): # handle normalisation
                     rgb = rgb.data - kwds.get("vmin", 0)
                     rgb /= (kwds.get("vmax", np.max(rgb.data) ) - kwds.get("vmin", 0) )
                     rgb = (np.clip(rgb, 0, 1) * 255).astype(np.uint8) # convert to 8 bit image
