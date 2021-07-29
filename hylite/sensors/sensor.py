@@ -103,7 +103,7 @@ class Sensor(object):
 
         if isinstance(image, str):
             assert os.path.exists(image), "Error: %s is not a valid file path or hyperspectral image."
-            image = io.loadWithGDAL(image)
+            image = io.load(image)
         assert isinstance(image, io.HyImage) or image is None, "Error: dark reference must be an image or None."
         Sensor.dark = image
 
@@ -129,7 +129,7 @@ class Sensor(object):
 
         if isinstance(image, str):
             assert os.path.exists(image), "Error: %s is not a valid file path or hyperspectral image."
-            image = io.loadWithGDAL(image)
+            image = io.load(image)
         assert isinstance(image, io.HyImage), "Error: white reference must be an image."
         Sensor.white = image # store white reference
 
