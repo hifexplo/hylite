@@ -70,7 +70,6 @@ def load(path):
     header, data = matchHeader( path )
     ext = ''
     if data is not None:
-        print(header,data)
         ext = os.path.splitext(data)[1].lower()
 
     if 'ply' in ext: # point or hypercloud

@@ -43,6 +43,6 @@ setuptools.setup(
         'Source': 'https://github.com/samthiele/hylite',
     },
 
-    package_data={"": ["*.txt","*.hdr","*.cal"] }
+    package_data={"": ["*.txt","*.hdr","*.cal","*.dat"] }
     #todo - include data files here with data_files = [ .... ]
 )
