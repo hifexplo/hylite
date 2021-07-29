@@ -13,7 +13,7 @@ from .pmaps import *
 from hylite import HyData, HyImage, HyCloud, HyLibrary
 from hylite.project import PMap
 
-def save(path, data):
+def save(path, data, **kwds):
     """
     A generic function for saving HyData instances such as HyImage, HyLibrary and HyCloud. The appropriate file format
     will be chosen automatically.
@@ -21,6 +21,10 @@ def save(path, data):
     *Arguments*:
      - path = the path to save the file too.
      - data = the data to save. This must be an instance of HyImage, HyLibrary or HyCloud.
+
+    *Keywords*:
+     - vmin = the data value that = 0 when saving RGB images.
+     - vmax = the data value that = 255 when saving RGB images. Must be > vmin.
     """
 
     if isinstance(data, HyImage):
@@ -30,7 +34,12 @@ def save(path, data):
         if 'jpg' in ext or 'bmp' in ext or 'png' in ext or 'pdf' in ext:
             if data.band_count() == 1 or data.band_count() == 3 or data.band_count == 4:
                 from matplotlib.pyplot import imsave
-                imsave( path, np.transpose( data.data, (1,0,2) ) ) # save the image
+                rgb = np.transpose( data.data, (1,0,2) )
+                if not (rgb.is_int() and np.max(rgb.data) <= 255): # handle normalisation
+                    rgb = rgb.data - kwds.get("vmin", 0)
+                    rgb /= kwds.get("vmax", np.max(rgb.data) )
+                    rgb = (np.clip(rgb, 0, 1) * 255).astype(np.uint8) # convert to 8 bit image
+                imsave( path, rgb ) # save the image
                 return
         else: # save hyperspectral image
             try:
