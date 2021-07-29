@@ -4,6 +4,10 @@ import spectral
 from hylite.hyimage import HyImage
 from .headers import matchHeader, makeDirs, loadHeader, saveHeader
 
+# spectral python throws depreciation warnings - ignore these!
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
     """
     Load an image using gdal.
