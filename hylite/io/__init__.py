@@ -68,7 +68,10 @@ def load(path):
 
     # file (should/could) have header - look for it
     header, data = matchHeader( path )
-    ext = os.path.splitext(data)[1].lower()
+    ext = ''
+    if data is not None:
+        print(header,data)
+        ext = os.path.splitext(data)[1].lower()
 
     if 'ply' in ext: # point or hypercloud
         return loadCloudPLY(path)
