@@ -37,7 +37,7 @@ def save(path, data, **kwds):
                 rgb = np.transpose( data.data, (1,0,2) )
                 if not (rgb.is_int() and np.max(rgb.data) <= 255): # handle normalisation
                     rgb = rgb.data - kwds.get("vmin", 0)
-                    rgb /= kwds.get("vmax", np.max(rgb.data) )
+                    rgb /= (kwds.get("vmax", np.max(rgb.data) ) - kwds.get("vmin", 0) )
                     rgb = (np.clip(rgb, 0, 1) * 255).astype(np.uint8) # convert to 8 bit image
                 imsave( path, rgb ) # save the image
                 return
