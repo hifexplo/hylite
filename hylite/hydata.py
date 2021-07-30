@@ -51,6 +51,18 @@ class HyData(object):
         # header data
         self.set_header(kwds.get('header', None))
 
+    def __getitem__(self, key):
+        """
+        Expose underlying data array when using [ ] operators
+        """
+        return self.data.__getitem__(key)
+
+    def __setitem__(self, key, value):
+        """
+        Expose underlying data array when using [ ] operators
+        """
+        self.data.__setitem__(key, value)
+
     def copy(self, data=True):
         """
         Make a deep copy of this image instance.

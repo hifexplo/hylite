@@ -18,10 +18,12 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, f
      - minw = the lower limit of the range of wavelengths to search (in nanometers).
      - maxw = the upper limit of the range of wavelengths to search (in nanometers).
      - method = the method/model used to quantify the feature. Options are:
-                 - "minmax" - performs a continuum removal and extracts feature depth as max - min.
-                 - "gaussian" - fits a gaussian to the detrended spectra. This is the default.
-                 - "lorentz" - fits a lorentzian equation to the detrended spectra.
+                 - "minmax" - performs a continuum removal and extracts feature depth as max - min. If n > 1 it detects local minima using scipy.signal.
+                 - "gaussian" - fits one or more gaussians to the detrended spectra. This is the default.
+                 - "lorentz" - fits one or more lorentzians equation to the detrended spectra.
                  - "tpt" - uses hylite.filter.tpt.TPT( ... ) to identify turning points in smoothed spectra and so identify absorbtions.
+                           This only works for a single feature, but is quite fast and insensitive to asymetric features (but is limited
+                           to the spectral resolution of the input data). Additionally, it can be run on data without doing detrending first.
      - trend = the method used to detrend the spectra. Can be 'poly' (fast) or 'hull' (slow) or None. Default is 'poly'.
      - n = the number of features to fit. Note that this is not compatible with method = 'tpt'.
      - ftol = the convergence tolerance to use during least squares fitting. Default is 1e-2.

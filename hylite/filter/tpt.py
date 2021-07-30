@@ -76,7 +76,7 @@ def TPT(data, sigma=10., window=21, n=2, thresh=0, domain=None, weighted=True, m
     K = {}
     loop = range(dy.shape[0])
     if vb:
-        loop = tqdm(loop)
+        loop = tqdm(loop, leave=False, desc="Finding turning points")
     for p in loop:
         # find turning points
         minx = np.argwhere((dy[p, 1:] > 0) & (dy[p, :-1] < 0))[:, 0]
@@ -214,7 +214,7 @@ def TPT2MWL(pos, depth, wmin=0, wmax=-1, data=None, vb=True):
     # loop through spectra
     loop = range(len(pos))
     if vb:
-        loop = tqdm(loop)
+        loop = tqdm(loop, leave=False, desc="Filtering turning points")
     for i in loop:
         if len(pos[i]) > 0:
             p = np.array(pos[i])
