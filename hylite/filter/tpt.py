@@ -5,26 +5,32 @@ Use spectra derivatives to extract and analyse turning points (maxima and minima
 import numpy as np
 from tqdm import tqdm
 
-def build_kernel( sigma, res ):
+import warnings
+warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
+
+def build_kernel(sigma, res):
     """
     Construct a kernel (normal distribution with specified standard deviation)
     """
-    kx = np.arange(-5*sigma,5*sigma,step=res,dtype=np.float32)
-    ky = ((1 / (sigma * np.sqrt( 2 * np.pi ) )) * np.exp( -0.5*( (kx / sigma )**2) )).astype(np.float32)
-    ky /= np.trapz(ky,kx) # increase values slightly to account for numerical integration errors
+    kx = np.arange(-5 * sigma, 5 * sigma, step=res, dtype=np.float32)
+    ky = ((1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((kx / sigma) ** 2))).astype(np.float32)
+    ky /= np.trapz(ky, kx)  # increase values slightly to account for numerical integration errors
     return ky
 
 
-def TPT(data, sigma=10., window=21, thresh=0, domain=None, weighted=True, maxima=True, minima=True, vb=True):
+def TPT(data, sigma=10., window=21, n=2, thresh=0, domain=None, weighted=True, maxima=True, minima=True, vb=True):
     """
     Extract the turning points from each spectra in dataset, and build an associated kernel density estimates that
     can be used to calculate the probability of observing given features.
 
     *Arguments:*
+     - data = a HyData instance containing the spectra to filter.
      - sigma = Standard deviation of the KDE kernel. Either a number, or a function such that sigma(w) returns the
                standard deviation for a specific wavelength (e.g. if a larger kernel should be used for
                LWIR than VNIR data). Default is 10 nm.
      - window = the size of the window (in indices) used during savgol smoothing and derivative calculation. Default is 21.
+     - n = the order of the polynomial to use for savgol smoothing. Larger number preserve smaller features but
+           are slower to compute (and more prone to noise). Default is 2.
      - thresh = a depth/prominence threshold to ignore small maxima or minima. Default is 0.
      - domain = None (default) if the KDE should be evaluated over the same wavelengths as the input data. Alternatively, a
                 tuple can be passed containing (min_wav, max_wav, [resolution (optional)]).
@@ -60,7 +66,7 @@ def TPT(data, sigma=10., window=21, thresh=0, domain=None, weighted=True, maxima
     R = data.X()
 
     # calculate derivatives
-    dy = data.smooth_savgol(window, 2, deriv=1)
+    dy = data.smooth_savgol(window, n, deriv=1)
     dy = dy.X()  # convert dataset to vector form
 
     # init output array
@@ -176,3 +182,56 @@ def TPT(data, sigma=10., window=21, thresh=0, domain=None, weighted=True, maxima
         O.data = out
     O.set_wavelengths(w)
     return O, Tpos, Tdepth
+
+
+def TPT2MWL(pos, depth, wmin=0, wmax=-1, data=None, vb=True):
+    """
+    Convert the results from a turning point filter (TPT) into a minimum wavelength array. This will return
+    the deepest feature within the specified range.
+
+    *Arguments*:
+     - pos = an array containing per-spectra turning point positions, as returned by TPT(...).
+     - depth = an array containing per-spectra turning point depths, as returned by TPT(...).
+     - wmin = the start of the wavelength range of interest. Default is 0 (all wavelengths).
+     - wmax = the end of the wavelength range of interest. Default is -1 (all wavelengths).
+     - data = a HyData instance to use as a template for outputs. If not None (default) then this will return a HyData instance.
+     - vb = True if a progress bar should be created. Default is True.
+
+    *Returns*
+     - a numpy array or HyData instance (if data is not none), containing 4 bands (pos, width, depth, strength).
+    """
+
+    # reshape for loop
+    shape = np.array(pos).shape
+    pos = np.array(pos).ravel()
+    depth = np.array(depth).ravel()
+    out = np.full((len(pos), 4), np.nan, dtype=np.float32)
+
+    # set wmax if need be
+    if wmax == -1:
+        wmax = np.inf
+
+    # loop through spectra
+    loop = range(len(pos))
+    if vb:
+        loop = tqdm(loop)
+    for i in loop:
+        if len(pos[i]) > 0:
+            p = np.array(pos[i])
+            d = np.array(depth[i])
+            mask = (d < 0) & (p > wmin) & (p < wmax)
+            if mask.any():
+                idx = np.argmin(d[mask])
+                out[i, 0] = p[mask][idx]
+                out[i, 1] = 0  # how to estimate width?
+                out[i, 2] = d[mask][idx]
+                out[i, 3] = out[i, 2]
+
+    # return array for mwl map
+    out = out.reshape(shape + (4,))
+    if data is None:  # return a numpy array directly
+        return out
+    else:  # make a copy of data and return HyData instance
+        data = data.copy(data=False)
+        data.data = out
+        return data

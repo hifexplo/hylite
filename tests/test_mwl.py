@@ -45,6 +45,9 @@ class MyTestCase(unittest.TestCase):
         image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
         tpt,p,d = TPT(image, sigma=10., window=7, thresh=0, vb=False)
 
+        # test TPT MWL
+        from hylite.analyse import minimum_wavelength
+        mwl = minimum_wavelength(image, 2100., 2380., trend='hull', method='tpt', n=1, threads=2, vb=False)
 
 if __name__ == '__main__':
     unittest.main()

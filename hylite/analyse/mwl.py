@@ -3,12 +3,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import matplotlib
+import hylite
 from hylite import io
 from hylite.correct.detrend import hull, polynomial
 from hylite.hyfeature import HyFeature, MixedFeature
 from hylite.multiprocessing import parallel_chunks
 
-def minimum_wavelength(data, minw, maxw, method='lorentz', trend='hull', n=1, ftol=1e-2, order=3, threads=1, constraints=True, vb=True):
+def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, ftol=1e-2, order=3, threads=1, constraints=True, vb=True):
     """
     Perform minimum wavelength mapping to map the position of absorbtion features.
 
@@ -18,13 +19,14 @@ def minimum_wavelength(data, minw, maxw, method='lorentz', trend='hull', n=1, ft
      - maxw = the upper limit of the range of wavelengths to search (in nanometers).
      - method = the method/model used to quantify the feature. Options are:
                  - "minmax" - performs a continuum removal and extracts feature depth as max - min.
-                 - "gaussian" - fits a gaussian to the detrended spectra.
-                 - "lorentz" - fits a lorentzian equation to the detrended spectra. This is the default.
+                 - "gaussian" - fits a gaussian to the detrended spectra. This is the default.
+                 - "lorentz" - fits a lorentzian equation to the detrended spectra.
+                 - "tpt" - uses hylite.filter.tpt.TPT( ... ) to identify turning points in smoothed spectra and so identify absorbtions.
      - trend = the method used to detrend the spectra. Can be 'poly' (fast) or 'hull' (slow) or None. Default is 'poly'.
-     - n = the number of features to fit.
+     - n = the number of features to fit. Note that this is not compatible with method = 'tpt'.
      - ftol = the convergence tolerance to use during least squares fitting. Default is 1e-2.
      - order = the order of local minima detection. Default is 3. Smaller numbers return smaller local minima but are more
-           sensitive to noise.
+           sensitive to noise. For method = 'tpt' order gives the number of polynomial terms used for savgol filtering.
      - threads = the number of threads to use for the computation. Default is 1 (no multithreading).
      - constraints = Use constrained solver to constrain search bounds and avoid spurious results. Default is True (slower
                      but generally more accurate).
@@ -118,12 +120,31 @@ def minimum_wavelength(data, minw, maxw, method='lorentz', trend='hull', n=1, ft
         print( "Warning: data has mystery nans after hull correction. Beware!" )
 
     # fit features
-    pos, width, depth, strength = HyFeature.fit( wav, X, method=method, n=n, ftol=ftol, order=order, vb=vb )
+    # special case - apply mwl using TPT
+    if 'tpt' in method.lower():
+        assert n == 1, "Error - TPT fitting only works for a single feature. Try using several MWL ranges in" \
+                       "separate function calls to fit multiple features."
 
-    # assemble and reshape
-    mwl = np.full( (data.get_raveled().shape[0], n*3 + 1), np.nan, dtype=np.float32)
-    mwl[mask,:] = np.vstack( [pos.T, width.T, depth.T, strength.T ] ).T
-    mwl = mwl.reshape((*data.data.shape[:-1], mwl.shape[-1]))
+        # put filtered and detrended spectra in a HyData instance
+        from hylite.filter import TPT, TPT2MWL
+        D = hylite.HyData( X )
+
+        D.set_wavelengths( wav )
+
+        # apply TPT filter
+        tpt, pos, depth = TPT( D, window=11, n=order, vb=vb )
+
+        # convert to MWL map and reshape
+        mwl = np.full((data.get_raveled().shape[0], n * 3 + 1), np.nan, dtype=np.float32)
+        mwl[mask, :] = TPT2MWL( pos, depth, data=D, vb=vb).data
+        mwl = mwl.reshape((*data.data.shape[:-1], mwl.shape[-1]))
+    else:
+        pos, width, depth, strength = HyFeature.fit( wav, X, method=method, n=n, ftol=ftol, order=order, vb=vb )
+
+        # assemble and reshape
+        mwl = np.full( (data.get_raveled().shape[0], n*3 + 1), np.nan, dtype=np.float32)
+        mwl[mask,:] = np.vstack( [pos.T, width.T, depth.T, strength.T ] ).T
+        mwl = mwl.reshape((*data.data.shape[:-1], mwl.shape[-1]))
 
     # convert to HyData instance and return :-)
     if mwl.shape[-1] > 4 and threads != -1: # split into multiple images
