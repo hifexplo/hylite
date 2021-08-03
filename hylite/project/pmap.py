@@ -380,6 +380,104 @@ class PMap(object):
         self.data = coo_matrix((self.data.data[mask], (self.data.row[mask], self.data.col[mask])),
                        shape=(self.npoints, self.xdim * self.ydim), dtype=np.float32)
 
+
+def _gather_bands(data, bands):
+    """
+    Utility function used by push_to_image( ... ) and push_to_cloud( ... ) to slice data from a HyData instance.
+
+    *Returns*:
+     - data = a data array containing the requested bands (hopefully).
+     - wav = the wavelengths of the extracted bands (or -1 for non-spectral attributes).
+     - names = the names of the extracted bands.
+    """
+
+    # extract wavelength and band name info
+    dat = []
+    wav = []
+    nam = []
+
+    # loop through bands tuple/list and extract data indices/slices
+    for e in bands:
+        # extract from point cloud based on string
+        if isinstance(e, str):
+            for c in e.lower():
+                if c == 'r':
+                    assert data.has_rgb(), "Error - RGB information not found."
+                    dat.append(data.rgb[..., 0])
+                    nam.append('r')
+                    wav.append(hylite.RGB[0])
+                elif c == 'g':
+                    assert data.has_rgb(), "Error - RGB information not found."
+                    dat.append(data.rgb[..., 1])
+                    nam.append('g')
+                    wav.append(hylite.RGB[1])
+                elif c == 'b':
+                    assert data.has_rgb(), "Error - RGB information not found."
+                    dat.append(data.rgb[..., 2])
+                    nam.append('b')
+                    wav.append(hylite.RGB[2])
+                elif c == 'x':
+                    dat.append(data.xyz[..., 0])
+                    nam.append('x')
+                    wav.append(-1)
+                elif c == 'y':
+                    dat.append(data.xyz[..., 1])
+                    nam.append('y')
+                    wav.append(-1)
+                elif c == 'z':
+                    dat.append(data.xyz[..., 2])
+                    nam.append('z')
+                    wav.append(-1)
+                elif c == 'k':
+                    assert data.has_normals(), "Error - normals not found."
+                    dat.append(data.normals[..., 0])
+                    nam.append('k')
+                    wav.append(-1)
+                elif c == 'l':
+                    assert data.has_normals(), "Error - normals not found."
+                    dat.append(data.normals[..., 1])
+                    nam.append('l')
+                    wav.append(-1)
+                elif c == 'm':
+                    assert data.has_normals(), "Error - normals not found."
+                    dat.append(data.normals[..., 2])
+                    nam.append('m')
+                    wav.append(-1)
+        # extract slice
+        elif isinstance(e, tuple):
+            assert len(e) == 2, "Error - band slices must be tuples of length two."
+            idx0 = data.get_band_index(e[0])
+            idx1 = data.get_band_index(e[1])
+            dat += [data.data[..., b] for b in range(idx0, idx1)]
+            if data.has_band_names():
+                nam += [data.get_band_names()[b] for b in range(idx0, idx1)]
+            else:
+                nam += [str(b) for b in range(idx0, idx1)]
+            if data.has_wavelengths():
+                wav += [data.get_wavelengths()[b] for b in range(idx0, idx1)]
+            else:
+                wav += [float(b) for b in range(idx0, idx1)]
+        # extract band based on index or wavelength
+        elif isinstance(e, float) or isinstance(e, int):
+            b = data.get_band_index(e)
+            dat.append(data[..., b])
+            if data.has_band_names():
+                nam.append(data.get_band_names()[b])
+            else:
+                nam.append(str(b))
+            if data.has_wavelengths():
+                wav.append(data.get_wavelengths()[b])
+            else:
+                wav.append(float(b))
+        else:
+            assert False, "Unrecognised band descriptor %s" % b
+
+    if data.is_image():
+        dat = np.dstack(dat)  # stack
+    else:
+        dat = np.vstack(dat).T
+    return dat, wav, nam
+
 def push_to_cloud(pmap, bands=(0, -1), method='best'):
     """
     Push the specified bands from an image onto a hypercloud using a (precalculated) PMap instance.
@@ -396,7 +494,7 @@ def push_to_cloud(pmap, bands=(0, -1), method='best'):
               - tuple of length 2: start and end bands (float or integer) to export.
               - iterable of length > 2: list of bands (float or integer) to export.
      - method = The method used to condense data from multiple pixels onto each point. Options are:
-                 - 'closest': use the closest pixel to each point (default).
+                 - 'closest': use the closest pixel to each point.
                  - 'distance': average with inverse distance weighting.
                  - 'count' : average weighted inverse to the number of points in each pixel.
                  - 'best' : use the pixel that is mapped to the fewest points (only). Default.
@@ -458,5 +556,75 @@ def push_to_cloud(pmap, bands=(0, -1), method='best'):
     out.data = V
     if data.has_wavelengths():
         out.set_wavelengths(data.get_wavelengths())
+
+    return out
+
+
+def push_to_image(pmap, bands='xyz', method='closest'):
+    """
+    Project the specified data from a point cloud onto an image using a (precalculated) PMap instance. If multiple points map
+    to a single pixel then the results are averaged.
+
+    *Arguments*:
+     - pmap = a pmap instance. the pmap.image and pmap.cloud references must also be defined.
+     - bands = either:
+                 (1) a index (int), wavelength (float) of a (single) image band to export.
+                 (2) a tuple containing the (min,max) wavelength to extract. If range is a tuple, -1 can be used to specify the
+                     first or last band index.
+                 (3) a list of bands or boolean mask such that image.data[:,:,range] is exported.
+     - bands = List defining the bands to include in the output dataset. Elements should be one of:
+              - numeric = index (int), wavelength (float) of an image band
+              - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
+                   can also be expected by passing any combination of the following:
+                    - 'rgb' = red, green and blue per-point colour values
+                    - 'klm' = point normals
+                    - 'xyz' = point coordinates
+              - iterable of length > 2: list of bands (float or integer) to export.
+     - method = The method used to condense data from multiple points onto each pixel. Options are:
+                 - 'closest': use the closest point to each pixel (default is this is fastest).
+                 - 'average' : average with all pixels weighted equally. Slow.
+
+    *Returns*:
+     - A HyImage instance containing the projected data.
+    """
+
+    # special case: individual band; wrap in list
+    if isinstance(bands, int) or isinstance(bands, float) or isinstance(bands, str):
+        bands = [bands]
+
+        # special case: tuple of two bands; treat as slice
+        if isinstance(bands, tuple) and len(bands) == 2:
+            bands = [bands]
+
+    # gather data to project
+    dat, wav, nam = _gather_bands(pmap.cloud, bands)  # extract point normals, positions and sky view
+
+    # convert pmap to csr format
+    # pmap.csr()
+
+    # build weights matrix
+    if 'closest' in method.lower():
+        closest = np.array(np.argmax(pmap.data, axis=0))[0,
+                  :]  # find closest point to each pixel (largest 1/z along rows)
+
+        # assemble sparse matrix with closest points scored as 1
+        cols = np.argwhere(closest > 0)[:, 0]
+        rows = np.array(closest[cols])
+        vals = np.ones(rows.shape)
+        W = csc_matrix((vals, (rows, cols)), pmap.data.shape, dtype=np.float32)
+        V = W.T.dot(dat)  # project closest poits
+    elif 'average' in method.lower():
+        W = (pmap.data > 0).astype(np.float32)  # weights matrix [ full of ones ]
+        n = np.array(W.sum(axis=0))[0, :]  # sum of weights
+        V = W.T.dot(dat) / n[:, None]  # calculate average
+    else:
+        assert False, "Error - %s is an invalid method for cloud_to_image." % method
+
+    # build output image
+    out = pmap.image.copy(data=False)
+    out.data = np.reshape(V, (pmap.image.xdim(), pmap.image.ydim(), -1), order='F')
+    out.data[out.data == 0] = np.nan  # replace zeros with nans
+    out.set_wavelengths(wav)
+    out.set_band_names(nam)
 
     return out

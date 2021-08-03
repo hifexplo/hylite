@@ -1,12 +1,8 @@
-from datetime import datetime
+import datetime
 import numpy as np
 import pytz
 from scipy import stats
-
-import hylite
-import warnings
 import datetime
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 #####################
@@ -60,13 +56,13 @@ def estimate_sun_vec(lat, lon, time):
     # get time
     if isinstance(time, tuple):  # parse time from strings
         tz = time[2]
-        time = datetime.strptime(time[0], time[1])
+        time = datetime.datetime.strptime(time[0], time[1])
         tz = pytz.timezone(tz)
         time = tz.localize(time)
 
     # time = time.astimezone(pytz.utc) #convert to UTC
 
-    assert isinstance(time, datetime), "Error - time must be a datetime.datetime instance"
+    assert isinstance(time, datetime.datetime), "Error - time must be a datetime.datetime instance"
     assert not time.tzinfo is None, "Error - time zone must be specified (e.g. using tz='timezone')."
 
     # calculate illumination vector from time/position
@@ -536,12 +532,12 @@ class ELC(object):
         self.slope = np.zeros(self.wav.shape)
         self.intercept = np.zeros(self.wav.shape)
         if len(panels) == 1:  # only one panel - assume intercept = 0
-            self.slope = panels[0].get_reflectance() / panels[0].get_mean_radiance()
+            self.slope = panels[0].get_mean_radiance() / panels[0].get_reflectance()
         else:
             # calculate regression for each band
             for b, w in enumerate(self.wav):
-                _x = np.array([p.get_mean_radiance()[b] for p in panels])
-                _y = np.array([p.get_reflectance()[b] for p in panels])
+                _y = np.array([p.get_mean_radiance()[b] for p in panels])
+                _x = np.array([p.get_reflectance()[b] for p in panels])
                 self.slope[b], self.intercept[b], _, _, _ = stats.linregress(_x, _y)
 
     def get_wavelengths(self):
@@ -583,8 +579,8 @@ class ELC(object):
 
         assert data.band_count() == len(self.slope), "Error - data has %d bands but ELC has %d" % (
         data.band_count(), len(self.slope))
-        data.data *= self.slope
-        data.data += self.intercept
+        data.data -= self.intercept # subtract path radiance
+        data.data /= self.slope # remove illumination source
 
         return np.logical_not(self.get_bad_bands(**kwds))
 
@@ -624,4 +620,4 @@ class ELC(object):
             ax2.yaxis.label.set_color('blue')
             ax2.tick_params(axis='y', colors='blue')
 
-        return fig, ax
+        return ax.get_figure(), ax

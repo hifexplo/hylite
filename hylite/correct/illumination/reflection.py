@@ -117,7 +117,7 @@ class ReflModel(object):
 
             # get geometry data
             klm = self.geometry.X()[:, :3]
-            xyz = self.geometry.X()[:, 3:]
+            xyz = self.geometry.X()[:, 3:6]
         elif isinstance(self.geometry, HyScene):
             # create output object
             outshape = (self.geometry.image.data.shape[:-1] + (1,))
