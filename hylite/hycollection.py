@@ -1,5 +1,6 @@
 import os
 import hylite
+import numpy as np
 
 class HyCollection(object):
 
@@ -124,3 +125,17 @@ class HyCollection(object):
         except AttributeError:  # no attribute found
             self._loadAttribute_(name)  # load the attribute from disk
             return object.__getattribute__(self, name)  # return it
+
+    def __setattr__(self, name, value):
+        """
+        Override __setattr__ to throw an error when dodgy data types are added to this collection.
+        """
+        valid = type(value) in [ int, str, bool, float, list ] # accept primitive types
+        valid = valid or isinstance( value, np.ndarray) # accept numpy arrays
+        valid = valid or isinstance( value, hylite.HyData ) # accept hydata types
+        valid = valid or isinstance(value, hylite.HyHeader)  # accept hydata types
+        valid = valid or isinstance( value, hylite.HyCollection ) # accept HyCollection instances (nesting)
+        valid = valid or isinstance(value, hylite.project.Camera ) # accept Camera instances
+        valid = valid or isinstance(value, hylite.project.Pushbroom)  # accept Pushbroom instances
+        assert valid, "Error - %s is an invalid attribute type for HyCollection." % type(value)
+        object.__setattr__(self, name, value)
