@@ -10,7 +10,7 @@ from .clouds import *
 from .libraries import *
 from .pmaps import *
 
-from hylite import HyData, HyImage, HyCloud, HyLibrary
+from hylite import HyData, HyImage, HyCloud, HyLibrary, HyCollection
 from hylite.project import PMap
 
 def save(path, data, **kwds):
@@ -47,14 +47,33 @@ def save(path, data, **kwds):
                 save_func = saveWithGDAL
             except ModuleNotFoundError:  # no gdal, use SPy
                 save_func = saveWithSPy
+            ext = 'dat'
+    elif isinstance(data, HyHeader):
+        save_func = saveHeader
+        ext = 'hdr'
     elif isinstance(data, HyCloud):
         save_func = saveCloudPLY
+        ext = 'ply'
     elif isinstance(data, HyLibrary):
         save_func = saveLibraryCSV
+        ext = 'csv'
     elif isinstance(data, PMap ):
         save_func = savePMap
+        ext = 'npz'
+    elif isinstance(data, HyCollection):
+        save_func = saveCollection
+        ext = 'hyc'
+    elif isinstance(data, np.ndarray):
+        save_func = np.save
+        ext = 'npy'
     else:
-        assert False, "Error - data must be an instance of HyImage, HyCloud or HyLibrary."
+        assert False, "Error - data type %s is unsupported by hylite.io.save." % type(data)
+
+    # check path file extension
+    if 'hdr' in os.path.splitext(path)[1]: # auto strip .hdr extensions if provided
+        path = os.path.splitext(path)[0]
+    if ext not in os.path.splitext(path)[1]: # add type-specific extension if needed
+        path += '.%s'%ext
 
     # save!
     save_func( path, data )
@@ -71,15 +90,20 @@ def load(path):
      - a HyData instance containing the loaded dataset.
     """
 
+    assert os.path.exists( path ), "Error: file %s does not exist." % path
+
     # load file formats with no associated header
     if 'npz' in os.path.splitext( path )[1].lower():
         return loadPMap(path)
+    elif 'npy' in os.path.splitext( path )[1].lower():
+        return np.load( path ) # load numpy
 
     # file (should/could) have header - look for it
     header, data = matchHeader( path )
-    ext = ''
-    if data is not None:
-        ext = os.path.splitext(data)[1].lower()
+    assert os.path.exists(data), "Error - file %s does not exist." % data
+    ext = os.path.splitext(data)[1].lower()
+    if ext == '':
+        assert os.path.isfile(data), "Error - %s is a directory not a file." % data
 
     if 'ply' in ext: # point or hypercloud
         return loadCloudPLY(path)
@@ -91,8 +115,9 @@ def load(path):
         return loadLibrarySED(path)
     elif 'tsg' in ext: # spectral library
         return loadLibraryTSG(path)
+    elif 'hyc' in ext: # load hylite collection
+        return loadCollection(path)
     else: # image
-
         # load conventional images with PIL
         if 'png' in ext or 'jpg' in ext or 'bmp' in ext:
             # load image with matplotlib
@@ -104,3 +129,34 @@ def load(path):
         except ModuleNotFoundError: # no gdal, use SPy
             return loadWithSPy(path)
 
+##############################################
+## save and load data collections
+##############################################
+# save collection
+def saveCollection(path, collection):
+    # strip file extension (if it exists)
+    path = os.path.splitext(path)[0]
+
+    # strip collection name (if it was included)
+    if os.path.basename(path) == collection.name:
+        path = os.path.dirname(path)
+
+    # generate file paths
+    dirmap = collection.get_file_dictionary(root=path)
+
+    # save files
+    for p, o in dirmap.items():
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        save(p, o)  # save each path and item [ n.b. this includes the header file! :-) ]
+
+
+def loadCollection(path):
+    # load header and find directory path
+    header, directory = matchHeader(path)
+
+    # parse name and root
+    root = os.path.dirname(directory)
+    name = os.path.basename(os.path.splitext(directory)[0])
+    C = HyCollection(name, root, header=loadHeader(header))
+
+    return C

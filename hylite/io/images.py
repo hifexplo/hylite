@@ -43,8 +43,11 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
 
     #load image
     assert os.path.exists(image), "Error - %s does not exist." % image
-    raster = gdal.Open(image)  # open image
-    data = raster.ReadAsArray().T
+    try:
+        raster = gdal.Open(image)  # open image
+        data = raster.ReadAsArray().T
+    except:
+        assert False, "Error - %s could not be read by GDAL." % image
 
     #create image object
     assert data is not None, "Error - GDAL could not retrieve valid image data from %s" % path

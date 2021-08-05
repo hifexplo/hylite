@@ -44,4 +44,5 @@ from .hyimage import HyImage
 from .hycloud import HyCloud
 from .hylibrary import HyLibrary
 from .hyscene import HyScene
+from .hycollection import HyCollection
 from .hyfeature import HyFeature, MultiFeature, MixedFeature
