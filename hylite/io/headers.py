@@ -184,7 +184,9 @@ def matchHeader(path):
                     and not "hdt" in str.lower(os.path.splitext(m)[1]) \
                     and not "csv" in str.lower(os.path.splitext(m)[1]) \
                     and not "txt" in str.lower(os.path.splitext(m)[1]) \
-                    and not "xml" in str.lower(os.path.splitext(m)[1]):
+                    and not "xml" in str.lower(os.path.splitext(m)[1]) \
+                    and not "cam" in str.lower(os.path.splitext(m)[1]) \
+                    and not "brm" in str.lower(os.path.splitext(m)[1]):
 
                 image = m  # store matching image file
                 break

@@ -7,6 +7,8 @@ from tempfile import mkdtemp
 import shutil
 import numpy as np
 
+from hylite.project import Camera, Pushbroom
+
 class TestHyImage(unittest.TestCase):
     def test_load(self):
         self.img = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
@@ -25,7 +27,7 @@ class TestHyImage(unittest.TestCase):
         try:
             for data in [self.lib, self.cld]:
                 io.save(os.path.join(pth, "data.hdr"), data)
-            # test image(s)
+            # test image(s) with GDAL and SPy
             for data in [self.img]:
                     # save with default (GDAL?)
                     print(os.path.join(pth, "data.hdr"))
@@ -41,6 +43,35 @@ class TestHyImage(unittest.TestCase):
                     # assert equal
                     self.assertTrue(np.nanmax(np.abs(data.data - data2.data)) < 0.01)  # more or less equal datsets
                     self.assertTrue(np.nanmax(np.abs(data.data - data3.data)) < 0.01)  # more or less equal datsets
+
+            # test saving camera objects
+            cam = Camera( np.ones(3), np.ones(3), 'pano', 32.2, (100,100), step=0.1 ) # build test camera
+            track = Pushbroom( np.ones((1000,3)), np.ones((1000,3)), 0.05, 30.04, (100,1000)) # test pushbroom camera
+
+            # test saving camera
+            data = cam
+            io.save(os.path.join(pth, "camera"), data )
+            self.assertTrue(os.path.exists(os.path.join(pth, "camera.cam")))
+
+            # test saving track
+            data = track
+            io.save(os.path.join(pth, "track"), data )
+            self.assertTrue(os.path.exists(os.path.join(pth, "track.brm")))
+
+            # test loading camera
+            cam2 = io.load( os.path.join(pth, "camera.cam"))
+            self.assertTrue( (np.abs(cam2.pos - cam.pos) < 0.01).all() )
+            self.assertTrue((np.abs(cam2.ori - cam.ori) < 0.01).all())
+            self.assertTrue(cam2.dims[0] == cam.dims[0])
+            self.assertEqual(cam2.proj, cam.proj)
+
+            # test loading pushbroom
+            track2 = io.load(os.path.join(pth, "track.brm"))
+            self.assertTrue((np.abs(track2.cp - track.cp) < 0.001).all())
+            self.assertTrue((np.abs(track2.co - track.co) < 0.001).all())
+            self.assertTrue(track2.dims[0] == track.dims[0])
+            self.assertTrue( np.abs(track2.pl - track.pl) < 0.001 )
+
         except:
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error - could not save data of type %s" % str(type(data)))

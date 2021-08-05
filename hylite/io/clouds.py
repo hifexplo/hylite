@@ -3,7 +3,7 @@ import numpy as np
 from hylite import HyCloud
 from .headers import matchHeader, makeDirs, saveHeader, loadHeader
 from .images import loadWithGDAL
-from hylite.project.camera import Camera
+
 
 def saveCloudCSV(path, cloud, delimeter=' ', fmt='%.3f', writeHeader=True):
 
@@ -463,47 +463,3 @@ def loadCloudDEM(pathDEM, pathRGB=None):
     # return HyCloud
     return HyCloud(xyz, rgb=rgb)
 
-def saveCameraTXT( path, camera ):
-    """
-    Saves a Camera view to a simple text format.
-
-    *Arguments*:
-     - path = the path to save the file.
-     - camera = a camera object containing the data to save.
-    """
-
-    # make directories if need be
-    makeDirs( path )
-
-    with open(path,'w') as f:
-        f.write('%.3f,%.3f,%.3f #camera position\n' % (camera.pos[0],camera.pos[1],camera.pos[2]))
-        f.write('%.3f,%.3f,%.3f #camera ori\n' % (camera.ori[0], camera.ori[1], camera.ori[2]))
-        f.write('%s #project type\n' % camera.proj)
-        f.write('%.3f #vertical field of view (deg)\n' % camera.fov)
-        f.write('%d,%d #dims\n' % (camera.dims[0],camera.dims[1]))
-        if 'pano' in camera.proj.lower():
-            f.write('%.3f # angular pitch (x)\n' % camera.step)
-
-def loadCameraTXT( path ):
-    """
-    Loads a Camera view from a simple text format.
-
-    *Returns*:
-     - a Camera object containing the camera properties.
-    """
-
-    with open(path, 'r') as f:
-        lines = f.readlines()
-
-        #trim comments
-        lines = [l.split('#')[0] for l in lines]
-        pos = np.fromstring( lines[0], sep=',')
-        ori = np.fromstring( lines[1], sep=',')
-        proj = lines[2]
-        fov = float(lines[3])
-        dims = tuple( np.fromstring( lines[4], sep=',').astype(np.int))
-        step  = None
-        if len(lines) > 5:
-            step = float( lines[5] )
-
-        return Camera(pos, ori, proj, fov, dims, step)

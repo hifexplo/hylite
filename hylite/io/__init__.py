@@ -3,15 +3,15 @@
 Import and export hyperspectral data. For hyperspectral images this is mostly done using GDAL,
 while for point clouds and hyperspectral libraries a variety of different methods are included.
 """
-import os
 from .headers import *
 from .images import *
 from .clouds import *
 from .libraries import *
 from .pmaps import *
+from .cameras import saveCameraTXT, loadCameraTXT
 
-from hylite import HyData, HyImage, HyCloud, HyLibrary, HyCollection
-from hylite.project import PMap
+from hylite import HyImage, HyCloud, HyLibrary, HyCollection
+from hylite.project import PMap, Camera, Pushbroom
 
 def save(path, data, **kwds):
     """
@@ -60,6 +60,12 @@ def save(path, data, **kwds):
     elif isinstance(data, PMap ):
         save_func = savePMap
         ext = 'npz'
+    elif isinstance(data, Camera ):
+        save_func = saveCameraTXT
+        ext = 'cam'
+    elif isinstance(data, Pushbroom):
+        save_func = saveCameraTXT
+        ext = 'brm'
     elif isinstance(data, HyCollection):
         save_func = saveCollection
         ext = 'hyc'
@@ -117,6 +123,8 @@ def load(path):
         return loadLibraryTSG(path)
     elif 'hyc' in ext: # load hylite collection
         return loadCollection(path)
+    elif 'cam' in ext or 'brm' in ext: # load pushbroom and normal cameras
+        return loadCameraTXT(path)
     else: # image
         # load conventional images with PIL
         if 'png' in ext or 'jpg' in ext or 'bmp' in ext:
