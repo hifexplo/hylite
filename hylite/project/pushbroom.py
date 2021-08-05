@@ -180,9 +180,11 @@ class Pushbroom(object):
 
         # project into camera coordinates
         if isinstance(cloud, np.ndarray):
-            xyz = np.dot(cloud - self.cp[i], self.R[i].as_matrix())
+            #xyz = np.dot(cloud - self.cp[i], self.R[i].as_matrix())
+            xyz = (cloud - self.cp[i])@(self.R[i].as_matrix())
         else:
-            xyz = np.dot(cloud.xyz - self.cp[i], self.R[i].as_matrix())
+            #xyz = np.dot(cloud.xyz - self.cp[i], self.R[i].as_matrix())
+            xyz = (cloud.xyz - self.cp[i])@(self.R[i])
 
         # calculate along-track coordinate (perspective projection perpendicular to flight line)
         ltrack = 0.5 + (

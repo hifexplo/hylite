@@ -6,7 +6,7 @@ class HyCollection(object):
 
     def __init__(self, name, root, header=None, vb=False):
         """
-        Create a new hycollection instance.
+        Create a new HyCollection instance.
 
         *Arguments*:
          - name = a name for this HyCollection. Names of HyCollections stored in any given directory must be

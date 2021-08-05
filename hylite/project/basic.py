@@ -28,7 +28,8 @@ def proj_persp( xyz, C, a, fov, dims, normals=None):
     #apply camera rotation to get to coordinate system
     #  where y is camera up and z distance along the view axis
     R = spatial.transform.Rotation.from_euler('XYZ',-a,degrees=True).as_matrix()
-    xyz = np.dot(xyz, R)
+    #xyz = np.dot(xyz, R)
+    xyz = xyz@R
 
     #calculate image plane width/height in projected coords
     h = 2 * np.tan( np.deg2rad( fov / 2 ) )
@@ -76,7 +77,8 @@ def proj_pano(xyz, C, a, fov, dims, step=None, normals=None):
     # apply camera rotation to get to coordinate system
     #  where y is camera up and z distance along the view axis
     R = spatial.transform.Rotation.from_euler('XYZ', -a, degrees=True).as_matrix()
-    xyz = np.dot(xyz, R)
+    #xyz = np.dot(xyz, R)
+    xyz = xyz@R
 
     # calculate image height (in projected coords) for vertical perspective project
     h = 2 * np.tan(np.deg2rad(fov / 2))
@@ -114,7 +116,8 @@ def proj_ortho( xyz, C, V, s=1.0 ):
     """
 
     xyz = xyz - C[None, :]  # center origin on camera
-    pz = np.dot(xyz, V)  # calculate depths (distances from plane)
+    #pz = np.dot(xyz, V)  # calculate depths (distances from plane)
+    pz = xyz@V
     xyz -= (V[None, :] * pz[:, None])  # project onto plane (by removing depth)
     return s*np.array([ xyz[:,0], xyz[:,1], pz]).T, pz > 0
 

@@ -549,7 +549,8 @@ def push_to_cloud(pmap, bands=(0, -1), method='best'):
         assert False, "Error - %s is an invalid method." % method
 
     # calculate output
-    V = W.dot(X) / n[:, None]
+    #V = W.dot(X) / n[:, None]
+    V = W@X / n[:, None]
 
     # build output cloud
     out = pmap.cloud.copy(data=False)
@@ -612,11 +613,13 @@ def push_to_image(pmap, bands='xyz', method='closest'):
         rows = np.array(closest[cols])
         vals = np.ones(rows.shape)
         W = csc_matrix((vals, (rows, cols)), pmap.data.shape, dtype=np.float32)
-        V = W.T.dot(dat)  # project closest poits
+        #V = W.T.dot(dat)  # project closest poits
+        V = W.T@dat  # project closest poits
     elif 'average' in method.lower():
         W = (pmap.data > 0).astype(np.float32)  # weights matrix [ full of ones ]
         n = np.array(W.sum(axis=0))[0, :]  # sum of weights
-        V = W.T.dot(dat) / n[:, None]  # calculate average
+        #V = W.T.dot(dat) / n[:, None]  # calculate average
+        V = W.T@dat / n[:, None]  # calculate average
     else:
         assert False, "Error - %s is an invalid method for cloud_to_image." % method
 

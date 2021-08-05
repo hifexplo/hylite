@@ -111,7 +111,7 @@ class HyHeader( dict ):
             if 'wavelength' in self:
                 del self['wavelength']
         else:
-            assert isinstance(wavelengths, list) or isinstance(wavelengths, np.ndarray), "Error - wavelengths must be list or numpy array."
+            assert isinstance(wavelengths, list) or isinstance(wavelengths, np.ndarray) or isinstance(wavelengths, tuple), "Error - wavelengths must be list, tuple or numpy array."
             self['wavelength'] = np.array(wavelengths).astype(np.float)
 
     def set_fwhm(self, fwhm):
