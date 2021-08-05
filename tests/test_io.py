@@ -91,13 +91,19 @@ class TestHyImage(unittest.TestCase):
             C.lib = self.lib
             C.val = 100.
             C.arr = np.linspace(0,100)
+            C.x = None # this should be ignored
             C.bool = True
 
             # save it
             io.save( os.path.join(pth, "testC.hdr"), C )
+            #print(os.listdir( os.path.join(pth, "testC.hyc/") ) )
+            self.assertTrue(os.path.exists(os.path.join(pth, "testC.hyc/arr.npy")))  # check numpy array has been saved
+            self.assertTrue(os.path.exists(os.path.join(pth, "testC.hyc/img.hdr")))  # check image has been saved
+            #C.print()
 
             # load it
             C2 = io.load( os.path.join(pth, "testC.hdr") )
+            #C2.print()
 
             # test it
             self.assertEqual( C2.val, C.val )
@@ -108,6 +114,17 @@ class TestHyImage(unittest.TestCase):
             self.assertEqual(C2.img.xdim(), C.img.xdim())
             self.assertEqual(C2.cld.point_count(), C.cld.point_count())
             self.assertEqual(C2.lib.sample_count(), C.lib.sample_count())
+            # test cleaning
+            C2.bool = None
+            C2.val = None
+            C2.img = None
+            C2.arr = None
+            C2.clean()
+
+            self.assertFalse( 'bool' in C2.header )
+            self.assertFalse('val' in C2.header)
+            self.assertFalse(os.path.exists(os.path.join(pth, "testC.hyc/val.npy")))  # check numpy array has been deleted
+            self.assertFalse( os.path.exists( os.path.join(pth, "testC.hyc/img.hdr") )) # check image has been deleted
         except:
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error - could not create, load or save HyCollection." )

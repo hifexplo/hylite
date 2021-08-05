@@ -1,7 +1,7 @@
 import os
 import hylite
 import numpy as np
-
+import shutil
 class HyCollection(object):
 
     def __init__(self, name, root, header=None, vb=False):
@@ -46,16 +46,47 @@ class HyCollection(object):
 
         # build paths dictionary
         out = {os.path.join(root, "%s.hdr" % self.name): self.header}
-        path = os.path.join(root, self.name) + ".hyc"
+        path = self._getDirectory()
         for a in attr:
-
             value = getattr(self, a)  # get value
+            if value is None:
+                continue # skip None values
             if type(value) in [int, str, bool, float]:  # primitive types
                 self.header[a] = value  # store in header file
             else:
                 out[os.path.join(path, a)] = value
 
         return out
+
+    def clean(self):
+        """
+        Delete files associated with attributes that have been cleared by setting to None.
+        """
+        attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root']))
+        for a in attr:
+            value = getattr(self, a)
+            if value is None:
+                # remove from header file? (easy)
+                if a in self.header:
+                    del self.header[a]
+                else:
+                    # remove from disk...
+                    # solve path from attribute name
+                    path = None
+                    for f in os.listdir(self._getDirectory()):
+                        if os.path.splitext(f)[0] == a:  # we have found the right file
+                            path = os.path.join(self._getDirectory(), f)
+                            break
+                    if path is not None and os.path.exists(path):
+                        hdr, dat = hylite.io.matchHeader( path )
+                        if hdr is not None and os.path.exists(hdr):
+                            os.remove(hdr)
+                        if dat is not None and os.path.exists(dat) and os.path.isdir(dat): # nested HyCollection
+                            shutil.rmtree(dat)
+                        if os.path.exists(dat) and os.path.isfile(dat): # other data type
+                            os.remove(dat)
+                # remove attribute
+                delattr(self, a)
 
     def _loadAttribute_(self, attr):
         """
@@ -71,7 +102,7 @@ class HyCollection(object):
             return
 
         # no file associated with this HyCollection - raise attribute error.
-        if not os.path.exists(os.path.join(self.root, self.name) + '.hyc'):
+        if not os.path.exists( self._getDirectory() ):
             raise AttributeError
 
         # check if attribute is in the header file
@@ -102,18 +133,46 @@ class HyCollection(object):
         else:
             # solve path from attribute name
             path = None
-            for f in os.listdir(os.path.join(self.root, self.name + ".hyc")):
+            for f in os.listdir( self._getDirectory() ):
                 if os.path.splitext(f)[0] == attr:  # we have found the right file
-                    path = os.path.join(os.path.join(self.root, self.name + ".hyc"), f)
+                    path = os.path.join( self._getDirectory(), f)
                     break
             assert path is not None and os.path.exists(path), \
-                "Error - could not load attribute %s from disk (%s)." % (
-                attr, os.path.join(self.root, self.name + ".hyc/"))
+                "Error - could not load attribute %s from disk (%s)." % ( attr, self._getDirectory() )
 
             # load attribute
             if self.vb:
                 print("Loading %s from %s" % (attr, path))
             self.__setattr__(attr, hylite.io.load(path))  # load and update HyCollection attribute
+
+    def _getDirectory(self):
+        return os.path.join(self.root, self.name + ".hyc")
+
+    def print(self):
+        """
+        Print a nicely formatted summary of the contents of this collection.
+        """
+        attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root']))
+
+        # print loaded variables
+        print("Attributes stored in RAM:")
+        for a in attr:
+            v = getattr(self, a)
+            print("\t - %s called %s" % (type(v), a) )
+
+        # print header variables
+        print("Attributes stored in header:")
+        for k,v in self.header.items():
+            if k not in ['file type', 'path'] and k not in attr: # header keys to ignore
+                print("\t %s = %s" % (k,v))
+
+        # print disk variables
+        if os.path.exists(self._getDirectory()):
+            print("Attributes stored on disk:")
+            for f in os.listdir(self._getDirectory()):
+                name, ext = os.path.splitext(f)
+                if name not in attr and ext != '.hdr':
+                    print( "\t - %s" % f)
 
     def __getattribute__(self, name):
         """
@@ -137,5 +196,7 @@ class HyCollection(object):
         valid = valid or isinstance( value, hylite.HyCollection ) # accept HyCollection instances (nesting)
         valid = valid or isinstance(value, hylite.project.Camera ) # accept Camera instances
         valid = valid or isinstance(value, hylite.project.Pushbroom)  # accept Pushbroom instances
+        valid = valid or isinstance(value, hylite.project.PMap)  # accept Pushbroom instances
+        valid = valid or value is None # also accept None
         assert valid, "Error - %s is an invalid attribute type for HyCollection." % type(value)
         object.__setattr__(self, name, value)
