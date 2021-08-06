@@ -30,7 +30,7 @@ class TestHyImage(unittest.TestCase):
             # test image(s) with GDAL and SPy
             for data in [self.img]:
                     # save with default (GDAL?)
-                    print(os.path.join(pth, "data.hdr"))
+                    #print(os.path.join(pth, "data.hdr"))
                     io.save(os.path.join(pth, "data.hdr"), data )
                     self.assertEqual( os.path.exists(os.path.join(pth, "data.hdr")), True)
                     data2 = io.load(os.path.join(pth, "data.hdr")) # reload it
@@ -125,6 +125,21 @@ class TestHyImage(unittest.TestCase):
             self.assertFalse('val' in C2.header)
             self.assertFalse(os.path.exists(os.path.join(pth, "testC.hyc/val.npy")))  # check numpy array has been deleted
             self.assertFalse( os.path.exists( os.path.join(pth, "testC.hyc/img.hdr") )) # check image has been deleted
+
+            # test saving collection in a different location
+            io.save(os.path.join(pth, "testD.hdr"), C2 )
+            self.assertTrue(os.path.exists(os.path.join(pth, "testD.hyc/cld.hdr")))  # check cloud has been copied across
+
+            # load this collection
+            C3 = io.load(os.path.join(pth, "testD.hyc"))
+            C3.inner = io.load( os.path.join(pth, "testC.hdr") ) # add nested collection
+            C3.inner.arr2 = np.full( 40, 3.0 ) # add new thing to nested collection
+            io.save(os.path.join(pth, "testE.hyc"), C3 )
+            self.assertTrue(os.path.exists(os.path.join(pth, "testE.hyc/cld.hdr"))) # check cloud has been copied across
+            self.assertTrue(os.path.exists(os.path.join(pth,
+                                                        "testE.hyc/inner.hyc/cld.hdr"))) # check cloud has been copied across
+            self.assertTrue(os.path.exists(os.path.join(pth,
+                                                        "testE.hyc/inner.hyc/arr2.npy"))) # check cloud has been copied across
         except:
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error - could not create, load or save HyCollection." )

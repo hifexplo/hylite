@@ -13,6 +13,8 @@ from .cameras import saveCameraTXT, loadCameraTXT
 from hylite import HyImage, HyCloud, HyLibrary, HyCollection
 from hylite.project import PMap, Camera, Pushbroom
 
+import shutil
+
 def save(path, data, **kwds):
     """
     A generic function for saving HyData instances such as HyImage, HyLibrary and HyCloud. The appropriate file format
@@ -69,6 +71,10 @@ def save(path, data, **kwds):
     elif isinstance(data, HyCollection):
         save_func = saveCollection
         ext = 'hyc'
+        if os.path.splitext(path)[0]+ext != data._getDirectory(): # we're moving to a new home! Copy folder
+            if os.path.exists(data._getDirectory()): # if it exists...
+                shutil.copytree( data._getDirectory(), os.path.splitext(path)[0]+"."+ext)
+
     elif isinstance(data, np.ndarray):
         save_func = np.save
         ext = 'npy'
@@ -142,15 +148,9 @@ def load(path):
 ##############################################
 # save collection
 def saveCollection(path, collection):
-    # strip file extension (if it exists)
-    path = os.path.splitext(path)[0]
-
-    # strip collection name (if it was included)
-    if os.path.basename(path) == collection.name:
-        path = os.path.dirname(path)
-
     # generate file paths
-    dirmap = collection.get_file_dictionary(root=path)
+    dirmap = collection.get_file_dictionary(root=os.path.dirname(path),
+                                            name=os.path.splitext(os.path.basename(path))[0])
 
     # save files
     for p, o in dirmap.items():

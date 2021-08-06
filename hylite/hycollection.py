@@ -25,7 +25,7 @@ class HyCollection(object):
         if 'vb' not in header:
             self.vb = vb
 
-    def get_file_dictionary(self, root=None):
+    def get_file_dictionary(self, root=None, name=None):
         """
         Convert this object to a dictionary of files (keys) and serializable objects (values).
         Note that primitive attributes (string, integer, etc.) will be stored in the header file.
@@ -33,20 +33,25 @@ class HyCollection(object):
         *Arguments*:
          - root = the directory to store this HyCollection in. Defaults to the root directory specified when
                   this HyCollection was initialised, but this can be overriden for e.g. saving in a new location.
+         - name = the name to use for the HyCollection in the file dictionary. If None (default) then this instance's
+                  name will be used, but this can be overriden for e.g. saving in a new location.
         *Returns*:
          - a dictionary such that dict[ path ] = object.
         """
         # parse root
         if root is None:
             root = self.root
+        if name is None:
+            name = self.name
         assert root is not None, "Error - root argument must be set during HyCollection initialisation or function call."
+        assert name is not None, "Error - name argument must be set during HyCollection initialisation or function call."
 
         # get all attributes (excluding class methods/variables and the header variable)
         attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root']))
 
         # build paths dictionary
-        out = {os.path.join(root, "%s.hdr" % self.name): self.header}
-        path = self._getDirectory()
+        out = {os.path.join(root, "%s.hdr" % name): self.header}
+        path = self._getDirectory( root=root, name=name )
         for a in attr:
             value = getattr(self, a)  # get value
             if value is None:
@@ -145,8 +150,24 @@ class HyCollection(object):
                 print("Loading %s from %s" % (attr, path))
             self.__setattr__(attr, hylite.io.load(path))  # load and update HyCollection attribute
 
-    def _getDirectory(self):
-        return os.path.join(self.root, self.name + ".hyc")
+    def _getDirectory(self, root=None, name=None):
+        """
+        Return the directory files associated with the HyCollection are stored in.
+
+         *Arguments*:
+         - root = the directory to store this HyCollection in. Defaults to the root directory specified when
+                  this HyCollection was initialised, but this can be overriden for e.g. saving in a new location.
+         - name = the name to use for the HyCollection in the file dictionary. If None (default) then this instance's
+                  name will be used, but this can be overriden for e.g. saving in a new location.
+        """
+        if root is None:
+            root = self.root
+        if name is None:
+            name = self.name
+        assert root is not None, "Error - root argument must be set during HyCollection initialisation or function call."
+        assert name is not None, "Error - name argument must be set during HyCollection initialisation or function call."
+
+        return os.path.join(root, name + ".hyc")
 
     def print(self):
         """
