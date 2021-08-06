@@ -10,7 +10,7 @@ from .libraries import *
 from .pmaps import *
 from .cameras import saveCameraTXT, loadCameraTXT
 
-from hylite import HyImage, HyCloud, HyLibrary, HyCollection
+from hylite import HyImage, HyCloud, HyLibrary, HyCollection, HyScene
 from hylite.project import PMap, Camera, Pushbroom
 
 import shutil
@@ -71,7 +71,9 @@ def save(path, data, **kwds):
     elif isinstance(data, HyCollection):
         save_func = saveCollection
         ext = 'hyc'
-        if os.path.splitext(path)[0]+ext != data._getDirectory(): # we're moving to a new home! Copy folder
+        if isinstance(data, HyScene): # special type of HyCollection, should have different extension
+            ext = 'hys'
+        if os.path.splitext(path)[0]+"."+ext != data._getDirectory(): # we're moving to a new home! Copy folder
             if os.path.exists(data._getDirectory()): # if it exists...
                 shutil.copytree( data._getDirectory(), os.path.splitext(path)[0]+"."+ext)
 
@@ -127,7 +129,7 @@ def load(path):
         return loadLibrarySED(path)
     elif 'tsg' in ext: # spectral library
         return loadLibraryTSG(path)
-    elif 'hyc' in ext: # load hylite collection
+    elif 'hyc' in ext or 'hys' in ext: # load hylite collection or hyscene
         return loadCollection(path)
     elif 'cam' in ext or 'brm' in ext: # load pushbroom and normal cameras
         return loadCameraTXT(path)
@@ -151,12 +153,10 @@ def saveCollection(path, collection):
     # generate file paths
     dirmap = collection.get_file_dictionary(root=os.path.dirname(path),
                                             name=os.path.splitext(os.path.basename(path))[0])
-
     # save files
     for p, o in dirmap.items():
         os.makedirs(os.path.dirname(p), exist_ok=True)
         save(p, o)  # save each path and item [ n.b. this includes the header file! :-) ]
-
 
 def loadCollection(path):
     # load header and find directory path
@@ -165,6 +165,12 @@ def loadCollection(path):
     # parse name and root
     root = os.path.dirname(directory)
     name = os.path.basename(os.path.splitext(directory)[0])
-    C = HyCollection(name, root, header=loadHeader(header))
 
+    if 'hyc' in os.path.splitext(directory)[1]:
+        C = HyCollection(name, root, header=loadHeader(header))
+    elif 'hys' in os.path.splitext(directory)[1]:
+        C = HyScene(name, root, header=loadHeader(header))
+    else:
+        print(header, directory )
+        assert False, "Error - %s is an invalid collection." % directory
     return C

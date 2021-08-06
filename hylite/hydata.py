@@ -169,7 +169,8 @@ class HyData(object):
         """
         Return true if this dataset is an image (i.e. data array has dimension [x,y,b]).
         """
-
+        if self.data is None: # for point clouds data can be none
+            return False
         return len(self.data.shape) == 3
 
     def is_point(self):
@@ -177,7 +178,8 @@ class HyData(object):
         Return true if this dataset is an point cloud or related dataset (i.e. data array has dimension [idx,b]). Note
         that this will return true for spectral libraries and other 'cloud like' datasets.
         """
-
+        if self.data is None: # for point clouds data can be none
+            return True
         return len(self.data.shape) == 2
 
     def is_classification(self):

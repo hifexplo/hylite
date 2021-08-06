@@ -2,6 +2,7 @@ import os
 import hylite
 import numpy as np
 import shutil
+
 class HyCollection(object):
 
     def __init__(self, name, root, header=None, vb=False):
@@ -47,7 +48,7 @@ class HyCollection(object):
         assert name is not None, "Error - name argument must be set during HyCollection initialisation or function call."
 
         # get all attributes (excluding class methods/variables and the header variable)
-        attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root']))
+        attr = self.getAttributes()
 
         # build paths dictionary
         out = {os.path.join(root, "%s.hdr" % name): self.header}
@@ -67,7 +68,7 @@ class HyCollection(object):
         """
         Delete files associated with attributes that have been cleared by setting to None.
         """
-        attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root']))
+        attr = self.getAttributes()
         for a in attr:
             value = getattr(self, a)
             if value is None:
@@ -169,11 +170,17 @@ class HyCollection(object):
 
         return os.path.join(root, name + ".hyc")
 
+    def getAttributes(self):
+        """
+        Return a list of available attributes in this HyCollection.
+        """
+        return list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root', 'name']))
+
     def print(self):
         """
         Print a nicely formatted summary of the contents of this collection.
         """
-        attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root']))
+        attr = self.getAttributes()
 
         # print loaded variables
         print("Attributes stored in RAM:")
@@ -194,6 +201,21 @@ class HyCollection(object):
                 name, ext = os.path.splitext(f)
                 if name not in attr and ext != '.hdr':
                     print( "\t - %s" % f)
+
+    def save(self):
+        """
+        Quick utility function for saving this in the predefined location.
+        """
+        hylite.io.save( os.path.splitext( self._getDirectory() )[0], self )
+
+    def free(self):
+        """
+        Free all attributes in RAM. To avoid loading data, be sure to save this HyCollection first (e.g. using
+        self.save(...).
+        """
+        attr = self.getAttributes()
+        for a in attr:
+            delattr(a, self)
 
     def __getattribute__(self, name):
         """

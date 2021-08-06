@@ -1,177 +1,181 @@
-from tqdm import tqdm
 import hylite
-from hylite import HyImage
-from hylite.correct import norm_eq, hist_eq
-from hylite.project.basic import *
-class HyScene(object):
+from hylite import HyCollection
+from hylite.project import PMap, Pushbroom, Camera, proj_persp, proj_pano, project_pushbroom, push_to_cloud, push_to_image
+from tqdm import tqdm
+import cv2
+import numpy as np
+import os
+class HyScene( HyCollection ):
     """
-    A class that combines a hyperspectral image with known camera pose and a 3D point cloud into a 2.5D scene. The scene
-    can then be topographically corrected, calibrated or aligned with other scenes and/or projected to make a hypercloud.
+    A special type of HyCollection and contains a projection map for transferring information between a point cloud and
+    a hyperspectral image.
     """
-
-    def __init__(self, image, cloud, camera, s=1, occ_tol=10, vb=True):
+    def __init__(self, root, name, header=None ):
         """
-        Create a HyScene instance using the defined image, camera and point cloud data.
+        Create an empty HyScene instance and initialises the associated collection.
 
         *Arguments*:
-         - image = a HyImage instance map onto the point cloud.
-         - cloud = a HyCloud instance containing point cloud data.
-         - camera = hylite.project.Camera object containing camera properties to use for the mapping.
-         - s = the point size to use when rendering points and building the image <-> cloud mappings. Default is 1 (map to
-               a single pixel)
-         - occ_tol = the distance between a point and the z-buffer before it becomes occluded. Default is 10. Set to 0 to
-                    disable occlusion.
-         - vb = true if a progress bar should be displayed (as this function can be slooooow). Default is true.
+         - name = the name of this scene instance.
+         - root = the root directory of this scene instance.
+         - header = a pre-existing header file for this HyScene (used when loading from disk). Default is None.
+        """
+        super().__init__( name, root, header )
+
+    def getAttributes(self):
+        """
+        Return a list of available attributes in this HyScene. We must override the HyCollection implementation to remove
+        functions associated with HyScene.
+        """
+        return list(set(dir(self)) - set(dir(HyCollection)) - set(dir(HyScene)) - set(['header', 'root', 'name']))
+
+    def _getDirectory(self, root=None, name=None):
+        """
+        Return the directory files associated with the HyScene are stored in. We override this to change the file extension
+        associated with HyScene objects.
+
+         *Arguments*:
+         - root = the directory to store this HyCollection in. Defaults to the root directory specified when
+                  this HyCollection was initialised, but this can be overriden for e.g. saving in a new location.
+         - name = the name to use for the HyCollection in the file dictionary. If None (default) then this instance's
+                  name will be used, but this can be overriden for e.g. saving in a new location.
         """
 
-        if image is None and cloud is None and camera is None:
-            return  # dummy constructor used for loading data from file
+        p = os.path.splitext( HyCollection._getDirectory(self, root, name) )[0]
+        return p + ".hys"
 
-        if s > 0: s -= 1  # reduce s by one due to how numpy does indexing.
+    def construct(self, image, cloud, camera, s=1, occ_tol = 10, maxf=0, vb = True, **kwds):
+        """
+        Construct a mapping between the specified image and cloud based on the camera position / orientation / track.
+
+        *Arguments*:
+          - image = a HyImage instance containing data map onto the point cloud.
+          - cloud = a HyCloud instance containing data/geometry to map onto the image.
+          - camera = hylite.project.Camera or hylite.project.Pushbroom object describing the projection geometry.
+          - occ_tol = the distance between a point and the z-buffer before it becomes occluded. Default is 10. Set to 0 to
+                    disable occlusion.
+          - maxf = the maximum acceptible pixel footprint. Pixels containing > than this number of points will be excluded
+                   from the dataset. Set as 0 to disable (default).
+          - s = a dilation to apply when mapping point data to the image (to fill gaps/holes). Default is 1 (do not
+                apply a dilation).
+
+        *Keywords*: Keywords are passed to project_pushbroom for pushbroom type cameras.
+        """
+
+        # check dimensions match
+        assert camera.dims[0] == image.xdim() and camera.dims[
+            1] == image.ydim(), "Error - image and camera dimensions do not match."
 
         # store reference to associated datasets and properties
         self.image = image
         self.cloud = cloud
         self.camera = camera
-        self.s = s
         self.occ_tol = occ_tol
+        self.s = s
 
-        assert camera.dims[0] == image.xdim() and camera.dims[
-            1] == image.ydim(), "Error - image and camera dimensions do not match."
-
-        # project image onto cloud and build mappings for projecting pixels onto the cloud and vice-versa.
-        self.image_to_cloud = {}  # map image pixels to point IDs
-        self.cloud_to_image = {}  # map point IDs to image pixels
-        self.point_depth = {}  # map point IDs to depths
-        self.depth = np.full((image.data.shape[0], image.data.shape[1]),
-                             np.inf)  # also store depth buffer as this is handy
-        self.xyz = np.full((image.data.shape[0], image.data.shape[1], 3), np.nan)  # rendered point positions
-        self.normals = np.full((image.data.shape[0], image.data.shape[1], 3), np.nan)  # and point normals
-        self.obliquity = np.full((image.data.shape[0], image.data.shape[1]), np.nan)  # and incidence rays
-        # project point cloud using camera
-        if 'persp' in camera.proj.lower():
-            pp, vis = proj_persp(cloud.xyz, C=camera.pos, a=camera.ori,
-                                 fov=camera.fov, dims=camera.dims)
-        elif 'pano' in camera.proj.lower():
-            pp, vis = proj_pano(cloud.xyz, C=camera.pos, a=camera.ori,
-                                fov=camera.fov, dims=camera.dims, step=camera.step, normals=cloud.normals)
+        # build projection map
+        self.pmap = PMap(camera.dims[0], camera.dims[1], cloud.point_count(), cloud=cloud, image=image)
+        if isinstance(self.camera, Camera): # conventional camera
+            if 'persp' in camera.proj:
+                pp, vis = proj_persp(cloud.xyz, C=camera.pos, a=camera.ori,
+                                     fov=camera.fov, dims=camera.dims, normals=cloud.normals)
+                self.pmap.set_ppc( pp, vis )
+            elif 'pano' in camera.proj:
+                pp, vis = proj_pano(cloud.xyz, C=camera.pos, a=camera.ori,
+                                    fov=camera.fov, dims=camera.dims, step=camera.step, normals=cloud.normals)
+                self.pmap.set_ppc(pp, vis)
+            else:
+                assert False, "Error, %s is an incompatible projection type" % camera.proj
+        elif isinstance(self.camera, Pushbroom):
+                self.pmap = project_pushbroom( self.image, self.cloud, self.camera, vb=vb, **kwds )
         else:
-            assert False, "Error - unknown camera_type. Should be 'perspective' or 'panorama'."
+            assert False, "Error, %s is an unknown camera type" % type(self.camera)
 
-        assert vis.any(), "Error, project contains no visible points."
 
-        # cull invisible points (but remember ids)
-        ids = np.arange(0, cloud.point_count())[vis]
-        pp = pp[vis, :]
-
-        # loop through points, rasterise and build mapping
+        # filter occlusions
         if vb:
-            pp = tqdm(pp, leave=False)  # initialise progress bar
-            pp.set_description("Mapping points")
-        for i, p in enumerate(pp):
-            x = int(p[0])
-            y = int(p[1])
-            z = p[2]
+            prg = tqdm(total=6, leave=False)
+            prg.set_description("Filtering occlusions")
+        if self.occ_tol > 0:
+            self.pmap.filter_occlusions( self.occ_tol )
 
-            # is there image data in this pixel? If not... ignore it.
-            if np.isnan(self.image.data[x, y, :]).all():
-                continue  # nope...
-            if 'data ignore value' in self.image.header:
-                if (self.image.data[x, y, :] == self.image.header.get('data ignore value')).all():
-                    continue
-
-            # success - link point with this pixel :)
-            self.cloud_to_image[ids[i]] = (x, y)
-            self.point_depth[ids[i]] = z
-
-            # link pixel to point
-            if (x, y) in self.image_to_cloud:
-                self.image_to_cloud[(x, y)].append(ids[i])  # pixel already contains some points
-            else:  # no points in pixel yet
-                self.image_to_cloud[(x, y)] = [ids[i]]
-
-            # update depth, position and normal buffers
-            if z < self.depth[x, y]:  # in front of depth buffer?
-                self.depth[x - s:x + s + 1, y - s:y + s + 1] = z
-                self.xyz[x - s:x + s + 1, y - s:y + s + 1] = self.cloud.xyz[ ids[i] ]
-                if cloud.has_normals():
-                    self.normals[x - s:x + s + 1, y - s:y + s + 1] = self.cloud.normals[ ids[i] ]
-        if vb: pp.clear(nolock=False)  # remove progress bar
-
-        # remove occluded points
-        if occ_tol > 0:
-            to_del = []
+        # filter footprint
+        if maxf > 0:
             if vb:
-                loop = tqdm(self.cloud_to_image.items(), leave=False)  # initialise progress bar
-                loop.set_description("Filtering occluded points")
-            else:
-                loop = self.cloud_to_image.items()
-            for id, xy in loop:
-                x, y = xy
-                if abs(self.point_depth[id] - self.depth[x, y]) > occ_tol:  # point is occluded
-                    # remove from maps
-                    self.image_to_cloud[(x, y)].remove(id)
-                    if len(self.image_to_cloud[(x, y)]) == 0:
-                        del self.image_to_cloud[(x, y)]
-                    to_del.append(id)
-            for idx in to_del:
-                del self.cloud_to_image[idx]
+                prg.set_description("Filtering by footprint")
+                prg.update(1)
+            self.pmap.filter_footprint(maxf)
 
-        # compute normals, per-pixel position and obliquity
-        self.valid = np.full((self.image.xdim(), self.image.ydim()), False,
-                             dtype=np.bool)  # also store pixels with valid mappings
+        # do projections
+        if vb:
+            prg.set_description("Converting geometry")
+            prg.update(2)
+        print(cloud.has_normals())
         if cloud.has_normals():
-            if vb:
-                loop = tqdm(range(self.normals.shape[0]), leave=False)
-                loop.set_description("Averaging normal vectors...")
-            else:
-                loop = range(self.normals.shape[0])
-            for _x in loop:
-                for _y in range(self.normals.shape[1]):
-                    if (_x, _y) in self.image_to_cloud:
+            xyzklm = push_to_image( self.pmap, 'xyzklm', method='average').data
+            self.xyz = xyzklm[...,[0,1,2]]
+            self.normals = xyzklm[..., [3, 4, 5]]
+            if s > 1: # apply dilation
+                # import scipy as sp
+                # for b in range(3):
+                #     s = 5
+                #     dil[...,b] = sp.ndimage.grey_dilation(S.xyz[:,:,b], size=(s,s), origin=int(s/2),
+                #                                           mode='constant', cval=np.nan)
+                pass # how to do this?
+        else:
+            self.xyz = push_to_image( self.pmap, 'xyz', method='average').data
+            if s > 1: # apply dilation
+                pass # how to do this?
+            self.normals = None
 
-                        # valid pixel
-                        self.valid[_x][_y] = True
+        # build depth map
+        if vb:
+            prg.set_description("Building depth map")
+            prg.update(3)
+        self.depth = self.pmap.get_pixel_depths()
 
-                        # calculate point normal
-                        N = np.mean(self.cloud.normals[self.image_to_cloud[(_x, _y)], :], axis=0)
-                        self.normals[_x, _y, :] = N
+        # build viewvector map
+        if vb:
+            prg.set_description("Computing view vectors")
+            prg.update(5)
+        if isinstance( self.camera, Camera ):
+            # easy
+            self.view = self.xyz - self.camera.pos
+            self.view = self.view / np.linalg.norm(self.view, axis=-1)[..., None]  # normalise
+        else:
+            # less easy
+            #self.view = self.xyz[:,:,None] - self.lineID
+            pass
 
-                        # calculate obliquity
-                        if self.camera.is_perspective():
-                            O = np.arccos(np.dot(pix_to_ray_persp(_x, _y, self.camera.fov, self.camera.dims), N))
-                        else:
-                            O = np.arccos(
-                                np.dot(pix_to_ray_pano(_x, _y, self.camera.fov, self.camera.step, self.camera.dims), N))
-                        self.obliquity[_x, _y] = np.abs(np.rad2deg(O))
-
-            # normalise normals
-            self.normals = self.normals[:, :, :] / np.linalg.norm(self.normals, axis=2)[:, :, None]
-
+        #self.view = self.view / np.linalg.norm(self.view, axis=-1)[...,None] # normalise
+        if vb:
+            prg.set_description("Complete")
+            prg.update(6)
+            prg.close()
 
     def get_pixel_normal(self, px, py):
         """
         Get the average normal vector of all points in the specified pixel.
         """
-        return self.get_normals()[px, py]
+        assert self.cloud.has_normals(), "Error - no normals are available (on point cloud)."
+        return self.normals[px,py,:]
 
     def get_point_normal(self, index):
         """
         Get the normal vector of the specified point.
         """
-        return self.cloud.normals[index]
+        assert self.cloud.has_normals(), "Error - no normals are available (on point cloud)."
+        return self.cloud.normals[index,:]
 
     def get_xyz(self):
         """
-        Get per-pixel positions in world coords
+        Get per-pixel positions in world coords (as a numpy array)
         """
         return self.xyz
 
     def get_normals(self):
         """
-        Get per-pixel normals array.
+        Get per-pixel normals (as a numpy array).
         """
-
         return self.normals
 
     def get_depth(self):
@@ -182,41 +186,32 @@ class HyScene(object):
 
     def get_GSD(self):
         """
-        Get per-pixel ground sampling distance (pixel size).
+        Get per-pixel ground sampling distance (pixel size). Assumes square pixels.
 
         *Return*:
-         - gsd_x = numpy array containing the sampling distance in x
-         - gsd_y = numpy array containing the sampling distance in y
+         - gsd = numpy array containing the sampling distance in x
         """
-
         # calculate pixel pitch in degrees
-        pitch_y = np.deg2rad(self.camera.dims[1] / self.camera.fov)
-        if self.camera.is_panoramic():
-            pitch_x = np.deg2rad(self.camera.step)
-        else:
-            pitch_x = pitch_y  # assume square pixels
+        if isinstance(self.camera, Camera): # normal camera
+            pitch = np.deg2rad(self.camera.dims[1] / self.camera.fov)
+        else: # pushbroom camera
+            pitch = np.deg2rad( 1 / self.camera.xfov )
 
-        # calculate GSD
-        gsdx = 2 * self.depth * np.tan(pitch_x / 2)
-        gsdy = 2 * self.depth * np.tan(pitch_y / 2)
-        return gsdx, gsdy
+        # calculate GSD and return
+        return 2 * self.depth * np.tan(pitch / 2)
 
     def get_obliquity(self):
         """
         Get array obliquity angles (degrees) between camera look direction and surface normals. Note that this angle
         will be 0 if the look direction is perpendicular to the surface.
         """
-
-        return self.obliquity
+        return np.dot(self.view, self.normals)
 
     def get_view_dir(self):
         """
         Get per-pixel viewing direction vector (normalised to length = 1).
         """
-        view = self.get_xyz()
-        view -= self.camera.pos
-        view /= np.linalg.norm(view, axis=-1)[..., None]
-        return view
+        return self.view
 
     def get_slope(self):
         """
@@ -224,500 +219,500 @@ class HyScene(object):
         """
         return np.rad2deg(np.arccos(np.abs(self.normals[..., 2])))
 
-    def match_colour_to(self, reference, uniform=True, method='norm', inplace=True):
-
-        """
-        Identifies matching pixels between two hyperspectral scenes and uses them to minimise
-        colour differences using a linear model (aka by adjusting the brightness/contrast of this scene
-        to match the brightness/contrast of the reference scene). WARNING: by default this modifies this scene's
-        image IN PLACE.
-
-        *Arguments*:
-        - reference = the scene to match colours to.
-        - uniform = True if a single brightness contrast adjustment is applied to all bands (avoids introducing spectral
-                 artefacts). If False, different corrections area applied to each band - use with CARE! Default is True.
-        - method = The colour matching method to use. Current options are:
-                    - 'norm' = centre-means and scale to match standard deviation. Only compares points known to match.
-                    - 'hist' = histogram equalisation. Applies to all pixels in scene - use with care!
-                   Default is 'norm'.
-        - inplace = True if the correction should be applied to self.image in-place. If False, no correction is
-                  applied, and the correction weights (cfac and mfac) returned for future use. Default is True.
-        *Returns*:
-        - The corrected image as a HyImage object. If inplace=True (default) then this will be the same as self.image.
-        """
-
-        image = self.image
-        if not inplace:
-            image = image.copy()
-
-        if 'norm' in method.lower():
-            # get matching pixels
-            px1, px2 = self.intersect_pixels(reference)
-            assert px1.shape[0] > 0, "Error - no overlap between images."
-            if px1.shape[0] < 1000:
-                print("Warning: images only have %d overlapping pixels,"
-                   " which may result in poor colour matching." % px1.shape[0])
-
-            # extract data to create vector of matching values
-            px1 = image.data[px1[:, 0], px1[:, 1], :]
-            px2 = reference.image.data[px2[:, 0], px2[:, 1], :]
-
-            # apply correction
-            image.data = norm_eq( image.data, px1, px2, per_band=not uniform, inplace=True)
-
-        elif 'hist' in method.lower():
-            if uniform: # apply to whole dataset
-                image.data = hist_eq(image.data, reference.image.data)
-            else: # apply per band
-                for b in range(self.image.band_count()):
-                    image.data[:, :, b] = hist_eq(image.data[:, :, b], reference.image.data[:, :, b])
-        else:
-            assert False, "Error - %s is an unrecognised colour correction method." % method
-
-        return image
-
-    ###################################
-    ##PLOTTING AND EXPORT FUNCTIONS
-    ###################################
-    def _gather_bands(self, bands):
-        """
-        Utility function used by push_to_image( ... ) and push_to_cloud( ... ).
-        """
-
-        # extract wavelength and band name info
-        wav = []
-        nam = []
-
-        # loop through bands tuple/list and extract data indices/slices
-        for e in bands:
-            # extract from point cloud based on string
-            if isinstance(e, str):
-                for c in e.lower():
-                    if c == 'r':
-                        assert self.cloud.has_rgb(), "Error - RGB information not found."
-                        nam.append('r')
-                        wav.append(hylite.RGB[0])
-                    elif c == 'g':
-                        assert self.cloud.has_rgb(), "Error - RGB information not found."
-                        nam.append('g')
-                        wav.append(hylite.RGB[1])
-                    elif c == 'b':
-                        assert self.cloud.has_rgb(), "Error - RGB information not found."
-                        nam.append('b')
-                        wav.append(hylite.RGB[2])
-                    elif c == 'x':
-                        nam.append('x')
-                        wav.append(-1)
-                    elif c == 'y':
-                        nam.append('y')
-                        wav.append(-1)
-                    elif c == 'z':
-                        nam.append('z')
-                        wav.append(-1)
-                    elif c == 'k':
-                        assert self.cloud.has_normals(), "Error - normals not found."
-                        nam.append('k')
-                        wav.append(-1)
-                    elif c == 'l':
-                        assert self.cloud.has_normals(), "Error - normals not found."
-                        nam.append('l')
-                        wav.append(-1)
-                    elif c == 'm':
-                        assert self.cloud.has_normals(), "Error - normals not found."
-                        nam.append('m')
-                        wav.append(-1)
-            # extract slice (from image)
-            elif isinstance(e, tuple):
-                assert len(e) == 2, "Error - band slices must be tuples of length two."
-                idx0 = self.image.get_band_index(e[0])
-                idx1 = self.image.get_band_index(e[1])
-                if self.image.has_band_names():
-                    nam += [self.image.get_band_names()[b] for b in range(idx0, idx1)]
-                else:
-                    nam += [str(b) for b in range(idx0, idx1)]
-                if self.image.has_wavelengths():
-                    wav += [self.image.get_wavelengths()[b] for b in range(idx0, idx1)]
-                else:
-                    wav += [float(b) for b in range(idx0, idx1)]
-            # extract band based on index or wavelength
-            elif isinstance(e, float) or isinstance(e, int):
-                b = self.image.get_band_index(e)
-                if self.image.has_band_names():
-                    nam.append(self.image.get_band_names()[b])
-                else:
-                    nam.append(str(b))
-                if self.image.has_wavelengths():
-                    wav.append(self.image.get_wavelengths()[b])
-                else:
-                    wav.append(float(b))
-            else:
-                assert False, "Unrecognised band descriptor %s" % b
-
-        return wav, nam
-
-    def push_to_image(self, bands, fill_holes=False, blur=0):
-        """
-        Export data from associated cloud and image to a (new) HyImage object.
-
-        *Arguments*:
-         - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
-                   can also be expected by passing any of the following:
-                    - 'rgb' = red, green and blue per-point colour values
-                    - 'klm' = point normals
-                    - 'xyz' = point coordinates
-         - fill_holes = post-processing option to fill single-pixel holes with maximum value from adjacent pixels. Default is False.
-         - blur = size of gaussian kernel to apply to image in post-processing. Default is 0 (no blur).
-        *Returns*:
-         - a HyImage object containing the requested data.
-        """
-
-        # special case: individual band; wrap in list
-        if isinstance(bands, int) or isinstance(bands, float) or isinstance(bands, str):
-            bands = [bands]
-
-        # special case: tuple of two bands; treat as slice
-        if isinstance(bands, tuple) and len(bands) == 2:
-            bands = [bands]
-
-        # gather bands and extract wavelength and name info
-        wav, nam = self._gather_bands(bands)
-
-        # rasterise and make HyImage
-        img = np.full((self.image.xdim(), self.image.ydim(), len(wav)), np.nan)
-        for _x in range(self.image.xdim()):
-            for _y in range(self.image.ydim()):
-                if not self.valid[_x, _y]:
-                    continue
-                pID = self.get_point_index(_x, _y)
-                n = 0
-                for e in bands:
-                    if isinstance(e, str):  # extract from point cloud based on string
-                        for c in e.lower():
-                            if c == 'r':
-                                img[_x, _y, n] = self.cloud.rgb[pID, 0]
-                            elif c == 'g':
-                                img[_x, _y, n] = self.cloud.rgb[pID, 1]
-                            elif c == 'b':
-                                img[_x, _y, n] = self.cloud.rgb[pID, 2]
-                            elif c == 'x':
-                                img[_x, _y, n] = self.cloud.xyz[pID, 0]
-                            elif c == 'y':
-                                img[_x, _y, n] = self.cloud.xyz[pID, 1]
-                            elif c == 'z':
-                                img[_x, _y, n] = self.cloud.xyz[pID, 2]
-                            elif c == 'k':
-                                img[_x, _y, n] = self.normals[_x, _y, 0]
-                            elif c == 'l':
-                                img[_x, _y, n] = self.normals[_x, _y, 1]
-                            elif c == 'm':
-                                img[_x, _y, n] = self.normals[_x, _y, 2]
-                            n += 1
-                        continue
-                    elif isinstance(e, tuple):  # extract slice (from image)
-                        assert len(e) == 2, "Error - band slices must be tuples of length two."
-                        idx0 = self.image.get_band_index(e[0])
-                        idx1 = self.image.get_band_index(e[1])
-                        slc = self.image.data[_x, _y, idx0:idx1]
-                        img[_x, _y, n:n + len(slc)] = slc
-                        n += len(slc)
-                        continue
-                    elif isinstance(e, float) or isinstance(e, int):  # extract band based on index or wavelength
-                        b = self.image.get_band_index(e)
-                        img[_x, _y, n] = self.image.data[_x, _y, b]
-                        n += 1
-                        continue
-                    else:
-                        assert False, "Unrecognised band descriptor %s" % b
-
-        # build HyImage
-        img = HyImage(img, header=self.image.header.copy())
-        img.set_band_names(nam)
-        img.set_wavelengths(wav)
-
-        # postprocessing
-        if fill_holes:
-            img.fill_holes()
-        if blur > 2:
-            img.blur(int(blur))
-
-        return img
-
-    def push_to_cloud(self, bands):
-        """
-        Export data from associated image and cloud to a (new) HyCloud object.
-
-        *Arguments*:
-         - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
-                   can also be expected by passing any of the following:
-                    - 'rgb' = red, green and blue per-point colour values
-                    - 'klm' = point normals
-                    - 'xyz' = point coordinates
-        *Returns*:
-         - a HyImage object containing the requested data.
-        """
-
-        # special case: individual band; wrap in list
-        if isinstance(bands, int) or isinstance(bands, float) or isinstance(bands, str):
-            bands = [bands]
-
-        # special case: tuple of two bands; treat as slice
-        if isinstance(bands, tuple) and len(bands) == 2:
-            bands = [bands]
-
-        # gather bands and extract wavelength and name info
-        wav, nam = self._gather_bands(bands)
-
-        # loop through points in cloud and add data
-        data = np.full((self.cloud.point_count(), len(wav)), np.nan)
-        valid = np.full(self.cloud.point_count(), False, dtype=np.bool)
-        for i in range(self.cloud.point_count()):
-            # is point visible?
-            _x, _y = self.get_pixel(i)
-            if _x is None:
-                continue
-
-            valid[i] = True  # yes - this point has data
-
-            # gather data
-            n = 0
-            for e in bands:
-                if isinstance(e, str):  # extract from point cloud based on string
-                    for c in e.lower():
-                        if c == 'r':
-                            data[i, n] = self.cloud.rgb[i, 0]
-                        elif c == 'g':
-                            data[i, n] = self.cloud.rgb[i, 1]
-                        elif c == 'b':
-                            data[i, n] = self.cloud.rgb[i, 2]
-                        elif c == 'x':
-                            data[i, n] = self.cloud.xyz[i, 0]
-                        elif c == 'y':
-                            data[i, n] = self.cloud.xyz[i, 1]
-                        elif c == 'z':
-                            data[i, n] = self.cloud.xyz[i, 2]
-                        elif c == 'k':
-                            data[i, n] = self.cloud.normals[i, 0]
-                        elif c == 'l':
-                            data[i, n] = self.cloud.normals[i, 1]
-                        elif c == 'm':
-                            data[i, n] = self.cloud.normals[i, 2]
-                        n += 1
-                    continue
-                elif isinstance(e, tuple):  # extract slice (from image)
-                    assert len(e) == 2, "Error - band slices must be tuples of length two."
-                    idx0 = self.image.get_band_index(e[0])
-                    idx1 = self.image.get_band_index(e[1])
-                    slc = self.image.data[_x, _y, idx0:idx1]
-                    data[i, n:(n + len(slc))] = slc
-                    n += len(slc)
-                    continue
-                elif isinstance(e, float) or isinstance(e, int):  # extract band based on index or wavelength
-                    b = self.image.get_band_index(e)
-                    data[i, n] = self.image.data[_x, _y, b]
-                    n += 1
-                    continue
-                else:
-                    assert False, "Unrecognised band descriptor %s" % b
-
-        # build HyCloud
-        cloud = self.cloud.copy(data=False)
-        cloud.data = data
-        cloud.filter_points(0, np.logical_not(valid))  # remove points with no data
-        cloud.set_band_names(nam)
-        cloud.set_wavelengths(wav)
-
-        return cloud
-
-    def quick_plot(self, band=0, ax=None, bfac=0.0, cfac=0.0,
-                   **kwds):
-        """
-        Plot a projected data using matplotlib.imshow(...).
-
-        *Arguments*:
-         - band = the band name (string), index (integer) or wavelength (float) to plot. Default is 0. If a tuple is passed then
-                  each band in the tuple (string or index) will be mapped to rgb.
-         - bands = List defining the bands to include in the output image. Elements should be one of:
-              - 'rgb' = rgb
-              - 'xyz' = point position
-              - 'klm' = normal vectors
-              - numeric = index (int), wavelength (float) of an image band
-              - tuple of length 3: wavelengths or band indices to map to rgb.
-         - ax = an axis object to plot to. If none, plt.imshow( ... ) is used.
-         - bfac = a brightness adjustment to apply to RGB mappings (-1 to 1)
-         - cfac = a contrast adjustment to apply to RGB mappings (-1 to 1)
-        *Keywords*:
-         - keywords are passed to matplotlib.imshow( ... ).
-        """
-
-        # plot hyImage data
-        if not isinstance(band, str):
-            kwds["mask"] = np.logical_not( np.isfinite(self.depth) ) #np.logical_not(self.valid)  # mask out pixels with no valid point mappings
-            return self.image.quick_plot(band, ax, bfac, cfac, **kwds)  # render
-        else:
-            img = self.push_to_image(band)
-            if (len(band) == 3):
-                # do some normalizations
-                mn = kwds.get("vmin", np.nanmin(img.data[img.data != 0]))
-                mx = kwds.get("vmax", np.nanmax(img.data[img.data != 0]))
-                img.data = (img.data - mn) / (mx - mn)
-                if 'x' in band or 'y' in band or 'z' in band:  # coordinates need per-band mapping
-                    for i in range(3):
-                        img.data[..., i] = (img.data[..., i] - np.nanmin(img.data[..., i])) / (
-                                np.nanmax(img.data[..., i]) - np.nanmin(img.data[..., i]))
-                # plot it image
-                return img.quick_plot((0, 1, 2), ax=ax, bfac=bfac, cfac=cfac, **kwds)
-            else:
-                return img.quick_plot(0, ax=ax, bfac=bfac, cfac=cfac, **kwds)
-
-    @classmethod
-    def build_hypercloud(cls, scenes, bands, blending_mode='average', trim=True, vb=True, inplace=True, export_footprint = False):
-        """
-        Combine multiple HyScene objects into a hypercloud. Warning - this modifies the cloud associated with the HyScenes in-place.
-        Returns processed cloud and (optional) footprint map indicating the number of involved scenes per pixel.
-
-        *Arguments*:
-         - scenes = a list of scenes to combine. These scenes must all reference the same point cloud!
-         - bands = either:
-                 (1) a tuple containing the (min,max) wavelength to map. If range is a tuple, -1 can be used to specify the
-                     last band index.
-                 (2) a list of bands or boolean mask such that image.data[:,:,range] is exported to the hypercloud.
-         - blending_mode = the mode used to blend points that can be assigned values from multiple values. Options are:
-               - 'average' (default) = calculate the average of all pixels that map to the point
-               - 'weighted' = calculate the average of all pixels, weighted by inverse footprint size.
-               - 'gsd' = chose the pixel with the smallest gsd (i.e. the pixel with the closest camera)
-               - 'obl' = chose the pixel that is least oblique (i.e. most perpendicular to the surface)
-         - trim = True if the point cloud should be trimmed after doing project. Default is True.
-         - vb = True if output should be written to the console. Default is True.
-         - inplace = True if the reference cloud should be modified in place (to save RAM). Default is True.
-         - export_footprint = True if footprint map indicating the number of involved scenes per pixel.
-        """
-
-        if vb: print("Preparing data....", end='')
-
-        # get cloud
-        cloud = scenes[0].cloud
-        if not inplace:
-            cloud = cloud.copy()
-
-        # remove everything except desired bands from scenes and calculate range of values
-        images = []
-        for i, s in enumerate(scenes):
-            images.append(s.image.export_bands(bands))  # get bands of interest
-            cloud.header.set_camera( s.camera, i ) # add camera to cloud header
-
-        # do scenes all have wavelength data?
-        has_wav = np.array([i.has_wavelengths() for i in images]).all()
-        wavelengths = None
-        band_names = None
-        if has_wav:  # match wavelengths between scenes
-            wavelengths = []  # list of wavelengths
-            indices = []  # list of corresponding band indices for each scene
-            for w in images[0].get_wavelengths():
-                idx = []
-                for i, img in enumerate(images):
-                    if not w in img.get_wavelengths():  # bail!
-                        assert False, "Error - Scene %d does have data for data for band %d." % (i, w)
-                    else:
-                        idx.append(img.get_band_index(w))
-                indices.append(idx)
-                wavelengths.append(w)  # this wavelength is in all scenes
-
-            wavelengths = np.array(wavelengths)
-            band_names = ["%.2f" % w for w in wavelengths]
-            indices = np.array(indices)
-
-            assert wavelengths.shape[0] > 0, "Error - images do not have any matching bands."
-        else:  # no - check all images have the same number of bands...
-            assert (np.array([i.band_count() for i in images]) == images[0].band_count()).all(), \
-                "Error - scenes with now wavelength information must have (exactly) the same band count."
-            # no wavelengths, create band list and set band names
-            band_list = np.array([i for i in range(scenes[0].image.band_count())])
-            # noinspection PyUnusedLocal
-            indices = np.array([band_list for s in scenes]).T  # bands to export
-            # noinspection PyUnusedLocal
-            band_names = ["%s" for b in band_list]
-
-        # handle bbl
-        if np.array([img.header.has_bbl() for img in images]).all():
-            bbl = np.full(wavelengths.shape[0], True)
-            for i, idx in enumerate(indices):  # list of indices for each band
-                bb = [images[n].header.get_bbl()[idx[n]] for n in range(len(images))]
-                bbl[i] = np.array(bb).all()  # if any data is bad, this becomes a bad band
-            cloud.header.set_bbl(bbl)  # store
-
-        if vb: print(" Done.")
-
-        # create data array
-        data = np.zeros((cloud.point_count(), len(band_names)),
-                        dtype=np.float32)  # point values will be accumulated here
-        point_count = np.zeros(cloud.point_count(), dtype=np.float32)  # number of pixels used to calculate each point
-
-        # loop through points
-        if vb:
-            loop = tqdm(range(data.shape[0]), desc='Projecting data', leave=False)
-        else:
-            loop = range(data.shape[0])
-        if 'average' in blending_mode.lower():
-            for n in loop:
-                for i, s in enumerate(scenes):
-                    px, py = s.get_pixel(n)
-                    if px is not None:  # point exists in scene
-                        if np.isfinite(images[i].data[px, py, indices[:, i]]).all():  # is pixel finite?
-                            point_count[n] += 1  # increment pixel count
-                            data[n, :] += images[i].data[px, py, indices[:, i]]  # accumulate point value
-            # divide by point count to calculate average
-            data = data / point_count[:, None]
-        elif 'gsd' in blending_mode.lower():
-            for n in loop:
-                best = np.inf
-                for i, s in enumerate(scenes):
-                    px, py = s.get_pixel(n)
-                    if px is not None:  # point exists in scene
-                        if np.isfinite(images[i].data[px, py, indices[:, i]]).all():  # is pixel finite?
-                            point_count[n] += 1  # increment pixel count
-                            if s.depth[px, py] < best:  # is this the best GSD so far?
-                                best = s.depth[px, py]  # store best GSD
-                                data[n, :] = images[i].data[px, py, indices[:, i]]  # set point value
-        elif 'obl' in blending_mode.lower():
-            for n in loop:
-                best = np.inf
-                for i, s in enumerate(scenes):
-                    px, py = s.get_pixel(n)
-                    if px is not None:  # point exists in scene
-                        if np.isfinite(images[i].data[px, py, indices[:, i]]).all():  # is pixel finite?
-                            point_count[n] += 1  # increment pixel count
-                            if s.obliquity[px, py] < best:  # is this the best GSD so far?
-                                best = s.obliquity[px, py]  # store best GSD
-                                data[n, :] = images[i].data[px, py, indices[:, i]]  # set point value
-        elif 'weight' in blending_mode.lower():
-            for n in loop:
-                for i, s in enumerate(scenes):
-                    px, py = s.get_pixel(n)
-                    if px is not None:  # point exists in scene
-                        if np.isfinite(images[i].data[px, py, indices[:, i]]).all():  # is pixel finite?
-                            w = 1 / s.depth[px, py] # calculate weight and increment to count
-                            point_count[n] += w  #
-                            data[n, :] += w * images[i].data[px, py, indices[:, i]]  # accumulate point value
-            # divide by sum of weights to get weighted average
-            data = data / point_count[:, None]
-        else:
-            assert False, "Error - unrecognised blending mode %s" % blending_mode
-
-        # add bands to point cloud
-        cloud.set_bands(data, band_names=band_names, wavelengths=wavelengths)
-
-        # export footprint?
-        if export_footprint:
-            footprint = hylite.HyCloud(cloud.xyz, bands=point_count[:, None])
-            if trim:
-                footprint.filter_points(0, point_count == 0)  # remove zero points
-
-        # trim cloud?
-        if trim:
-            cloud.filter_points(0, point_count == 0)  # remove zero points
-
-        # return
-        if export_footprint:
-            return cloud, footprint
-        else:
-            return cloud
+    # def match_colour_to(self, reference, uniform=True, method='norm', inplace=True):
+    #
+    #     """
+    #     Identifies matching pixels between two hyperspectral scenes and uses them to minimise
+    #     colour differences using a linear model (aka by adjusting the brightness/contrast of this scene
+    #     to match the brightness/contrast of the reference scene). WARNING: by default this modifies this scene's
+    #     image IN PLACE.
+    #
+    #     *Arguments*:
+    #     - reference = the scene to match colours to.
+    #     - uniform = True if a single brightness contrast adjustment is applied to all bands (avoids introducing spectral
+    #              artefacts). If False, different corrections area applied to each band - use with CARE! Default is True.
+    #     - method = The colour matching method to use. Current options are:
+    #                 - 'norm' = centre-means and scale to match standard deviation. Only compares points known to match.
+    #                 - 'hist' = histogram equalisation. Applies to all pixels in scene - use with care!
+    #                Default is 'norm'.
+    #     - inplace = True if the correction should be applied to self.image in-place. If False, no correction is
+    #               applied, and the correction weights (cfac and mfac) returned for future use. Default is True.
+    #     *Returns*:
+    #     - The corrected image as a HyImage object. If inplace=True (default) then this will be the same as self.image.
+    #     """
+    #
+    #     image = self.image
+    #     if not inplace:
+    #         image = image.copy()
+    #
+    #     if 'norm' in method.lower():
+    #         # get matching pixels
+    #         px1, px2 = self.intersect_pixels(reference)
+    #         assert px1.shape[0] > 0, "Error - no overlap between images."
+    #         if px1.shape[0] < 1000:
+    #             print("Warning: images only have %d overlapping pixels,"
+    #                " which may result in poor colour matching." % px1.shape[0])
+    #
+    #         # extract data to create vector of matching values
+    #         px1 = image.data[px1[:, 0], px1[:, 1], :]
+    #         px2 = reference.image.data[px2[:, 0], px2[:, 1], :]
+    #
+    #         # apply correction
+    #         image.data = norm_eq( image.data, px1, px2, per_band=not uniform, inplace=True)
+    #
+    #     elif 'hist' in method.lower():
+    #         if uniform: # apply to whole dataset
+    #             image.data = hist_eq(image.data, reference.image.data)
+    #         else: # apply per band
+    #             for b in range(self.image.band_count()):
+    #                 image.data[:, :, b] = hist_eq(image.data[:, :, b], reference.image.data[:, :, b])
+    #     else:
+    #         assert False, "Error - %s is an unrecognised colour correction method." % method
+    #
+    #     return image
+    #
+    # ###################################
+    # ##PLOTTING AND EXPORT FUNCTIONS
+    # ###################################
+    # def _gather_bands(self, bands):
+    #     """
+    #     Utility function used by push_to_image( ... ) and push_to_cloud( ... ).
+    #     """
+    #
+    #     # extract wavelength and band name info
+    #     wav = []
+    #     nam = []
+    #
+    #     # loop through bands tuple/list and extract data indices/slices
+    #     for e in bands:
+    #         # extract from point cloud based on string
+    #         if isinstance(e, str):
+    #             for c in e.lower():
+    #                 if c == 'r':
+    #                     assert self.cloud.has_rgb(), "Error - RGB information not found."
+    #                     nam.append('r')
+    #                     wav.append(hylite.RGB[0])
+    #                 elif c == 'g':
+    #                     assert self.cloud.has_rgb(), "Error - RGB information not found."
+    #                     nam.append('g')
+    #                     wav.append(hylite.RGB[1])
+    #                 elif c == 'b':
+    #                     assert self.cloud.has_rgb(), "Error - RGB information not found."
+    #                     nam.append('b')
+    #                     wav.append(hylite.RGB[2])
+    #                 elif c == 'x':
+    #                     nam.append('x')
+    #                     wav.append(-1)
+    #                 elif c == 'y':
+    #                     nam.append('y')
+    #                     wav.append(-1)
+    #                 elif c == 'z':
+    #                     nam.append('z')
+    #                     wav.append(-1)
+    #                 elif c == 'k':
+    #                     assert self.cloud.has_normals(), "Error - normals not found."
+    #                     nam.append('k')
+    #                     wav.append(-1)
+    #                 elif c == 'l':
+    #                     assert self.cloud.has_normals(), "Error - normals not found."
+    #                     nam.append('l')
+    #                     wav.append(-1)
+    #                 elif c == 'm':
+    #                     assert self.cloud.has_normals(), "Error - normals not found."
+    #                     nam.append('m')
+    #                     wav.append(-1)
+    #         # extract slice (from image)
+    #         elif isinstance(e, tuple):
+    #             assert len(e) == 2, "Error - band slices must be tuples of length two."
+    #             idx0 = self.image.get_band_index(e[0])
+    #             idx1 = self.image.get_band_index(e[1])
+    #             if self.image.has_band_names():
+    #                 nam += [self.image.get_band_names()[b] for b in range(idx0, idx1)]
+    #             else:
+    #                 nam += [str(b) for b in range(idx0, idx1)]
+    #             if self.image.has_wavelengths():
+    #                 wav += [self.image.get_wavelengths()[b] for b in range(idx0, idx1)]
+    #             else:
+    #                 wav += [float(b) for b in range(idx0, idx1)]
+    #         # extract band based on index or wavelength
+    #         elif isinstance(e, float) or isinstance(e, int):
+    #             b = self.image.get_band_index(e)
+    #             if self.image.has_band_names():
+    #                 nam.append(self.image.get_band_names()[b])
+    #             else:
+    #                 nam.append(str(b))
+    #             if self.image.has_wavelengths():
+    #                 wav.append(self.image.get_wavelengths()[b])
+    #             else:
+    #                 wav.append(float(b))
+    #         else:
+    #             assert False, "Unrecognised band descriptor %s" % b
+    #
+    #     return wav, nam
+    #
+    # def push_to_image(self, bands, fill_holes=False, blur=0):
+    #     """
+    #     Export data from associated cloud and image to a (new) HyImage object.
+    #
+    #     *Arguments*:
+    #      - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
+    #                can also be expected by passing any of the following:
+    #                 - 'rgb' = red, green and blue per-point colour values
+    #                 - 'klm' = point normals
+    #                 - 'xyz' = point coordinates
+    #      - fill_holes = post-processing option to fill single-pixel holes with maximum value from adjacent pixels. Default is False.
+    #      - blur = size of gaussian kernel to apply to image in post-processing. Default is 0 (no blur).
+    #     *Returns*:
+    #      - a HyImage object containing the requested data.
+    #     """
+    #
+    #     # special case: individual band; wrap in list
+    #     if isinstance(bands, int) or isinstance(bands, float) or isinstance(bands, str):
+    #         bands = [bands]
+    #
+    #     # special case: tuple of two bands; treat as slice
+    #     if isinstance(bands, tuple) and len(bands) == 2:
+    #         bands = [bands]
+    #
+    #     # gather bands and extract wavelength and name info
+    #     wav, nam = self._gather_bands(bands)
+    #
+    #     # rasterise and make HyImage
+    #     img = np.full((self.image.xdim(), self.image.ydim(), len(wav)), np.nan)
+    #     for _x in range(self.image.xdim()):
+    #         for _y in range(self.image.ydim()):
+    #             if not self.valid[_x, _y]:
+    #                 continue
+    #             pID = self.get_point_index(_x, _y)
+    #             n = 0
+    #             for e in bands:
+    #                 if isinstance(e, str):  # extract from point cloud based on string
+    #                     for c in e.lower():
+    #                         if c == 'r':
+    #                             img[_x, _y, n] = self.cloud.rgb[pID, 0]
+    #                         elif c == 'g':
+    #                             img[_x, _y, n] = self.cloud.rgb[pID, 1]
+    #                         elif c == 'b':
+    #                             img[_x, _y, n] = self.cloud.rgb[pID, 2]
+    #                         elif c == 'x':
+    #                             img[_x, _y, n] = self.cloud.xyz[pID, 0]
+    #                         elif c == 'y':
+    #                             img[_x, _y, n] = self.cloud.xyz[pID, 1]
+    #                         elif c == 'z':
+    #                             img[_x, _y, n] = self.cloud.xyz[pID, 2]
+    #                         elif c == 'k':
+    #                             img[_x, _y, n] = self.normals[_x, _y, 0]
+    #                         elif c == 'l':
+    #                             img[_x, _y, n] = self.normals[_x, _y, 1]
+    #                         elif c == 'm':
+    #                             img[_x, _y, n] = self.normals[_x, _y, 2]
+    #                         n += 1
+    #                     continue
+    #                 elif isinstance(e, tuple):  # extract slice (from image)
+    #                     assert len(e) == 2, "Error - band slices must be tuples of length two."
+    #                     idx0 = self.image.get_band_index(e[0])
+    #                     idx1 = self.image.get_band_index(e[1])
+    #                     slc = self.image.data[_x, _y, idx0:idx1]
+    #                     img[_x, _y, n:n + len(slc)] = slc
+    #                     n += len(slc)
+    #                     continue
+    #                 elif isinstance(e, float) or isinstance(e, int):  # extract band based on index or wavelength
+    #                     b = self.image.get_band_index(e)
+    #                     img[_x, _y, n] = self.image.data[_x, _y, b]
+    #                     n += 1
+    #                     continue
+    #                 else:
+    #                     assert False, "Unrecognised band descriptor %s" % b
+    #
+    #     # build HyImage
+    #     img = HyImage(img, header=self.image.header.copy())
+    #     img.set_band_names(nam)
+    #     img.set_wavelengths(wav)
+    #
+    #     # postprocessing
+    #     if fill_holes:
+    #         img.fill_holes()
+    #     if blur > 2:
+    #         img.blur(int(blur))
+    #
+    #     return img
+    #
+    # def push_to_cloud(self, bands):
+    #     """
+    #     Export data from associated image and cloud to a (new) HyCloud object.
+    #
+    #     *Arguments*:
+    #      - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
+    #                can also be expected by passing any of the following:
+    #                 - 'rgb' = red, green and blue per-point colour values
+    #                 - 'klm' = point normals
+    #                 - 'xyz' = point coordinates
+    #     *Returns*:
+    #      - a HyImage object containing the requested data.
+    #     """
+    #
+    #     # special case: individual band; wrap in list
+    #     if isinstance(bands, int) or isinstance(bands, float) or isinstance(bands, str):
+    #         bands = [bands]
+    #
+    #     # special case: tuple of two bands; treat as slice
+    #     if isinstance(bands, tuple) and len(bands) == 2:
+    #         bands = [bands]
+    #
+    #     # gather bands and extract wavelength and name info
+    #     wav, nam = self._gather_bands(bands)
+    #
+    #     # loop through points in cloud and add data
+    #     data = np.full((self.cloud.point_count(), len(wav)), np.nan)
+    #     valid = np.full(self.cloud.point_count(), False, dtype=np.bool)
+    #     for i in range(self.cloud.point_count()):
+    #         # is point visible?
+    #         _x, _y = self.get_pixel(i)
+    #         if _x is None:
+    #             continue
+    #
+    #         valid[i] = True  # yes - this point has data
+    #
+    #         # gather data
+    #         n = 0
+    #         for e in bands:
+    #             if isinstance(e, str):  # extract from point cloud based on string
+    #                 for c in e.lower():
+    #                     if c == 'r':
+    #                         data[i, n] = self.cloud.rgb[i, 0]
+    #                     elif c == 'g':
+    #                         data[i, n] = self.cloud.rgb[i, 1]
+    #                     elif c == 'b':
+    #                         data[i, n] = self.cloud.rgb[i, 2]
+    #                     elif c == 'x':
+    #                         data[i, n] = self.cloud.xyz[i, 0]
+    #                     elif c == 'y':
+    #                         data[i, n] = self.cloud.xyz[i, 1]
+    #                     elif c == 'z':
+    #                         data[i, n] = self.cloud.xyz[i, 2]
+    #                     elif c == 'k':
+    #                         data[i, n] = self.cloud.normals[i, 0]
+    #                     elif c == 'l':
+    #                         data[i, n] = self.cloud.normals[i, 1]
+    #                     elif c == 'm':
+    #                         data[i, n] = self.cloud.normals[i, 2]
+    #                     n += 1
+    #                 continue
+    #             elif isinstance(e, tuple):  # extract slice (from image)
+    #                 assert len(e) == 2, "Error - band slices must be tuples of length two."
+    #                 idx0 = self.image.get_band_index(e[0])
+    #                 idx1 = self.image.get_band_index(e[1])
+    #                 slc = self.image.data[_x, _y, idx0:idx1]
+    #                 data[i, n:(n + len(slc))] = slc
+    #                 n += len(slc)
+    #                 continue
+    #             elif isinstance(e, float) or isinstance(e, int):  # extract band based on index or wavelength
+    #                 b = self.image.get_band_index(e)
+    #                 data[i, n] = self.image.data[_x, _y, b]
+    #                 n += 1
+    #                 continue
+    #             else:
+    #                 assert False, "Unrecognised band descriptor %s" % b
+    #
+    #     # build HyCloud
+    #     cloud = self.cloud.copy(data=False)
+    #     cloud.data = data
+    #     cloud.filter_points(0, np.logical_not(valid))  # remove points with no data
+    #     cloud.set_band_names(nam)
+    #     cloud.set_wavelengths(wav)
+    #
+    #     return cloud
+    #
+    # def quick_plot(self, band=0, ax=None, bfac=0.0, cfac=0.0,
+    #                **kwds):
+    #     """
+    #     Plot a projected data using matplotlib.imshow(...).
+    #
+    #     *Arguments*:
+    #      - band = the band name (string), index (integer) or wavelength (float) to plot. Default is 0. If a tuple is passed then
+    #               each band in the tuple (string or index) will be mapped to rgb.
+    #      - bands = List defining the bands to include in the output image. Elements should be one of:
+    #           - 'rgb' = rgb
+    #           - 'xyz' = point position
+    #           - 'klm' = normal vectors
+    #           - numeric = index (int), wavelength (float) of an image band
+    #           - tuple of length 3: wavelengths or band indices to map to rgb.
+    #      - ax = an axis object to plot to. If none, plt.imshow( ... ) is used.
+    #      - bfac = a brightness adjustment to apply to RGB mappings (-1 to 1)
+    #      - cfac = a contrast adjustment to apply to RGB mappings (-1 to 1)
+    #     *Keywords*:
+    #      - keywords are passed to matplotlib.imshow( ... ).
+    #     """
+    #
+    #     # plot hyImage data
+    #     if not isinstance(band, str):
+    #         kwds["mask"] = np.logical_not( np.isfinite(self.depth) ) #np.logical_not(self.valid)  # mask out pixels with no valid point mappings
+    #         return self.image.quick_plot(band, ax, bfac, cfac, **kwds)  # render
+    #     else:
+    #         img = self.push_to_image(band)
+    #         if (len(band) == 3):
+    #             # do some normalizations
+    #             mn = kwds.get("vmin", np.nanmin(img.data[img.data != 0]))
+    #             mx = kwds.get("vmax", np.nanmax(img.data[img.data != 0]))
+    #             img.data = (img.data - mn) / (mx - mn)
+    #             if 'x' in band or 'y' in band or 'z' in band:  # coordinates need per-band mapping
+    #                 for i in range(3):
+    #                     img.data[..., i] = (img.data[..., i] - np.nanmin(img.data[..., i])) / (
+    #                             np.nanmax(img.data[..., i]) - np.nanmin(img.data[..., i]))
+    #             # plot it image
+    #             return img.quick_plot((0, 1, 2), ax=ax, bfac=bfac, cfac=cfac, **kwds)
+    #         else:
+    #             return img.quick_plot(0, ax=ax, bfac=bfac, cfac=cfac, **kwds)
+    #
+    # @classmethod
+    # def build_hypercloud(cls, scenes, bands, blending_mode='average', trim=True, vb=True, inplace=True, export_footprint = False):
+    #     """
+    #     Combine multiple HyScene objects into a hypercloud. Warning - this modifies the cloud associated with the HyScenes in-place.
+    #     Returns processed cloud and (optional) footprint map indicating the number of involved scenes per pixel.
+    #
+    #     *Arguments*:
+    #      - scenes = a list of scenes to combine. These scenes must all reference the same point cloud!
+    #      - bands = either:
+    #              (1) a tuple containing the (min,max) wavelength to map. If range is a tuple, -1 can be used to specify the
+    #                  last band index.
+    #              (2) a list of bands or boolean mask such that image.data[:,:,range] is exported to the hypercloud.
+    #      - blending_mode = the mode used to blend points that can be assigned values from multiple values. Options are:
+    #            - 'average' (default) = calculate the average of all pixels that map to the point
+    #            - 'weighted' = calculate the average of all pixels, weighted by inverse footprint size.
+    #            - 'gsd' = chose the pixel with the smallest gsd (i.e. the pixel with the closest camera)
+    #            - 'obl' = chose the pixel that is least oblique (i.e. most perpendicular to the surface)
+    #      - trim = True if the point cloud should be trimmed after doing project. Default is True.
+    #      - vb = True if output should be written to the console. Default is True.
+    #      - inplace = True if the reference cloud should be modified in place (to save RAM). Default is True.
+    #      - export_footprint = True if footprint map indicating the number of involved scenes per pixel.
+    #     """
+    #
+    #     if vb: print("Preparing data....", end='')
+    #
+    #     # get cloud
+    #     cloud = scenes[0].cloud
+    #     if not inplace:
+    #         cloud = cloud.copy()
+    #
+    #     # remove everything except desired bands from scenes and calculate range of values
+    #     images = []
+    #     for i, s in enumerate(scenes):
+    #         images.append(s.image.export_bands(bands))  # get bands of interest
+    #         cloud.header.set_camera( s.camera, i ) # add camera to cloud header
+    #
+    #     # do scenes all have wavelength data?
+    #     has_wav = np.array([i.has_wavelengths() for i in images]).all()
+    #     wavelengths = None
+    #     band_names = None
+    #     if has_wav:  # match wavelengths between scenes
+    #         wavelengths = []  # list of wavelengths
+    #         indices = []  # list of corresponding band indices for each scene
+    #         for w in images[0].get_wavelengths():
+    #             idx = []
+    #             for i, img in enumerate(images):
+    #                 if not w in img.get_wavelengths():  # bail!
+    #                     assert False, "Error - Scene %d does have data for data for band %d." % (i, w)
+    #                 else:
+    #                     idx.append(img.get_band_index(w))
+    #             indices.append(idx)
+    #             wavelengths.append(w)  # this wavelength is in all scenes
+    #
+    #         wavelengths = np.array(wavelengths)
+    #         band_names = ["%.2f" % w for w in wavelengths]
+    #         indices = np.array(indices)
+    #
+    #         assert wavelengths.shape[0] > 0, "Error - images do not have any matching bands."
+    #     else:  # no - check all images have the same number of bands...
+    #         assert (np.array([i.band_count() for i in images]) == images[0].band_count()).all(), \
+    #             "Error - scenes with now wavelength information must have (exactly) the same band count."
+    #         # no wavelengths, create band list and set band names
+    #         band_list = np.array([i for i in range(scenes[0].image.band_count())])
+    #         # noinspection PyUnusedLocal
+    #         indices = np.array([band_list for s in scenes]).T  # bands to export
+    #         # noinspection PyUnusedLocal
+    #         band_names = ["%s" for b in band_list]
+    #
+    #     # handle bbl
+    #     if np.array([img.header.has_bbl() for img in images]).all():
+    #         bbl = np.full(wavelengths.shape[0], True)
+    #         for i, idx in enumerate(indices):  # list of indices for each band
+    #             bb = [images[n].header.get_bbl()[idx[n]] for n in range(len(images))]
+    #             bbl[i] = np.array(bb).all()  # if any data is bad, this becomes a bad band
+    #         cloud.header.set_bbl(bbl)  # store
+    #
+    #     if vb: print(" Done.")
+    #
+    #     # create data array
+    #     data = np.zeros((cloud.point_count(), len(band_names)),
+    #                     dtype=np.float32)  # point values will be accumulated here
+    #     point_count = np.zeros(cloud.point_count(), dtype=np.float32)  # number of pixels used to calculate each point
+    #
+    #     # loop through points
+    #     if vb:
+    #         loop = tqdm(range(data.shape[0]), desc='Projecting data', leave=False)
+    #     else:
+    #         loop = range(data.shape[0])
+    #     if 'average' in blending_mode.lower():
+    #         for n in loop:
+    #             for i, s in enumerate(scenes):
+    #                 px, py = s.get_pixel(n)
+    #                 if px is not None:  # point exists in scene
+    #                     if np.isfinite(images[i].data[px, py, indices[:, i]]).all():  # is pixel finite?
+    #                         point_count[n] += 1  # increment pixel count
+    #                         data[n, :] += images[i].data[px, py, indices[:, i]]  # accumulate point value
+    #         # divide by point count to calculate average
+    #         data = data / point_count[:, None]
+    #     elif 'gsd' in blending_mode.lower():
+    #         for n in loop:
+    #             best = np.inf
+    #             for i, s in enumerate(scenes):
+    #                 px, py = s.get_pixel(n)
+    #                 if px is not None:  # point exists in scene
+    #                     if np.isfinite(images[i].data[px, py, indices[:, i]]).all():  # is pixel finite?
+    #                         point_count[n] += 1  # increment pixel count
+    #                         if s.depth[px, py] < best:  # is this the best GSD so far?
+    #                             best = s.depth[px, py]  # store best GSD
+    #                             data[n, :] = images[i].data[px, py, indices[:, i]]  # set point value
+    #     elif 'obl' in blending_mode.lower():
+    #         for n in loop:
+    #             best = np.inf
+    #             for i, s in enumerate(scenes):
+    #                 px, py = s.get_pixel(n)
+    #                 if px is not None:  # point exists in scene
+    #                     if np.isfinite(images[i].data[px, py, indices[:, i]]).all():  # is pixel finite?
+    #                         point_count[n] += 1  # increment pixel count
+    #                         if s.obliquity[px, py] < best:  # is this the best GSD so far?
+    #                             best = s.obliquity[px, py]  # store best GSD
+    #                             data[n, :] = images[i].data[px, py, indices[:, i]]  # set point value
+    #     elif 'weight' in blending_mode.lower():
+    #         for n in loop:
+    #             for i, s in enumerate(scenes):
+    #                 px, py = s.get_pixel(n)
+    #                 if px is not None:  # point exists in scene
+    #                     if np.isfinite(images[i].data[px, py, indices[:, i]]).all():  # is pixel finite?
+    #                         w = 1 / s.depth[px, py] # calculate weight and increment to count
+    #                         point_count[n] += w  #
+    #                         data[n, :] += w * images[i].data[px, py, indices[:, i]]  # accumulate point value
+    #         # divide by sum of weights to get weighted average
+    #         data = data / point_count[:, None]
+    #     else:
+    #         assert False, "Error - unrecognised blending mode %s" % blending_mode
+    #
+    #     # add bands to point cloud
+    #     cloud.set_bands(data, band_names=band_names, wavelengths=wavelengths)
+    #
+    #     # export footprint?
+    #     if export_footprint:
+    #         footprint = hylite.HyCloud(cloud.xyz, bands=point_count[:, None])
+    #         if trim:
+    #             footprint.filter_points(0, point_count == 0)  # remove zero points
+    #
+    #     # trim cloud?
+    #     if trim:
+    #         cloud.filter_points(0, point_count == 0)  # remove zero points
+    #
+    #     # return
+    #     if export_footprint:
+    #         return cloud, footprint
+    #     else:
+    #         return cloud

@@ -184,7 +184,7 @@ class Pushbroom(object):
             xyz = (cloud - self.cp[i])@(self.R[i].as_matrix())
         else:
             #xyz = np.dot(cloud.xyz - self.cp[i], self.R[i].as_matrix())
-            xyz = (cloud.xyz - self.cp[i])@(self.R[i])
+            xyz = (cloud.xyz - self.cp[i])@(self.R[i].as_matrix())
 
         # calculate along-track coordinate (perspective projection perpendicular to flight line)
         ltrack = 0.5 + (
@@ -450,9 +450,7 @@ def project_pushbroom(image, cloud, cam, chunk=500, step=100, near_clip=10., vb=
 
 
     *Returns*:
-     - a dictionary containing (xpixel,ystart,yend) tuples that define the range of pixels this point was projected
-       onto during acquisition. Two y-values are provided as point can be projected onto multiple pixels in the
-       cross-track direction during a single frame of acquisition (due to sensor movement).
+     - A hylite.project.PMap instance containing the mapping matrix between points and pixels.
     """
 
     # check dims match

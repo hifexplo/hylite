@@ -140,6 +140,9 @@ class TestHyImage(unittest.TestCase):
                                                         "testE.hyc/inner.hyc/cld.hdr"))) # check cloud has been copied across
             self.assertTrue(os.path.exists(os.path.join(pth,
                                                         "testE.hyc/inner.hyc/arr2.npy"))) # check cloud has been copied across
+
+            # test quicksave function
+            C3.save()
         except:
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error - could not create, load or save HyCollection." )
