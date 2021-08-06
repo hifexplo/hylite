@@ -10,7 +10,7 @@ class HyScene( HyCollection ):
     A special type of HyCollection and contains a projection map for transferring information between a point cloud and
     a hyperspectral image.
     """
-    def __init__(self, root, name, header=None ):
+    def __init__(self, name, root, header=None ):
         """
         Create an empty HyScene instance and initialises the associated collection.
 
@@ -109,7 +109,6 @@ class HyScene( HyCollection ):
         if vb:
             prg.set_description("Converting geometry")
             prg.update(2)
-        print(cloud.has_normals())
         if cloud.has_normals():
             xyzklm = push_to_image( self.pmap, 'xyzklm', method='average').data
             self.xyz = xyzklm[...,[0,1,2]]
