@@ -3,6 +3,32 @@ import hylite
 import numpy as np
 import shutil
 
+class External(object):
+    """
+    Small wrapper class for storing external objects in HyCollections.
+    """
+    def __init__( self, path, base=None ):
+        self.path = path
+        self.base = base
+        self.value = None
+    def get(self):
+
+        # is attr already loaded?
+        if self.value is not None:
+            return self.value
+
+        # no - figure out where it is
+        if self.base is not None:
+            path = os.path.join(self.base, self.path)
+        assert os.path.exists(path), "Error: %s does not exist." % path
+
+        # and load it
+        try:
+            self.value = hylite.io.load( path )
+            return self.value
+        except:
+            assert False, "Error loading external attribute %s" % path
+
 class HyCollection(object):
 
     def __init__(self, name, root, header=None, vb=False):
@@ -57,8 +83,10 @@ class HyCollection(object):
             value = getattr(self, a)  # get value
             if value is None:
                 continue # skip None values
-            if type(value) in [int, str, bool, float]:  # primitive types
+            elif type(value) in [int, str, bool, float]:  # primitive types
                 self.header[a] = value  # store in header file
+            elif isinstance(value, External): # external link
+                self.header[a] = "<" + value.path + ">" # store in header file
             else:
                 out[os.path.join(path, a)] = value
 
@@ -119,6 +147,12 @@ class HyCollection(object):
             # load as a list
             if '{' in val and '}' in val:
                 val = self.header.get_list(val)
+            elif '<' in val and '>' in val: # load as an external path
+                val = self.header[val].strip()[1:-1]
+                if os.path.exists(val): # absolute path!
+                    val = External( val, None) # wrap in absolute External class
+                else:
+                    val = External( val, self.root ) # wrap in relative External class
             else:  # is it an integer or a float?
                 try:
                     val = int(val)
@@ -192,7 +226,10 @@ class HyCollection(object):
         print("Attributes stored in header:")
         for k,v in self.header.items():
             if k not in ['file type', 'path'] and k not in attr: # header keys to ignore
-                print("\t %s = %s" % (k,v))
+                if isinstance(v,str) or isinstance(v, list) or isinstance(v, np.ndarray):
+                    print("\t %s = %s"% (k,type(v))) # print type
+                else:
+                    print("\t %s = %s" % (k, v)) # print value
 
         # print disk variables
         if os.path.exists(self._getDirectory()):
@@ -217,16 +254,41 @@ class HyCollection(object):
         for a in attr:
             delattr(a, self)
 
+    def addExternal(self, name, path, relative=True):
+        """
+        Add an external link (that is saved/loaded by this HyCollection instance, but not stored in its data folder).
+
+        *Arguments*:
+         - name = the name of the attribute to add.
+         - path = the path to the object to add.
+         - relative = True if the path should be converted to a relative one. Default is True.
+        """
+
+        assert os.path.exists(path), "Error - %s is not a valid file or folder." % path
+
+        if relative:
+            path = os.path.relpath( path, self.root )
+            self.__setattr__(name, External(path,self.root))
+        else:
+            self.__setattr__(name, External(path, None))
+
     def __getattribute__(self, name):
         """
         Override __getattribute__ to automatically load out-of-core attributes if they are asked for.
         """
         # attribute has not yet been loaded - do so now
         try:  # try getting attribute
-            return object.__getattribute__(self, name)
+            attr = object.__getattribute__(self, name)
         except AttributeError:  # no attribute found
             self._loadAttribute_(name)  # load the attribute from disk
-            return object.__getattribute__(self, name)  # return it
+            attr = object.__getattribute__(self, name)
+
+        # resolve external links if necessary
+        if isinstance(attr, External):
+            return attr.get()
+
+        # return
+        return attr
 
     def __setattr__(self, name, value):
         """
@@ -240,6 +302,7 @@ class HyCollection(object):
         valid = valid or isinstance(value, hylite.project.Camera ) # accept Camera instances
         valid = valid or isinstance(value, hylite.project.Pushbroom)  # accept Pushbroom instances
         valid = valid or isinstance(value, hylite.project.PMap)  # accept Pushbroom instances
+        valid = valid or isinstance(value, External ) # accept external links
         valid = valid or value is None # also accept None
         assert valid, "Error - %s is an invalid attribute type for HyCollection." % type(value)
         object.__setattr__(self, name, value)

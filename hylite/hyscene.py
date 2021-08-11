@@ -2,7 +2,7 @@ import hylite
 from hylite import HyCollection
 from hylite.project import PMap, Pushbroom, Camera, proj_persp, proj_pano, project_pushbroom, push_to_cloud, push_to_image
 from tqdm import tqdm
-import cv2
+from scipy.ndimage import grey_dilation
 import numpy as np
 import os
 class HyScene( HyCollection ):
@@ -56,7 +56,9 @@ class HyScene( HyCollection ):
           - maxf = the maximum acceptible pixel footprint. Pixels containing > than this number of points will be excluded
                    from the dataset. Set as 0 to disable (default).
           - s = a dilation to apply when mapping point data to the image (to fill gaps/holes). Default is 1 (do not
-                apply a dilation).
+                apply a dilation). If s is an integer then an (s,s) dilation filter is applied. Alternatively, s
+                can be a tuple such that s=(n,m) defining the 2-D dimensions of the dilation (useful for e.g. pushbroom
+                data).
 
         *Keywords*: Keywords are passed to project_pushbroom for pushbroom type cameras.
         """
@@ -70,7 +72,7 @@ class HyScene( HyCollection ):
         self.cloud = cloud
         self.camera = camera
         self.occ_tol = occ_tol
-        self.s = s
+        self.maxf = maxf
 
         # build projection map
         self.pmap = PMap(camera.dims[0], camera.dims[1], cloud.point_count(), cloud=cloud, image=image)
@@ -103,7 +105,7 @@ class HyScene( HyCollection ):
             if vb:
                 prg.set_description("Filtering by footprint")
                 prg.update(1)
-            self.pmap.filter_footprint(maxf)
+            self.pmap.filter_footprint( self.maxf )
 
         # do projections
         if vb:
@@ -113,17 +115,8 @@ class HyScene( HyCollection ):
             xyzklm = push_to_image( self.pmap, 'xyzklm', method='average').data
             self.xyz = xyzklm[...,[0,1,2]]
             self.normals = xyzklm[..., [3, 4, 5]]
-            if s > 1: # apply dilation
-                # import scipy as sp
-                # for b in range(3):
-                #     s = 5
-                #     dil[...,b] = sp.ndimage.grey_dilation(S.xyz[:,:,b], size=(s,s), origin=int(s/2),
-                #                                           mode='constant', cval=np.nan)
-                pass # how to do this?
         else:
             self.xyz = push_to_image( self.pmap, 'xyz', method='average').data
-            if s > 1: # apply dilation
-                pass # how to do this?
             self.normals = None
 
         # build depth map
@@ -136,19 +129,40 @@ class HyScene( HyCollection ):
         if vb:
             prg.set_description("Computing view vectors")
             prg.update(5)
-        if isinstance( self.camera, Camera ):
-            # easy
+        if isinstance( self.camera, Camera ): # fixed view position
             self.view = self.xyz - self.camera.pos
-            self.view = self.view / np.linalg.norm(self.view, axis=-1)[..., None]  # normalise
-        else:
-            # less easy
-            #self.view = self.xyz[:,:,None] - self.lineID
-            pass
+        else: # camera positions changes according to pushbroom track
+            self.view = self.xyz - self.camera.cp
+        self.view = self.view / np.linalg.norm(self.view, axis=-1)[...,None] # normalise
 
-        #self.view = self.view / np.linalg.norm(self.view, axis=-1)[...,None] # normalise
+        # apply dilations
+        if isinstance(s, tuple) or s > 1:
+            if vb:
+                prg.set_description("Applying dilations")
+                prg.update(6)
+            if isinstance(s,int):
+                s = (s,s)
+            elif isinstance(s, tuple):
+                assert len(s) == 2, "Error - s must be a tuple of shape (n,m)."
+            else:
+                assert False, "Error, %s is an invalid type for s." % type(s)
+
+            # loop through attributes and apply dilation
+            for a,v in zip(['xyz','normals','depth', 'view'], [self.xyz, self.normals, self.depth, self.view]):
+                nanmask = np.logical_not(np.isfinite(v))
+                v[nanmask] = -np.inf  # replace nans with -infinity
+                if (len(v.shape) == 2):
+                    k = np.ones(s)
+                elif (len(v.shape) == 3):
+                    k = np.ones( s + (1,))
+                dil = grey_dilation(v, footprint=k)
+                v[nanmask] = dil[nanmask]  # where we have new finite values from dilation, add them in
+                v[np.isinf(v)] = np.nan  # add nans back again
+
+
+
         if vb:
             prg.set_description("Complete")
-            prg.update(6)
             prg.close()
 
     def get_pixel_normal(self, px, py):
@@ -217,6 +231,66 @@ class HyScene( HyCollection ):
         Get array of slope angles for each pixel (based on the surface normal vectors).
         """
         return np.rad2deg(np.arccos(np.abs(self.normals[..., 2])))
+
+    def push_to_cloud(self, bands, method='best', image=None, cloud=None):
+        """
+        Push attributes from this scenes image to this scenes cloud. Is a wrapper around hylite.project.push_to_cloud(...).
+
+        *Arguments*:
+        - bands = either:
+                     (1) a index (int), wavelength (float) of a (single) image band to export.
+                     (2) a tuple containing the (min,max) wavelength to extract. If range is a tuple, -1 can be used to specify the
+                         first or last band index.
+                     (3) a list of bands or boolean mask such that image.data[:,:,range] is exported.
+        - method = The method used to condense data from multiple pixels onto each point. Options are:
+                     - 'closest': use the closest pixel to each point.
+                     - 'distance': average with inverse distance weighting.
+                     - 'count' : average weighted inverse to the number of points in each pixel.
+                     - 'best' : use the pixel that is mapped to the fewest points (only). Default.
+                     - 'average' : average with all pixels weighted equally.
+         - image = an alternative image to use (defaults to self.image) Shapes must match self.pmap.
+         - cloud = an alternative cloud to use (defaults to self.cloud). Shapes must match self.pmap.
+        *Returns*:
+         - A HyCloud instance containing the back-projected data.
+        """
+        if cloud is None:
+            cloud = self.cloud
+        if image is None:
+            image = self.image
+
+        self.pmap.cloud = cloud
+        self.pmap.image = image
+        return push_to_cloud( self.pmap, bands, method )
+
+    def push_to_image(self, bands, method='closest', image=None, cloud=None):
+        """
+        Push attributes from this scenes cloud to this scenes image. Is a wrapper around hylite.project.push_to_image(...).
+
+        *Arguments*:
+        - bands = List defining the bands to include in the output dataset. Elements should be one of:
+              - numeric = index (int), wavelength (float) of an image band
+              - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
+                   can also be expected by passing any combination of the following:
+                    - 'rgb' = red, green and blue per-point colour values
+                    - 'klm' = point normals
+                    - 'xyz' = point coordinates
+              - iterable of length > 2: list of bands (float or integer) to export.
+         - method = The method used to condense data from multiple points onto each pixel. Options are:
+                     - 'closest': use the closest point to each pixel (default is this is fastest).
+                     - 'average' : average with all pixels weighted equally. Slow.
+         - image = an alternative image to use (defaults to self.image) Shapes must match self.pmap.
+         - cloud = an alternative cloud to use (defaults to self.cloud). Shapes must match self.pmap.
+        *Returns*:
+         - A HyImage instance containing the projected data.
+        """
+        if cloud is None:
+            cloud = self.cloud
+        if image is None:
+            image = self.image
+
+        self.pmap.cloud = cloud
+        self.pmap.image = image
+        return push_to_image( self.pmap, bands, method )
 
     # def match_colour_to(self, reference, uniform=True, method='norm', inplace=True):
     #

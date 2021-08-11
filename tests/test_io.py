@@ -114,6 +114,7 @@ class TestHyImage(unittest.TestCase):
             self.assertEqual(C2.img.xdim(), C.img.xdim())
             self.assertEqual(C2.cld.point_count(), C.cld.point_count())
             self.assertEqual(C2.lib.sample_count(), C.lib.sample_count())
+
             # test cleaning
             C2.bool = None
             C2.val = None
@@ -125,6 +126,10 @@ class TestHyImage(unittest.TestCase):
             self.assertFalse('val' in C2.header)
             self.assertFalse(os.path.exists(os.path.join(pth, "testC.hyc/val.npy")))  # check numpy array has been deleted
             self.assertFalse( os.path.exists( os.path.join(pth, "testC.hyc/img.hdr") )) # check image has been deleted
+
+            # add a relative path!
+            C2.addExternal( 'relobject', os.path.join(pth, "testC.hyc/lib.csv") )
+            self.assertTrue( isinstance(C2.relobject, hylite.HyLibrary) )
 
             # test saving collection in a different location
             io.save(os.path.join(pth, "testD.hdr"), C2 )
@@ -140,6 +145,7 @@ class TestHyImage(unittest.TestCase):
                                                         "testE.hyc/inner.hyc/cld.hdr"))) # check cloud has been copied across
             self.assertTrue(os.path.exists(os.path.join(pth,
                                                         "testE.hyc/inner.hyc/arr2.npy"))) # check cloud has been copied across
+            self.assertTrue(isinstance(C3.relobject, hylite.HyLibrary)) # check relative path link can be loaded
 
             # test quicksave function
             C3.save()

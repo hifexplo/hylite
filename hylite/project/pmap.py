@@ -240,8 +240,7 @@ class PMap(object):
         self.csr() # use row-compressed form
         W = (self.data > 0).astype(np.float32)  # convert to binary adjacency matrix
         npnt = np.array(W.sum(axis=0)).ravel()  # get number of points per pixel
-
-        return hylite.HyImage( npnt.reshape( self.xdim, self.ydim, 1 ), order='F' )
+        return hylite.HyImage( npnt.reshape( (self.xdim, self.ydim, 1 ), order='F' ) )
 
     def pixels_per_point(self):
         """
@@ -484,11 +483,6 @@ def push_to_cloud(pmap, bands=(0, -1), method='best'):
 
     *Arguments*:
      - pmap = a pmap instance. the pmap.image and pmap.cloud references must also be defined.
-     - bands = either:
-                 (1) a index (int), wavelength (float) of a (single) image band to export.
-                 (2) a tuple containing the (min,max) wavelength to extract. If range is a tuple, -1 can be used to specify the
-                     first or last band index.
-                 (3) a list of bands or boolean mask such that image.data[:,:,range] is exported.
      - bands = List defining the bands to include in the output dataset. Elements should be one of:
               - numeric = index (int), wavelength (float) of an image band
               - tuple of length 2: start and end bands (float or integer) to export.
@@ -568,11 +562,6 @@ def push_to_image(pmap, bands='xyz', method='closest'):
 
     *Arguments*:
      - pmap = a pmap instance. the pmap.image and pmap.cloud references must also be defined.
-     - bands = either:
-                 (1) a index (int), wavelength (float) of a (single) image band to export.
-                 (2) a tuple containing the (min,max) wavelength to extract. If range is a tuple, -1 can be used to specify the
-                     first or last band index.
-                 (3) a list of bands or boolean mask such that image.data[:,:,range] is exported.
      - bands = List defining the bands to include in the output dataset. Elements should be one of:
               - numeric = index (int), wavelength (float) of an image band
               - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds

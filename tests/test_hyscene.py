@@ -34,10 +34,13 @@ class MyTestCase(unittest.TestCase):
         self.swath = HyImage(np.random.rand(dims[0],100,3))
         self.swath.set_wavelengths(hylite.RGB)
         cp = np.zeros( (100, 3) )
+        cp[:, 0] +=  np.linspace(-10, 10, 100)
         cp[:, 1] +=  np.linspace(-10, 10, 100)
-        cp[:, 2] = 40.
-        co = np.zeros( (100,3) ) + ori[None, : ]
-        self.track = Pushbroom( cp, co, fov / dims[0], fov / dims[1], (dims[0], cp.shape[0]) )
+        cp[:, 2] = 80.
+        co = np.zeros( (100,3) )
+        self.track = Pushbroom( cp, co, fov / dims[0], fov / dims[0], (dims[0], cp.shape[0]) )
+        #print(self.track.R[0].as_matrix())
+        #print(self.track.R[0].as_matrix()@(self.cloud.xyz[0,:]-cp[0,:]))
 
     def test_construction(self):
         self.build_dummy_data()
@@ -49,11 +52,21 @@ class MyTestCase(unittest.TestCase):
             S = HyScene(pth,"Scene1")
 
             # build using normal camera
-            S.construct( self.image, self.cloud, self.cam, occ_tol=1, maxf=100, s=2 )
+            S.construct( self.image, self.cloud, self.cam, occ_tol=1, maxf=100, s=5 )
 
             # build using pushbroom camera
             S2 = HyScene(pth, "Scene2")
-            S2.construct( self.swath, self.cloud, self.track, occ_tol=1, maxf=100, s=2 )
+            S2.construct( self.swath, self.cloud, self.track, occ_tol=1, maxf=100, s=(5,1) )
+
+            # test projections using normal camera
+            cld = S.push_to_cloud( hylite.RGB, method='best' )
+            img = S.push_to_image( 'klm', method='closest')
+            self.assertAlmostEquals( np.nanmax(img.data), 1.0, 2)
+            self.assertAlmostEquals(np.nanmax(cld.data), 1.0, 2 )
+
+            # test projections using pushbroom camera
+            cld = S2.push_to_cloud(hylite.RGB, method='best')
+            img = S2.push_to_image('klm', method='closest')
 
         except:
             shutil.rmtree(pth)  # delete temp directory
