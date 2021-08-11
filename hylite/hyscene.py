@@ -258,9 +258,7 @@ class HyScene( HyCollection ):
         if image is None:
             image = self.image
 
-        self.pmap.cloud = cloud
-        self.pmap.image = image
-        return push_to_cloud( self.pmap, bands, method )
+        return push_to_cloud( self.pmap, bands, method, image=image, cloud=cloud)
 
     def push_to_image(self, bands, method='closest', image=None, cloud=None):
         """
@@ -288,9 +286,7 @@ class HyScene( HyCollection ):
         if image is None:
             image = self.image
 
-        self.pmap.cloud = cloud
-        self.pmap.image = image
-        return push_to_image( self.pmap, bands, method )
+        return push_to_image( self.pmap, bands, method, image=image, cloud=cloud )
 
     # def match_colour_to(self, reference, uniform=True, method='norm', inplace=True):
     #

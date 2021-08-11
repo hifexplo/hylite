@@ -477,7 +477,7 @@ def _gather_bands(data, bands):
         dat = np.vstack(dat).T
     return dat, wav, nam
 
-def push_to_cloud(pmap, bands=(0, -1), method='best'):
+def push_to_cloud(pmap, bands=(0, -1), method='best', image=None, cloud=None ):
     """
     Push the specified bands from an image onto a hypercloud using a (precalculated) PMap instance.
 
@@ -493,13 +493,20 @@ def push_to_cloud(pmap, bands=(0, -1), method='best'):
                  - 'count' : average weighted inverse to the number of points in each pixel.
                  - 'best' : use the pixel that is mapped to the fewest points (only). Default.
                  - 'average' : average with all pixels weighted equally.
+     - image = the image to project (if different to pmap.image). Must have matching dimensions. Default is pmap.image.
+     - cloud = the cloud to project (if different to pmap.cloud). Must have matching dimensions. Default is pmap.cloud.
 
     *Returns*:
      - A HyCloud instance containing the back-projected data.
     """
 
+    if image is None:
+        image = pmap.image
+    if cloud is None:
+        cloud = pmap.cloud
+
     # get image array of data to copy across
-    data = pmap.image.export_bands(bands)
+    data = image.export_bands(bands)
 
     # flatten it
     X = data.data.reshape(-1, data.data.shape[-1], order='F')  # n.b. we don't used data.X() to ensure 'C' order
@@ -547,7 +554,7 @@ def push_to_cloud(pmap, bands=(0, -1), method='best'):
     V = W@X / n[:, None]
 
     # build output cloud
-    out = pmap.cloud.copy(data=False)
+    out = cloud.copy(data=False)
     out.data = V
     if data.has_wavelengths():
         out.set_wavelengths(data.get_wavelengths())
@@ -555,7 +562,7 @@ def push_to_cloud(pmap, bands=(0, -1), method='best'):
     return out
 
 
-def push_to_image(pmap, bands='xyz', method='closest'):
+def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
     """
     Project the specified data from a point cloud onto an image using a (precalculated) PMap instance. If multiple points map
     to a single pixel then the results are averaged.
@@ -573,10 +580,16 @@ def push_to_image(pmap, bands='xyz', method='closest'):
      - method = The method used to condense data from multiple points onto each pixel. Options are:
                  - 'closest': use the closest point to each pixel (default is this is fastest).
                  - 'average' : average with all pixels weighted equally. Slow.
-
+     - image = the image to project (if different to pmap.image). Must have matching dimensions. Default is pmap.image.
+     - cloud = the cloud to project (if different to pmap.cloud). Must have matching dimensions. Default is pmap.cloud.
     *Returns*:
      - A HyImage instance containing the projected data.
     """
+
+    if image is None:
+        image = pmap.image
+    if cloud is None:
+        cloud = pmap.cloud
 
     # special case: individual band; wrap in list
     if isinstance(bands, int) or isinstance(bands, float) or isinstance(bands, str):
@@ -587,7 +600,7 @@ def push_to_image(pmap, bands='xyz', method='closest'):
             bands = [bands]
 
     # gather data to project
-    dat, wav, nam = _gather_bands(pmap.cloud, bands)  # extract point normals, positions and sky view
+    dat, wav, nam = _gather_bands(cloud, bands)  # extract point normals, positions and sky view
 
     # convert pmap to csr format
     # pmap.csr()
@@ -613,8 +626,8 @@ def push_to_image(pmap, bands='xyz', method='closest'):
         assert False, "Error - %s is an invalid method for cloud_to_image." % method
 
     # build output image
-    out = pmap.image.copy(data=False)
-    out.data = np.reshape(V, (pmap.image.xdim(), pmap.image.ydim(), -1), order='F')
+    out = image.copy(data=False)
+    out.data = np.reshape(V, (image.xdim(), image.ydim(), -1), order='F')
     out.data[out.data == 0] = np.nan  # replace zeros with nans
     out.set_wavelengths(wav)
     out.set_band_names(nam)
