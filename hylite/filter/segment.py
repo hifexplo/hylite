@@ -273,7 +273,7 @@ def build_core_template(images, N=5, thresh=40, vb=True):
         loop = tqdm(images, leave=False, desc="Building template")
     for i in loop:
         if isinstance(i, str):  # load image if need be
-            i = io.loadWithGDAL(i)
+            i = io.load(i)
         if valid is None:  # init valid if need be
             valid = np.zeros(i.data.shape[:-1])
         if not i is None:

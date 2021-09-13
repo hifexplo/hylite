@@ -12,7 +12,7 @@ class Camera( object ):
 
         *Arguments*:
          - pos = the camera position vector.
-         - ori = the camera orientation vector.
+         - ori = the camera orientation vector (pitch, roll, yaw) in degrees.
          - proj = the project type: 'persp' or 'pano'.
          - fov = the camera field of view (degrees).
          - dims = the pixel dimensions of the frame.

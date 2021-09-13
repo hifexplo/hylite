@@ -489,7 +489,7 @@ class HyImage( HyData ):
     ############################
     ## Visualisation methods
     ############################
-    def quick_plot(self, band=0, ax=None, bfac=0.0, cfac=0.0, samples=False,
+    def quick_plot(self, band=0, ax=None, bfac=0.0, cfac=0.0, samples=False, tscale=False, rot=False, flipX=False, flipY=False,
                    **kwds):
         """
         Plot a band using matplotlib.imshow(...).
@@ -501,11 +501,18 @@ class HyImage( HyData ):
          - bfac = a brightness adjustment to apply to RGB mappings (-1 to 1)
          - cfac = a contrast adjustment to apply to RGB mappings (-1 to 1)
          - samples = True if sample points (defined in the header file) should be plotted. Default is False.
+         - tscale = True if each band (for ternary images) should be scaled independently. Default is False.
+                    When using scaling, vmin and vmax can be used to set the clipping percentiles (integers) or
+                    (constant) values (float).
+         - rot = if True, the x and y axis will be flipped (90 degree rotation) before plotting. Default is False.
+         - flipX = if True, the x axis will be flipped before plotting (after applying rotations).
+         - flipY = if True, the y axis will be flippe before plotting (after applying rotations).
         *Keywords*:
          - keywords are passed to matplotlib.imshow( ... ).
 
          Additional special keywords include:
-         - mask = a 2 boolean mask containing true if pixels should be drawn and false otherwise.
+         - mask = a 2D boolean mask containing true if pixels should be drawn and false otherwise.
+         - path = a file path to save the image too (at matching resolution; use fig.savefig(..) if you want to save the figure).
         *Returns*:
          - fig, ax = the figure and axes object created (or passed through the ax keyword). If a colorbar is created,
                      (band is an integer or a float), then this will be stored in ax.cbar.
@@ -528,6 +535,15 @@ class HyImage( HyData ):
                 mask = mask + kwds.get('mask')
                 del kwds['mask']
             data = np.ma.array(data, mask = mask > 0 )
+
+            # apply rotations and flipping
+            if rot:
+                data = data.T
+            if flipX:
+                data = data[::-1, :]
+            if flipY:
+                data = data[:, ::-1]
+
             ax.cbar = ax.imshow(data.T, **kwds)
 
         #map 3 bands to RGB
@@ -538,25 +554,54 @@ class HyImage( HyData ):
                 rgb.append( self.get_band_index( b ) )
 
             #slice image (as copy) and map to 0 - 1
-            img = np.array(self.data[:, :, rgb])
+            img = np.array(self.data[:, :, rgb]).copy()
             if np.isnan(img).all():
                 print("Warning - image contains no data.")
                 return ax.get_figure(), ax
 
-            mn = kwds.get("vmin", np.nanmin(img))
-            mx = kwds.get("vmax", np.nanmax(img))
-            img = (img - mn) / (mx - mn)
+            # do scaling
+            if tscale: # scale bands independently
+                for b in range(3):
+                    mn = kwds.get("vmin", float(np.nanmin(img)))
+                    mx = kwds.get("vmax", float(np.nanmax(img)))
+                    if isinstance (mn, int):
+                        assert mn >= 0 and mn <= 100, "Error - integer vmin values must be a percentile."
+                        mn = float(np.nanpercentile(img[...,b], mn ))
+                    if isinstance (mx, int):
+                        assert mx >= 0 and mx <= 100, "Error - integer vmax values must be a percentile."
+                        mx = float(np.nanpercentile(img[...,b], mx ))
+                    img[...,b] = (img[..., b] - mn) / (mx - mn)
+            else: # scale bands together
+                mn = kwds.get("vmin", float(np.nanmin(img)))
+                mx = kwds.get("vmax", float(np.nanmax(img)))
+                if isinstance(mn, int):
+                    assert mn >= 0 and mn <= 100, "Error - integer vmin values must be a percentile."
+                    mn = float(np.nanpercentile(img, mn))
+                if isinstance(mx, int):
+                    assert mx >= 0 and mx <= 100, "Error - integer vmax values must be a percentile."
+                    mx = float(np.nanpercentile(img, mx))
+                img = (img - mn) / (mx - mn)
 
             #apply brightness/contrast mapping
-            img = (1.0 + cfac) * img + bfac
-            img[img > 1.0] = 1.0
-            img[img < 0.0] = 0.0
+            img = np.clip((1.0 + cfac) * img + bfac, 0, 1.0 )
 
             #apply masking so background is white
             img[np.logical_not( np.isfinite( img ) )] = 1.0
             if 'mask' in kwds:
-                img[kwds.get("mask"),:] = 1.0
-                del kwds['mask']
+                img[kwds.pop("mask"),:] = 1.0
+
+            # apply rotations and flipping
+            if rot:
+                img = np.transpose( img, (1,0,2) )
+            if flipX:
+                img = img[::-1, :, :]
+            if flipY:
+                img = img[:, ::-1, :]
+
+            # save?
+            if 'path' in kwds:
+                from matplotlib.pyplot import imsave
+                imsave(kwds.pop("path"), np.transpose((img*255).astype(np.uint8), (1, 0, 2)))  # save the image
 
             #plot
             ax.imshow(np.transpose(img, (1,0,2)), **kwds)

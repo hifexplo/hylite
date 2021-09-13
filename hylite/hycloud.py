@@ -218,13 +218,13 @@ class HyCloud( HyData ):
     ## Plotting functions
     ############################
     # noinspection PyDefaultArgument
-    def render(self, cam, bands=['rgb'], **kwds ):
+    def render(self, cam='ortho', bands=['rgb'], **kwds ):
 
         """
         Renders this point cloud to a HyImage using the specified camera.
 
         *Arguments*:
-         - cam = the camera to render with.
+         - cam = the camera to render with. Either a Camera instance or 'ortho' to render an orthographic top-down view (default).
          - step = the image pixel angular step (in x) for panoramic images. Default is None == square pixels.
          - bands = List defining the bands to include in the output image. Elements should be one of:
                     - 'rgb' = rgb
@@ -250,7 +250,6 @@ class HyCloud( HyData ):
         *Returns*
          - a HyImage object.
         """
-
 
         # get keywords
         s = kwds.get("s",1)
@@ -406,7 +405,10 @@ class HyCloud( HyData ):
         if isinstance(cam, str):
             if 'ortho' in cam:
                 img.affine = ([cloudxmin, res, 0,  cloudymax, 0, -res])
-                img.set_projection_EPSG(EPSG)
+                try:
+                    img.set_projection_EPSG(EPSG)
+                except:
+                    print("Warning - could not set orthoimage projection. Check GDAL installation.")
 
         # postprocessing
         if fill_holes:
@@ -421,20 +423,21 @@ class HyCloud( HyData ):
             img.despeckle(int(despeckle))
         return img
 
-    def quick_plot(self, cam, bands='rgb', s=1, step=1, fill_holes=False, blur=False, despeckle=False, **kwds):
+    def quick_plot(self, band='rgb', cam='ortho', s=1, step=1, fill_holes=False, blur=False, despeckle=False, res=0.2, **kwds):
 
         """
         Renders this point cloud using the specified camera.
-x
+
         *Arguments*:
-         - cam = the camera to render with.
-         - bands = the bands to plot. 'rgb' will plot colour, 'norm' will plot normals, 'xyz' will plot
+         - band = the bands to plot. 'rgb' will plot colour, 'norm' will plot normals, 'xyz' will plot
                    coordinates. Or an index or tuple of 3-indices (mapped to rgb) can be passed to plot scalar fields.
+         - cam = the camera to render with. Default is 'ortho' (top down).
          - s = point size (in pixels; must be an integer).
          - step = skip through n points for quicker plotting (default is 1 = draw all points).
          - fill_holes = True if 1-pixel holes should be filled. Default is False.
          - blur = True if a 3x3 gaussian blur kernel is used to smooth the scene. Default is False.
          - despeckle = True if a 5x5 median filter should be used to denoise rendered image before plotting. Default is False.
+         - res = the resolution to plot in 'ortho' mode. Default is 0.2 (20 cm).
         *Keywords*:
          - keywords are passed to HyImage.quick_plot( ... ).
 
@@ -443,13 +446,15 @@ x
          - ax = the plot axis
         """
 
-        img = self.render(cam, bands, s=s, step=step, fill_holes=fill_holes, blur=blur, despeckle=despeckle)
+        # render image
+        img = self.render(cam, band, s=s, step=step, fill_holes=fill_holes, blur=blur, despeckle=despeckle, res=res)
 
+        # plot image
         if img.band_count() >= 3:  # we have enough bands to map to rgb
-            if 'rgb' in bands: # edge case - rgb values should map from 0 to 1!
-                kwds['vmin'] = kwds.get('vmin', 0)
+            if 'rgb' in band: # edge case - rgb values should map from 0 to 1!
+                kwds['vmin'] = kwds.get('vmin', 0.)
                 if np.issubdtype(self.rgb.dtype, np.integer):
-                    kwds['vmax'] = kwds.get('vmax', 255)
+                    kwds['vmax'] = kwds.get('vmax', 255.)
                 else:
                     kwds['vmax'] = kwds.get('vmax', 1.0)
                 return img.quick_plot((0, 1, 2), **kwds)

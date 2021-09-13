@@ -111,7 +111,7 @@ class HyHeader( dict ):
             if 'wavelength' in self:
                 del self['wavelength']
         else:
-            assert isinstance(wavelengths, list) or isinstance(wavelengths, np.ndarray), "Error - wavelengths must be list or numpy array."
+            assert isinstance(wavelengths, list) or isinstance(wavelengths, np.ndarray) or isinstance(wavelengths, tuple), "Error - wavelengths must be list, tuple or numpy array."
             self['wavelength'] = np.array(wavelengths).astype(np.float)
 
     def set_fwhm(self, fwhm):
@@ -164,7 +164,9 @@ class HyHeader( dict ):
             "Error - unrecognised data type %s." % mask.dtype
 
         # check we have a value per band
-        assert len(keep) == nbands, "Error - data has %d values but mask is length %d" % (nbands, len(keep))
+        #assert len(keep) == nbands, "Error - data has %d values but mask is length %d" % (nbands, len(keep))
+        # N.B. this assert has been removed because it is triggered when a header contains no wavelength or band names
+        # (and so the header file cannot know how many bands to expect in the image)
 
         skip = ['default bands', 'temperature', 'camera',
                 'class lookup', 'class names', 'coordinate system string', 'description',
@@ -346,6 +348,8 @@ class HyHeader( dict ):
         name = name.lower()  # use lower case
         self['target %s reflectance' % name] = panel.get_reflectance()
         self['target %s radiance' % name] = panel.get_mean_radiance()
+        if panel.normal is not None: # store normal vector
+            self['target %s normal' % name] = panel.normal
 
     def get_panel(self, name):
         """
@@ -374,9 +378,18 @@ class HyHeader( dict ):
         reflectance = reflectance.astype(np.float32) # check type
         radiance = radiance.astype(np.float32)
 
-        # create Target instance
+        # get normal vector (if defined)
+        normal = None
+        if ('target %s normal' % name) in self:
+            normal = np.fromstring( self['target %s normal' % name], sep=",")
+
+        # create dummy Target instance
         material = Target(self.get_wavelengths(), reflectance, name=name)
-        return Panel( material, radiance, wavelengths=self.get_wavelengths() )
+
+        # create Panel instance and return
+        P = Panel( material, radiance, wavelengths=self.get_wavelengths() )
+        P.set_normal(normal)
+        return P
 
     def remove_panel(self, name = None):
         """

@@ -310,7 +310,7 @@ class FX50(FX):
         if verbose: print('\nLoading image %s' % imgs[0])
 
         # load image
-        image = io.loadWithGDAL(imgs[0])
+        image = io.load(imgs[0])
         FX50.set_dark_ref(dark[0])
 
         if len(white) > 0:  # white reference exists

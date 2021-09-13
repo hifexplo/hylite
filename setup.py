@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 ##TODO - do this properly
 setuptools.setup(
     name="hylite",
-    version="1.0.3",
+    version="1.1.1",
     author="Helmholtz Institute Freiberg",
     author_email="s.thiele@hzdr.de",
     description="Open-source toolbox for hyperspectral geology.",
@@ -43,6 +43,6 @@ setuptools.setup(
         'Source': 'https://github.com/samthiele/hylite',
     },
 
-    package_data={"": ["*.txt","*.hdr","*.cal"] }
+    package_data={"": ["*.txt","*.hdr","*.cal","*.dat"] }
     #todo - include data files here with data_files = [ .... ]
 )

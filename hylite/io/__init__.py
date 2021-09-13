@@ -3,15 +3,19 @@
 Import and export hyperspectral data. For hyperspectral images this is mostly done using GDAL,
 while for point clouds and hyperspectral libraries a variety of different methods are included.
 """
-
 from .headers import *
 from .images import *
 from .clouds import *
 from .libraries import *
+from .pmaps import *
+from .cameras import saveCameraTXT, loadCameraTXT
 
-from hylite import HyData, HyImage, HyCloud, HyLibrary
+from hylite import HyImage, HyCloud, HyLibrary, HyCollection, HyScene
+from hylite.project import PMap, Camera, Pushbroom
 
-def save(path, data):
+import shutil
+
+def save(path, data, **kwds):
     """
     A generic function for saving HyData instances such as HyImage, HyLibrary and HyCloud. The appropriate file format
     will be chosen automatically.
@@ -19,20 +23,71 @@ def save(path, data):
     *Arguments*:
      - path = the path to save the file too.
      - data = the data to save. This must be an instance of HyImage, HyLibrary or HyCloud.
+
+    *Keywords*:
+     - vmin = the data value that = 0 when saving RGB images.
+     - vmax = the data value that = 255 when saving RGB images. Must be > vmin.
     """
 
     if isinstance(data, HyImage):
-        try:
-            from osgeo import gdal  # is gdal installed?
-            save_func = saveWithGDAL
-        except ModuleNotFoundError:  # no gdal, use SPy
-            save_func = saveWithSPy
+
+        # special case - save ternary image to png or jpg or bmp
+        ext = os.path.splitext(path)[1].lower()
+        if 'jpg' in ext or 'bmp' in ext or 'png' in ext or 'pdf' in ext:
+            if data.band_count() == 1 or data.band_count() == 3 or data.band_count == 4:
+                from matplotlib.pyplot import imsave
+                rgb = np.transpose( data.data, (1,0,2) )
+                if not ((data.is_int() and np.max(rgb) <= 255)): # handle normalisation
+                    rgb = rgb - kwds.get("vmin", 0)
+                    rgb /= (kwds.get("vmax", np.max(rgb) ) - kwds.get("vmin", 0) )
+                    rgb = (np.clip(rgb, 0, 1) * 255).astype(np.uint8) # convert to 8 bit image
+                imsave( path, rgb ) # save the image
+                return
+        else: # save hyperspectral image
+            try:
+                from osgeo import gdal  # is gdal installed?
+                save_func = saveWithGDAL
+            except ModuleNotFoundError:  # no gdal, use SPy
+                save_func = saveWithSPy
+            ext = 'dat'
+    elif isinstance(data, HyHeader):
+        save_func = saveHeader
+        ext = 'hdr'
     elif isinstance(data, HyCloud):
         save_func = saveCloudPLY
+        ext = 'ply'
     elif isinstance(data, HyLibrary):
         save_func = saveLibraryCSV
+        ext = 'csv'
+    elif isinstance(data, PMap ):
+        save_func = savePMap
+        ext = 'npz'
+    elif isinstance(data, Camera ):
+        save_func = saveCameraTXT
+        ext = 'cam'
+    elif isinstance(data, Pushbroom):
+        save_func = saveCameraTXT
+        ext = 'brm'
+    elif isinstance(data, HyCollection):
+        save_func = saveCollection
+        ext = 'hyc'
+        if isinstance(data, HyScene): # special type of HyCollection, should have different extension
+            ext = 'hys'
+        if os.path.splitext(path)[0]+"."+ext != data._getDirectory(): # we're moving to a new home! Copy folder
+            if os.path.exists(data._getDirectory()): # if it exists...
+                shutil.copytree( data._getDirectory(), os.path.splitext(path)[0]+"."+ext)
+
+    elif isinstance(data, np.ndarray):
+        save_func = np.save
+        ext = 'npy'
     else:
-        assert False, "Error - data must be an instance of HyImage, HyCloud or HyLibrary."
+        assert False, "Error - data type %s is unsupported by hylite.io.save." % type(data)
+
+    # check path file extension
+    if 'hdr' in os.path.splitext(path)[1]: # auto strip .hdr extensions if provided
+        path = os.path.splitext(path)[0]
+    if ext not in os.path.splitext(path)[1]: # add type-specific extension if needed
+        path += '.%s'%ext
 
     # save!
     save_func( path, data )
@@ -49,8 +104,20 @@ def load(path):
      - a HyData instance containing the loaded dataset.
     """
 
+    assert os.path.exists( path ), "Error: file %s does not exist." % path
+
+    # load file formats with no associated header
+    if 'npz' in os.path.splitext( path )[1].lower():
+        return loadPMap(path)
+    elif 'npy' in os.path.splitext( path )[1].lower():
+        return np.load( path ) # load numpy
+
+    # file (should/could) have header - look for it
     header, data = matchHeader( path )
+    assert os.path.exists(data), "Error - file %s does not exist." % data
     ext = os.path.splitext(data)[1].lower()
+    if ext == '':
+        assert os.path.isfile(data), "Error - %s is a directory not a file." % data
 
     if 'ply' in ext: # point or hypercloud
         return loadCloudPLY(path)
@@ -62,10 +129,48 @@ def load(path):
         return loadLibrarySED(path)
     elif 'tsg' in ext: # spectral library
         return loadLibraryTSG(path)
-    else: # image - load with SPy
+    elif 'hyc' in ext or 'hys' in ext: # load hylite collection or hyscene
+        return loadCollection(path)
+    elif 'cam' in ext or 'brm' in ext: # load pushbroom and normal cameras
+        return loadCameraTXT(path)
+    else: # image
+        # load conventional images with PIL
+        if 'png' in ext or 'jpg' in ext or 'bmp' in ext:
+            # load image with matplotlib
+            from matplotlib.pyplot import imread
+            return HyImage(np.transpose(imread(path), (1, 0, 2)))
         try:
             from osgeo import gdal # is gdal installed?
             return loadWithGDAL(path)
         except ModuleNotFoundError: # no gdal, use SPy
             return loadWithSPy(path)
 
+##############################################
+## save and load data collections
+##############################################
+# save collection
+def saveCollection(path, collection):
+    # generate file paths
+    dirmap = collection.get_file_dictionary(root=os.path.dirname(path),
+                                            name=os.path.splitext(os.path.basename(path))[0])
+    # save files
+    for p, o in dirmap.items():
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        save(p, o)  # save each path and item [ n.b. this includes the header file! :-) ]
+
+def loadCollection(path):
+    # load header and find directory path
+    header, directory = matchHeader(path)
+
+    # parse name and root
+    root = os.path.dirname(directory)
+    name = os.path.basename(os.path.splitext(directory)[0])
+
+    if 'hyc' in os.path.splitext(directory)[1]:
+        C = HyCollection(name, root, header=loadHeader(header))
+    elif 'hys' in os.path.splitext(directory)[1]:
+        C = HyScene(name, root, header=loadHeader(header))
+    else:
+        print(header, directory )
+        assert False, "Error - %s is an invalid collection." % directory
+    return C

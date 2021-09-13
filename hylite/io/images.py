@@ -4,6 +4,10 @@ import spectral
 from hylite.hyimage import HyImage
 from .headers import matchHeader, makeDirs, loadHeader, saveHeader
 
+# spectral python throws depreciation warnings - ignore these!
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
     """
     Load an image using gdal.
@@ -24,13 +28,14 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
 
     #parse file format
     _, ext = os.path.splitext(path)
-    if len(ext) == 0 or 'hdr' in ext.lower() or 'dat' in ext.lower(): #load ENVI file?
+    if len(ext) == 0 or 'hdr' in ext.lower() or 'dat' in ext.lower() or 'img' in ext.lower(): #load ENVI file?
         header, image = matchHeader(path)
     elif 'tif' in ext.lower() or 'png' in ext.lower() or 'jpg' in ext.lower(): #standard image formats
         image = path
         header = None
     else:
-        assert False, "Error - %s is an unknown/unsupported file format." % ext
+        print( 'Warning - %s is an unknown/unsupported file format. Trying to load anyway....')
+        #assert False, "Error - %s is an unknown/unsupported file format." % ext
 
     # load header
     if not header is None:
@@ -38,8 +43,11 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
 
     #load image
     assert os.path.exists(image), "Error - %s does not exist." % image
-    raster = gdal.Open(image)  # open image
-    data = raster.ReadAsArray().T
+    try:
+        raster = gdal.Open(image)  # open image
+        data = raster.ReadAsArray().T
+    except:
+        assert False, "Error - %s could not be read by GDAL." % image
 
     #create image object
     assert data is not None, "Error - GDAL could not retrieve valid image data from %s" % path
@@ -68,7 +76,7 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
 
     # parse file format
     _, ext = os.path.splitext(path)
-    if len(ext) == 0 or 'hdr' in ext.lower() or 'dat' in ext.lower():  # load ENVI file?
+    if len(ext) == 0 or 'hdr' in ext.lower() or 'dat' in ext.lower() or 'img' in ext.lower():  # load ENVI file?
         header, image = matchHeader(path)
 
         # load image with SPy
@@ -79,14 +87,14 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
         # load header
         if not header is None:
             header = loadHeader(header)
-
     elif 'tif' in ext.lower() or 'png' in ext.lower() or 'jpg' in ext.lower():  # standard image formats
         # load with matplotlib
         import matplotlib.image as mpimg
         data = mpimg(path)
         header = None
     else:
-        assert False, "Error - %s is an unknown/unsupported file format." % ext
+        print('Warning - %s is an unknown/unsupported file format. Trying to load anyway...')
+        #assert False, "Error - %s is an unknown/unsupported file format." % ext
 
     # create image object
     assert data is not None, "Error - GDAL could not retrieve valid image data from %s" % path

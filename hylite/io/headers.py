@@ -175,9 +175,19 @@ def matchHeader(path):
 
         # did we find image data?
         for m in match:
+            # ignore potentially associated file types (that aren't the data file we're looking for)
             if os.path.splitext(m)[0] == path \
                     and not "log" in str.lower(os.path.splitext(m)[1]) \
-                    and not "hdt" in str.lower(os.path.splitext(m)[1]):
+                    and not "png" in str.lower(os.path.splitext(m)[1]) \
+                    and not "jpg" in str.lower(os.path.splitext(m)[1]) \
+                    and not "bmp" in str.lower(os.path.splitext(m)[1]) \
+                    and not "hdt" in str.lower(os.path.splitext(m)[1]) \
+                    and not "csv" in str.lower(os.path.splitext(m)[1]) \
+                    and not "txt" in str.lower(os.path.splitext(m)[1]) \
+                    and not "xml" in str.lower(os.path.splitext(m)[1]) \
+                    and not "cam" in str.lower(os.path.splitext(m)[1]) \
+                    and not "brm" in str.lower(os.path.splitext(m)[1]):
+
                 image = m  # store matching image file
                 break
 

@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 from matplotlib import path
 import numpy as np
-from scipy import stats
 from scipy.optimize import least_squares
 import matplotlib.patches as patches
 import cv2
@@ -45,6 +44,8 @@ class Panel( HyData ):
 
         super().__init__(None)  # initialise header etc.
         self.source_image = None  # init defaults
+        self.outline = None
+        self.normal = None
 
         if isinstance(radiance, np.ndarray):  # radiance is a list of pixels
 
@@ -218,69 +219,120 @@ class Panel( HyData ):
         """
         return self.reflectance
 
-    def get_normal(self, cam):
+    def get_normal(self, cam=None, recalc=False):
         """
         Get the normal vector of this panel by assuming its outline is square (prior to projection onto the camera).
 
         *Arguments*:
-         - a Camera object describing the pose of the camera from which the panel is viewed.
-
+         - cam = a Camera object describing the pose of the camera from which the panel is viewed. Default is None (to retrieve
+                 previously stored normals)
+         - recalc = True if a precomputed (or otherwise defined) normal vector should be recalculated. Default is False.
         *Returns*:
-         - norm, err = the normal vector of the panel (in world coordinates) and the residual error of the orientation
-                       estimation procedure.
+         - norm = the normal vector of the panel (in world coordinates). This is also stored as self.normal.
         """
 
-        # get corners of panel and convert to rays
-        corners = np.array([self.outline.vertices[i, :] for i in range(4)])
+        if recalc or self.normal is None:
 
-        if cam.is_panoramic():
-            ray1 = pix_to_ray_pano(corners[0, 0], corners[0, 1], cam.fov, cam.step, cam.dims)
-            ray2 = pix_to_ray_pano(corners[1, 0], corners[1, 1], cam.fov, cam.step, cam.dims)
-            ray3 = pix_to_ray_pano(corners[2, 0], corners[2, 1], cam.fov, cam.step, cam.dims)
-            ray4 = pix_to_ray_pano(corners[3, 0], corners[3, 1], cam.fov, cam.step, cam.dims)
+            # check outline is available
+            assert cam is not None, "Error - normal vector not previously defined. Please specify a camera object (cam) to estimate normal."
+            assert self.outline is not None, "Error - self.outline must contain four points to estimate this panels normal vector..."
+
+            # get corners of panel and convert to rays
+            corners = np.array([self.outline.vertices[i, :] for i in range(4)])
+
+            if cam.is_panoramic():
+                ray1 = pix_to_ray_pano(corners[0, 0], corners[0, 1], cam.fov, cam.step, cam.dims)
+                ray2 = pix_to_ray_pano(corners[1, 0], corners[1, 1], cam.fov, cam.step, cam.dims)
+                ray3 = pix_to_ray_pano(corners[2, 0], corners[2, 1], cam.fov, cam.step, cam.dims)
+                ray4 = pix_to_ray_pano(corners[3, 0], corners[3, 1], cam.fov, cam.step, cam.dims)
+            else:
+                ray1 = pix_to_ray_persp(corners[0, 0], corners[0, 1], cam.fov, cam.dims)
+                ray2 = pix_to_ray_persp(corners[1, 0], corners[1, 1], cam.fov, cam.dims)
+                ray3 = pix_to_ray_persp(corners[2, 0], corners[2, 1], cam.fov, cam.dims)
+                ray4 = pix_to_ray_persp(corners[3, 0], corners[3, 1], cam.fov, cam.dims)
+
+            a = 1.0  # length of each square (in arbitrary coordinates)
+            h = np.sqrt(2)  # length of hypot relative to sides
+
+            def opt(x, sol=False):
+                # get test depths
+                z1, z2, z3, z4 = x
+
+                # calculate edge coordinates
+                A = ray1 * z1
+                B = ray2 * z2
+                C = ray3 * z3
+                D = ray4 * z4
+
+                # and errors with edge lengths
+                AB = np.linalg.norm(B - A)
+                BC = np.linalg.norm(C - B)
+                CD = np.linalg.norm(D - C)
+                DA = np.linalg.norm(A - D)
+                AC = np.linalg.norm(C - A)
+                BD = np.linalg.norm(D - B)
+
+                if not sol:
+                    return [AB - a, BC - a, CD - a, DA - a, AC - h, BD - h]  # return for optimiser
+                else:  # return solution (normal vector)
+                    AB = (B - A) / AB
+                    BC = (C - B) / BC
+                    return np.cross(AB, BC)
+
+            # get normal vector in camera coords
+            sol = least_squares(opt, (10.0, 10.0, 10.0, 10.0))
+            norm = opt(sol.x, sol=True)
+
+            # rotate to world coords
+            norm = np.dot(cam.get_rotation_matrix(), norm)
+            self.set_normal(norm)
+
+        return self.normal
+
+    def set_normal(self, n ):
+        """
+        Set panel normal vector to a known vector.
+
+        *Arguments*:
+         - n = a (3,) numpy array containing the normal vector in world coordinates.
+        """
+        if n is None:
+            self.normal = None # remove normal
         else:
-            ray1 = pix_to_ray_persp(corners[0, 0], corners[0, 1], cam.fov, cam.dims)
-            ray2 = pix_to_ray_persp(corners[1, 0], corners[1, 1], cam.fov, cam.dims)
-            ray3 = pix_to_ray_persp(corners[2, 0], corners[2, 1], cam.fov, cam.dims)
-            ray4 = pix_to_ray_persp(corners[3, 0], corners[3, 1], cam.fov, cam.dims)
+            assert len(n) == 3, "Error - n must be a (3,) normal vector."
+            self.normal = np.array(n) / np.linalg.norm(n) # enforce n has length 1.0
+            if self.normal[2] < 0:
+                self.normal *= -1 # panel always points upwards
 
-        a = 1.0  # length of each square (in arbitrary coordinates)
-        h = np.sqrt(2)  # length of hypot relative to sides
+    def get_skyview(self, hori_elev=0.0, up=np.array([0, 0, 1])):
+        """
+        Get this panels skyview factor. Normal vector must be defined, otherwise an error will be thrown.
 
-        def opt(x, sol=False):
-            # get test depths
-            z1, z2, z3, z4 = x
+        *Arguments*:
+         - hori_elev = the angle from the panel to the horizon (perpendicular to the panel's orientation) in degrees.
+                       Used to reduce the sky view factor if the panel is below the horizon (e.g. in an open pit mine).
+                       Default is 0.0 (i.e. assume a flat horizon). Can also be negative if sky is visible below the
+                       (flat) horizon.
+         - up = the vertical (up) vector. Default is [0,0,1].
+        *Returns*:
+         - this panels sky view factor (assuming the panel is relatively unoccluded and the horizon is flat).
+        """
 
-            # calculate edge coordinates
-            A = ray1 * z1
-            B = ray2 * z2
-            C = ray3 * z3
-            D = ray4 * z4
+        # proportion of sky visible assuming horizontal horizon
+        s = (np.pi - np.arccos(np.dot(up, self.normal))) / np.pi
 
-            # and errors with edge lengths
-            AB = np.linalg.norm(B - A)
-            BC = np.linalg.norm(C - B)
-            CD = np.linalg.norm(D - C)
-            DA = np.linalg.norm(A - D)
-            AC = np.linalg.norm(C - A)
-            BD = np.linalg.norm(D - B)
+        # adjust according to hori_elev [ and enforce range from 0 - 1.0
+        return min(max(0, s - (np.deg2rad(hori_elev) / np.pi)), 1.0)
 
-            if not sol:
-                return [AB - a, BC - a, CD - a, DA - a, AC - h, BD - h]  # return for optimiser
-            else:  # return solution (normal vector)
-                AB = (B - A) / AB
-                BC = (C - B) / BC
-                return np.cross(AB, BC)
-
-        # get normal vector in camera coords
-        sol = least_squares(opt, (10.0, 10.0, 10.0, 10.0))
-        norm = opt(sol.x, sol=True)
-
-        # rotate to world coords
-        norm = np.dot(cam.get_rotation_matrix(), norm)
-        if norm[2] < 0:
-            norm *= -1
-        return norm
+    def get_alpha(self, illudir):
+        """
+        Return the reflected light fraction of this panel based on the specified illumination direction using
+        Lamberts' cosine law.
+        """
+        assert len(illudir) == 3, "Error - illudir must be a (3,) numpy array."
+        if illudir[2] > 0: # check illudir is pointing downwards
+            illudir = illudir * -1
+        return max( 0, np.dot( -self.normal, illudir ) )
 
     def quick_plot(self, bands=hylite.RGB, **kwds):
 
@@ -315,7 +367,7 @@ class Panel( HyData ):
         else: # no image data, just plot spectra
             kwds['labels'] = kwds.get('labels', HyFeature.Themes.ATMOSPHERE)
             fig, ax = self.plot_spectra(**kwds)
-
+            ax.set_ylabel('Downwelling Radiance')
         return fig, ax
 
     def plot_ratio(self, ax = None):
@@ -339,124 +391,6 @@ class Panel( HyData ):
         ax.plot( self.get_wavelengths(), ratio )
         ax.set_ylabel("radiance / reflectance" )
         ax.set_xlabel("Wavelength (nm)")
-
-        return fig, ax
-
-class ELC(object):
-    """
-    Class that gathers one or more Panels and computes calculates an empirical line correction.
-    """
-
-    def __init__(self, panels):
-
-        """
-        Constructor that takes a list of Panel objects (one for each target used for the correction) and computes
-        an empirical line correction.
-
-        *Arguments*:
-          - panels = a list of Panel objects defining the reflectance and radiance of each panel in the scene.
-        """
-
-        if not isinstance(panels, list):
-            panels = [panels]
-
-        self.wav = np.array(panels[0].get_wavelengths())
-        for p in panels:
-            assert isinstance(p, Panel), "Error - ELC panels must be instances of hylite.correct.Panel"
-            assert (self.wav == np.array(
-                p.get_wavelengths())).all(), 'Error - ELC panels must cover the same wavelengths'
-
-        # compute ELC
-        self.slope = np.zeros(self.wav.shape)
-        self.intercept = np.zeros(self.wav.shape)
-        if len(panels) == 1:  # only one panel - assume intercept = 0
-            self.slope = panels[0].get_reflectance() / panels[0].get_mean_radiance()
-        else:
-            # calculate regression for each band
-            for b, w in enumerate(self.wav):
-                _x = np.array([p.get_mean_radiance()[b] for p in panels])
-                _y = np.array([p.get_reflectance()[b] for p in panels])
-                self.slope[b], self.intercept[b], _, _, _ = stats.linregress(_x, _y)
-
-    def get_wavelengths(self):
-        """
-        Get the wavelengths for which this ELC has been calculated.
-        """
-        return self.wav
-
-    def get_bad_bands(self, **kwds):
-
-        """
-        Find bands in which signal-noise ratios are amplified above a threshold (due to large correction slope).
-
-        *Keywords*:
-         - thresh = the threshold slope. Defaults to the 85th percentile.
-
-        *Returns*:
-         - a boolean numpy array containing True for bad bands and False otherwise.
-        """
-
-        thresh = kwds.get("thresh", np.nanpercentile(self.slope, 85))
-        return self.slope > thresh
-
-    def apply(self, data, **kwds):
-
-        """
-        Apply this empirical line calibration to the specified image.
-
-        *Arguments*:
-         - data = a HyData instance to correct
-
-        *Keywords*:
-         - thresh = the threshold slope. Defaults to the 90th percentile.
-
-        *Returns*:
-         - a mask containing true where the corrected values are considered reasonable - see get_bad_bands(...) for more
-           details. Note that this returns the np.logical_not( self.get_bad_bands(...) ).
-        """
-
-        assert data.band_count() == len(self.slope), "Error - data has %d bands but ELC has %d" % (
-        data.band_count(), len(self.slope))
-        data.data *= self.slope
-        data.data += self.intercept
-
-        return np.logical_not(self.get_bad_bands(**kwds))
-
-    def quick_plot(self, ax=None, **kwds):
-
-        """
-        Plots the correction factors (slope and intercept) computed for this ELC.
-
-        *Arguments*:
-         - ax = the axes to plot on. If None (default) then a new axes is created.
-        *Keywords*:
-         - thresh = the threshold to separate good vs bad correction values (see get_bad_bands(...)). Default is the
-                    85th percentile of slope values.
-        *Returns*:
-         -fig, ax = the figure and axes objects containing the plot.
-
-        """
-
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(15, 10))
-
-        # plot slope
-        _x = self.get_wavelengths()
-        _y1 = self.slope
-        _y2 = [kwds.get("thresh", np.nanpercentile(self.slope, 85))] * len(_y1)
-        ax.plot(_x, _y1, color='k', lw=1)
-        ax.plot(_x, _y2, color='gray', lw=2)
-        ax.fill_between(_x, _y1, [0] * len(_x), where=_y1 > _y2, facecolor='red', interpolate=True, alpha=0.3)
-        ax.fill_between(_x, _y1, [0] * len(_x), where=_y1 < _y2, facecolor='green', interpolate=True, alpha=0.3)
-        ax.set_xlabel("Wavelength (nm)")
-        ax.set_ylabel("ELC slope")
-        if not (self.intercept == 0).all():
-            ax2 = ax.twinx()
-            ax2.plot(_x, self.intercept, color='b')
-            ax2.set_ylabel("ELC intercept")
-            ax2.spines['right'].set_color('blue')
-            ax2.yaxis.label.set_color('blue')
-            ax2.tick_params(axis='y', colors='blue')
 
         return fig, ax
 

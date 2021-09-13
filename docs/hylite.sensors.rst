@@ -24,7 +24,7 @@ Generic Sensor
 
 
 
-Hyspex
+Specim
 ---------------------------
 
 .. automodule:: hylite.sensors.fenix

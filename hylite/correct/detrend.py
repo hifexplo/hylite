@@ -74,7 +74,6 @@ def hull(spectra, div=True):
     else:
         return 1 + spectra - y, y
 
-
 def get_hull_corrected(data, band_range=None, method='div', vb=True):
     """
     Apply a hull correction to an entire HyData instance (HyImage, HyCloud or HyLibrary). Returns a corrected copy of
@@ -97,7 +96,10 @@ def get_hull_corrected(data, band_range=None, method='div', vb=True):
     # convert integer data to floating point (we need floats for the hull correction)
     comp = False
     if corrected.is_int():
-        corrected.decompress()
+        if np.nanmax( corrected.data ) > 100: # check large number used in compressed form
+            corrected.decompress()
+        else:
+            corrected.data = corrected.data.astype(np.float32) # cast to float for hull correction
         comp = True
 
     method = 'div' in method  # convert method to bool (for performance)

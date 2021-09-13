@@ -7,7 +7,7 @@ import shutil
 from tempfile import mkdtemp
 import numpy as np
 
-class MyTestCase(unittest.TestCase):
+class TestAlign(unittest.TestCase):
     def test_mwl(self):
         # load test image
         image1 = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))

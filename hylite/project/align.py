@@ -137,7 +137,9 @@ def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
             p_est, r_est, inl = pnp(k3d, k_hyper_pp, cam.fov, image.data.shape, ransac=True, **kwds)
         else:
             p_est, r_est, inl = pnp(k3d, k_hyper, cam.fov, image.data.shape, ransac=True, **kwds)
+
     except: # pnp failed - plot keypoints before failing
+        print("Error - PnP solution not found. Check sift feature matching?")
         if gf:
             fig, ax = ortho.quick_plot((0, 1, 2))
 

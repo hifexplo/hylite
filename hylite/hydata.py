@@ -51,6 +51,18 @@ class HyData(object):
         # header data
         self.set_header(kwds.get('header', None))
 
+    def __getitem__(self, key):
+        """
+        Expose underlying data array when using [ ] operators
+        """
+        return self.data.__getitem__(key)
+
+    def __setitem__(self, key, value):
+        """
+        Expose underlying data array when using [ ] operators
+        """
+        self.data.__setitem__(key, value)
+
     def copy(self, data=True):
         """
         Make a deep copy of this image instance.
@@ -157,7 +169,8 @@ class HyData(object):
         """
         Return true if this dataset is an image (i.e. data array has dimension [x,y,b]).
         """
-
+        if self.data is None: # for point clouds data can be none
+            return False
         return len(self.data.shape) == 3
 
     def is_point(self):
@@ -165,7 +178,8 @@ class HyData(object):
         Return true if this dataset is an point cloud or related dataset (i.e. data array has dimension [idx,b]). Note
         that this will return true for spectral libraries and other 'cloud like' datasets.
         """
-
+        if self.data is None: # for point clouds data can be none
+            return True
         return len(self.data.shape) == 2
 
     def is_classification(self):
@@ -228,6 +242,10 @@ class HyData(object):
                          first or last band index.
                      (2) a list of bands or boolean mask such that image.data[:,:,range] is exported to the new image.
         """
+
+        # wrap individual integers or floats in a list
+        if isinstance(bands, int) or isinstance(bands, float):
+            bands = [bands]  # wrap in list
 
         # calculate bands to remove
         mask = np.full( self.band_count(), True )
@@ -553,8 +571,6 @@ class HyData(object):
         *Arguments*:
          - window = size of running window, must be an odd integer.
          - poly = degree of polynom, must be int.
-         - deriv = the order of derivative to evaluate (e.g. for stationary point analysis). Default is 0 [smooth
-                   but don't compute derivative].
         *Keywords*: Keywords are passed to scipy.signal.savgol_filter(...).
         *Returns*: A copy of the input dataset with smoothed spectra.
         """
@@ -673,7 +689,7 @@ class HyData(object):
         ax.grid(which='major', axis='x', alpha=0.75)
         ax.grid(which='minor', axis='x', alpha=0.2)
         ax.set_xlabel("Wavelength (%s)" % self.header.get('wavelength units', 'nm'))
-        ax.set_ylabel("Reflectance")
+        #ax.set_ylabel("Reflectance") # n.b. not all images contain reflectance data...
         return ax.get_figure(), ax
 
     ###################################

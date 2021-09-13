@@ -9,7 +9,7 @@ def proj_persp( xyz, C, a, fov, dims, normals=None):
     *Arguments*:
      - xyz = a nx3 numpy array with a position vector (x,y,z) in each column.
      - C = the position of the camera.
-     - a = the three camera rotatation euler angles (appled around x, then y, then z). In DEGREES.
+     - a = the three camera rotatation euler angles (appled around x, then y, then z == pitch, roll, yaw). In DEGREES.
      - fov = the vertical field of view.
      - dims = the image dimensions (width, height)
      - normals = per-point normals. Used to do backface culling if specified. Default is None (not used).
@@ -28,7 +28,8 @@ def proj_persp( xyz, C, a, fov, dims, normals=None):
     #apply camera rotation to get to coordinate system
     #  where y is camera up and z distance along the view axis
     R = spatial.transform.Rotation.from_euler('XYZ',-a,degrees=True).as_matrix()
-    xyz = np.dot(xyz, R)
+    #xyz = np.dot(xyz, R)
+    xyz = xyz@R
 
     #calculate image plane width/height in projected coords
     h = 2 * np.tan( np.deg2rad( fov / 2 ) )
@@ -42,12 +43,11 @@ def proj_persp( xyz, C, a, fov, dims, normals=None):
     #calculate mask showing 'visible' points based on image dimensions
     vis = vis & (pz > 0) & (px > 0) & (px < 1) & (py > 0) & (py < 1)
 
-    #conver to pixels
+    #convert to pixels
     px *= dims[0]
     py *= dims[1]
 
     return np.array([px,py,pz]).T, vis
-
 
 def proj_pano(xyz, C, a, fov, dims, step=None, normals=None):
     """
@@ -56,7 +56,7 @@ def proj_pano(xyz, C, a, fov, dims, step=None, normals=None):
     *Arguments*:
      - xyz = a nx3 numpy array with a position vector (x,y,z) in each column.
      - C = the position of the camera.
-     - a = the three camera rotatation euler angles (appled around x, then y, then z). In DEGREES.
+     - a = the three camera rotatation euler angles (appled around x, then y, then z == pitch, roll, yaw). In DEGREES.
      - fov = the vertical field of view.
      - dims = the image dimensions (width, height)
      - step = the angular step (degrees) between pixels in x.  If None, this is calculated to ensure square pixels.
@@ -77,7 +77,8 @@ def proj_pano(xyz, C, a, fov, dims, step=None, normals=None):
     # apply camera rotation to get to coordinate system
     #  where y is camera up and z distance along the view axis
     R = spatial.transform.Rotation.from_euler('XYZ', -a, degrees=True).as_matrix()
-    xyz = np.dot(xyz, R)
+    #xyz = np.dot(xyz, R)
+    xyz = xyz@R
 
     # calculate image height (in projected coords) for vertical perspective project
     h = 2 * np.tan(np.deg2rad(fov / 2))
@@ -115,10 +116,10 @@ def proj_ortho( xyz, C, V, s=1.0 ):
     """
 
     xyz = xyz - C[None, :]  # center origin on camera
-    pz = np.dot(xyz, V)  # calculate depths (distances from plane)
+    #pz = np.dot(xyz, V)  # calculate depths (distances from plane)
+    pz = xyz@V
     xyz -= (V[None, :] * pz[:, None])  # project onto plane (by removing depth)
     return s*np.array([ xyz[:,0], xyz[:,1], pz]).T, pz > 0
-
 
 def rasterize(points, vis, vals, dims, s=1):
     """
@@ -176,7 +177,6 @@ def rasterize(points, vis, vals, dims, s=1):
 
     return out, depth
 
-
 def pix_to_ray_persp(x, y, fov, dims):
     """
     Transform pixel coordinates to a unit direction (ray) in camera coordinates using a
@@ -198,7 +198,6 @@ def pix_to_ray_persp(x, y, fov, dims):
     Py = (2 * (y / dims[1]) - 1) * h / 2
     ray = np.array([Px, -Py, -1])
     return ray / np.linalg.norm(ray)  # return normalized ray
-
 
 def pix_to_ray_pano(x, y, fov, step, dims):
     """
@@ -229,7 +228,6 @@ def pix_to_ray_pano(x, y, fov, step, dims):
     R = spatial.transform.Rotation.from_euler('Y', alpha, degrees=True).as_matrix()
 
     return np.dot(ray, R)  # return rotated ray
-
 
 def pano_to_persp(x, y, fov, step, dims):
     """

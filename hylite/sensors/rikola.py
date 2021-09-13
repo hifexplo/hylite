@@ -382,7 +382,7 @@ class Rikola(Sensor):
     def _cmp(cls, args):
         pth = str(args[0])
         kwds = args[1]
-        image = io.loadWithGDAL(pth)  # load image
+        image = io.load(pth)  # load image
         Rikola.correct_image(image, False, **kwds)  # correct image
         io.saveWithGDAL(os.path.splitext(pth)[0] + "_CORRECTED.hdr", image)  # save corrected image
         return os.path.splitext(pth)[0] + "_CORRECTED.hdr"  # return corrected path
