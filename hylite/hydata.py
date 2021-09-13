@@ -571,8 +571,6 @@ class HyData(object):
         *Arguments*:
          - window = size of running window, must be an odd integer.
          - poly = degree of polynom, must be int.
-         - deriv = the order of derivative to evaluate (e.g. for stationary point analysis). Default is 0 [smooth
-                   but don't compute derivative].
         *Keywords*: Keywords are passed to scipy.signal.savgol_filter(...).
         *Returns*: A copy of the input dataset with smoothed spectra.
         """

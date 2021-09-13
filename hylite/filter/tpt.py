@@ -4,6 +4,8 @@ Use spectra derivatives to extract and analyse turning points (maxima and minima
 
 import numpy as np
 from tqdm import tqdm
+from scipy import signal
+
 
 import warnings
 warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
@@ -64,10 +66,11 @@ def TPT(data, sigma=10., window=21, n=2, thresh=0, domain=None, weighted=True, m
 
     # get flattened reflectance array
     R = data.X()
+    assert R.shape[-1] > window, "Error - window > band count. Please reduce window size (or increase band count)."
 
     # calculate derivatives
-    dy = data.smooth_savgol(window, n, deriv=1)
-    dy = dy.X()  # convert dataset to vector form
+    mask = np.isfinite(R).all(axis=-1)
+    dy = signal.savgol_filter(R[mask, :], deriv=1, window_length=window, polyorder=n, axis=-1 )
 
     # init output array
     out = np.zeros((dy.shape[0], w.shape[0]))
@@ -224,7 +227,7 @@ def TPT2MWL(pos, depth, wmin=0, wmax=-1, data=None, vb=True):
                 idx = np.argmin(d[mask])
                 out[i, 0] = p[mask][idx]
                 out[i, 1] = 0  # how to estimate width?
-                out[i, 2] = d[mask][idx]
+                out[i, 2] = -d[mask][idx]
                 out[i, 3] = out[i, 2]
 
     # return array for mwl map

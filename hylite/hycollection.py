@@ -247,12 +247,12 @@ class HyCollection(object):
 
     def free(self):
         """
-        Free all attributes in RAM. To avoid loading data, be sure to save this HyCollection first (e.g. using
+        Free all attributes in RAM. To avoid losing data, be sure to save this HyCollection first (e.g. using
         self.save(...).
         """
         attr = self.getAttributes()
         for a in attr:
-            delattr(a, self)
+            delattr(self, a)
 
     def addExternal(self, name, path, relative=True):
         """
