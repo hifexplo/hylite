@@ -70,7 +70,8 @@ def TPT(data, sigma=10., window=21, n=2, thresh=0, domain=None, weighted=True, m
 
     # calculate derivatives
     mask = np.isfinite(R).all(axis=-1)
-    dy = signal.savgol_filter(R[mask, :], deriv=1, window_length=window, polyorder=n, axis=-1 )
+    dy = np.full( R.data.shape, np.nan )
+    dy[mask,:] = signal.savgol_filter(R[mask, :], deriv=1, window_length=window, polyorder=n, axis=-1 )
 
     # init output array
     out = np.zeros((dy.shape[0], w.shape[0]))
