@@ -125,9 +125,7 @@ def loadHeader(path):
             header['wavelength'] = np.fromstring(header['wavelength'], sep=',') * 1000.0
         elif "mm" in units or "milli" in units:
             header['wavelength'] = np.fromstring(header['wavelength'], sep=',') * 1000000.0
-        elif "cm" in units or "centi" in units:
-            header['wavelength'] = np.fromstring(header['wavelength'], sep=',') * 10000000.0
-        elif "wave" in units:
+        elif "wavenum" in units or "cm-1" in units:
             header['wavelength'] = (1 / np.fromstring(header['wavelength'], sep=',')) * 10000000.0
         elif "unk" in units.lower():
             print("Warning - unknown wavelength units. Assuming nanometers.")
