@@ -38,6 +38,59 @@ def deepWarp(image,target):
 
     return cv2.remap(image, dmap, None,cv2.INTER_LINEAR), dmap
 
+def align_to_cloud_manual( cloud, cam, points, pixels, **kwds ):
+    """
+    Solve for camera location given a list of >4 manually chosen pixel -> point pairs.
+
+    *Arguments*:
+     - cloud = the point cloud to match to
+     - cam = a Camera instance containing the camera parameters (fov, etc.)
+     - points = a list of point ids with length > 4.
+     - pixels = a list of corresponding pixel coordinates (after projection), such that pixels[i] = (px,py).
+
+    *Keywords*:
+     - keywords are passed to hylite.project.pnp( ... ).
+
+    *Returns*:
+     - a Camera instance containing the PnP solution.
+     - err = the mean absolute error between projected keypoints (using the PnP solution) and the corresponding
+             positions given in the pixels array.
+    """
+
+    assert len(points) == len(pixels), "Error - %d pointIDs != %d corresponding pixels" % (len(points), len(pixels))
+    assert len(points) >= 4, "Error - at least four pixel/point pairs are needed to solve PnP problem."
+
+    # get world coordinate array
+    points = np.array(points).astype(np.uint)
+    kxyz = cloud.xyz[ points, : ]
+
+    # get pixel coordinates array
+    kxy = np.array( pixels ).astype(np.float) - 0.5 # must be float for OpenCV. - 0.5 transforms to pixel centers.
+
+    # solve pnp problem
+    if 'pano' in cam.proj.lower():
+        kxy_pp = pano_to_persp(kxy[:,0], kxy[:, 1], cam.fov, cam.step, cam.dims)
+        p_est, r_est, inl = pnp(kxyz, kxy_pp, cam.fov, cam.dims, ransac=True, **kwds)
+    else:
+        p_est, r_est, inl = pnp(kxyz, kxy, cam.fov, cam.dims, ransac=True, **kwds)
+
+    # put estimate in a camera object
+    est = Camera(p_est, r_est, cam.proj, cam.fov, cam.dims, cam.step)
+
+    # calculate final correspondances
+    if 'pano' in cam.proj.lower():
+        pp, vis = proj_pano(kxyz[inl, :], C=p_est, a=r_est,
+                            fov=cam.fov, dims=cam.dims, step=cam.step)
+    else:
+        pp, vis = proj_persp(kxyz[inl, :], C=p_est, a=r_est,
+                             fov=cam.fov, dims=cam.dims)
+
+    err = np.linalg.norm(pp[:, 0:2] - kxy[inl, :], axis=1)
+    err = np.mean(err)
+
+    return est, err
+
+
 def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
                    method='sift', recurse=2, s=2, sf=3.0, cfac=0.0, bfac=0.0,
                    vb=True, gf=True, **kwds):
