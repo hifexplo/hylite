@@ -303,6 +303,7 @@ class HyCollection(object):
         valid = valid or isinstance(value, hylite.project.Pushbroom)  # accept Pushbroom instances
         valid = valid or isinstance(value, hylite.project.PMap)  # accept Pushbroom instances
         valid = valid or isinstance(value, External ) # accept external links
+        valid = valid or isinstance(value, list) and np.array( [isinstance(d, hylite.HyData) ] for d in value ).all() # multimwl maps
         valid = valid or value is None # also accept None
         assert valid, "Error - %s is an invalid attribute type for HyCollection." % type(value)
         object.__setattr__(self, name, value)

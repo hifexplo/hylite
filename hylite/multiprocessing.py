@@ -7,7 +7,6 @@ import numpy as np
 import shutil
 from tempfile import mkdtemp
 import multiprocessing as mp
-from tqdm import tqdm
 
 from hylite import HyCloud, HyImage
 from hylite import io

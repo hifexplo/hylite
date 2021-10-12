@@ -9,8 +9,9 @@ from .clouds import *
 from .libraries import *
 from .pmaps import *
 from .cameras import saveCameraTXT, loadCameraTXT
+from .mwl import saveMultiMWL, loadMultiMWL
 
-from hylite import HyImage, HyCloud, HyLibrary, HyCollection, HyScene
+from hylite import HyImage, HyCloud, HyLibrary, HyCollection, HyScene, HyData
 from hylite.project import PMap, Camera, Pushbroom
 
 import shutil
@@ -76,7 +77,10 @@ def save(path, data, **kwds):
         if os.path.splitext(path)[0]+"."+ext != data._getDirectory(): # we're moving to a new home! Copy folder
             if os.path.exists(data._getDirectory()): # if it exists...
                 shutil.copytree( data._getDirectory(), os.path.splitext(path)[0]+"."+ext)
-
+    elif isinstance(data, list) and np.array( [isinstance(d, HyData) ] for d in data ).all(): # save multiMWL
+        # add flag to header stating that this is a multimwl file
+        ext = 'hdr'
+        save_func = saveMultiMWL
     elif isinstance(data, np.ndarray):
         save_func = np.save
         ext = 'npy'
@@ -119,31 +123,45 @@ def load(path):
     if ext == '':
         assert os.path.isfile(data), "Error - %s is a directory not a file." % data
 
+    # load header and check if this is a multiMWL file
+    multiMWL = False
+    if header is not None:
+        header = loadHeader(header)
+        multiMWL = 'true' in header.get('multimwl', 'false' ).lower()
+
+    # load other file types
     if 'ply' in ext: # point or hypercloud
-        return loadCloudPLY(path)
+        out = loadCloudPLY(path) # load dataset
     elif 'las' in ext: # point or hypercloud
-        return loadCloudLAS(path)
+        out =  loadCloudLAS(path)
     elif 'csv' in ext: # spectral library
-        return loadLibraryCSV(path)
+        out = loadLibraryCSV(path)
     elif 'sed' in ext: # spectral library
-        return loadLibrarySED(path)
+        out = loadLibrarySED(path)
     elif 'tsg' in ext: # spectral library
-        return loadLibraryTSG(path)
+        out = loadLibraryTSG(path)
     elif 'hyc' in ext or 'hys' in ext: # load hylite collection or hyscene
-        return loadCollection(path)
+        out = loadCollection(path)
     elif 'cam' in ext or 'brm' in ext: # load pushbroom and normal cameras
-        return loadCameraTXT(path)
+        out = loadCameraTXT(path)
     else: # image
         # load conventional images with PIL
         if 'png' in ext or 'jpg' in ext or 'bmp' in ext:
             # load image with matplotlib
             from matplotlib.pyplot import imread
-            return HyImage(np.transpose(imread(path), (1, 0, 2)))
-        try:
-            from osgeo import gdal # is gdal installed?
-            return loadWithGDAL(path)
-        except ModuleNotFoundError: # no gdal, use SPy
-            return loadWithSPy(path)
+            out = HyImage(np.transpose(imread(path), (1, 0, 2)))
+        else:
+            try:
+                from osgeo import gdal # is gdal installed?
+                out = loadWithGDAL(path)
+            except ModuleNotFoundError: # no gdal, use SPy
+                out = loadWithSPy(path)
+
+    # check if this is a multimwl file that needs to be split
+    if multiMWL:
+        out = loadMultiMWL(out)  # split multimwl
+
+    return out  # return dataset
 
 ##############################################
 ## save and load data collections
