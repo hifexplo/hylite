@@ -83,6 +83,14 @@ HyLibrary
 ---------------------------------
 
 
+HyCollection
+---------------------
+
+.. automodule:: hylite.hycollection
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 
 HyScene
 ---------------------

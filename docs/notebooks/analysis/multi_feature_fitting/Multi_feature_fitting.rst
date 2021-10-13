@@ -25,7 +25,7 @@ Load spectral library
 
 .. code:: python
 
-    lib = io.loadLibraryCSV(r'../demo_data/library.csv')
+    lib = io.load(r'../demo_data/library.csv')
 
 Apply hull correction to region of interest
 
@@ -65,7 +65,6 @@ Can you see why this is a bad idea?
     fig,ax = fit.quick_plot()
 
 
-
 .. image:: output_10_0.png
 
 
@@ -89,7 +88,6 @@ Problem solved?
 
 
 .. image:: output_12_0.png
-
 
 
 .. image:: output_12_1.png
@@ -153,7 +151,7 @@ image of a rock sample.
 .. code:: python
 
     # load image
-    image = io.loadWithGDAL( '../demo_data/image.hdr')
+    image = io.load( '../demo_data/image.hdr')
 
 .. code:: python
 

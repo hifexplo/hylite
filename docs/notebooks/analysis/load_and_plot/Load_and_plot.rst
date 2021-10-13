@@ -22,7 +22,7 @@ Load images
     path = '/Users/thiele67/Documents/Data/CA/Terrestrial/2020'
     files = glob.glob( os.path.join(path,"**/*.hdr"), recursive=True )
     
-    # load images, ignoring calibratons, dark references and white references
+    # load all images, ignoring calibratons, dark references and white references
     images = []
     names = []
     paths = []
@@ -30,7 +30,7 @@ Load images
         if 'calibration' in f or 'DARKREF'in f or 'WHITEREF' in f:
             continue
         try:
-            images.append( io.loadWithGDAL(f) )
+            images.append( io.load(f) ) # load the image
             paths.append(f)
             names.append( os.path.basename(f) )
         except:

@@ -54,6 +54,7 @@ def estimate_sun_vec(lat, lon, time):
      - sunvec = the sun illumination direction (i.e. from the sun to the observer) in cartesian coords
      - azimuth = the azimuth of the sun (bearing towards sun)
      - elevation = the elevation of the sun (angle above horizon)
+
     """
 
     # get time

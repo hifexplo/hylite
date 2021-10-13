@@ -8,6 +8,14 @@ atmospheric and topographic correction will also be performed.
 
 The selected hypercloud derivatives are then calculated and exported.
 
+-----------
+
+WARNING: This notebook is now out of date. See documentation on hylite.hyscene and hylite.project.pmap for info
+on projecting spectra from images onto point clouds to create a hypercloud.
+
+-----------
+
+
 .. code:: python
 
     import os

@@ -47,9 +47,9 @@ correct the data file by file
     os.chdir(path)
     outpath = "/net/fwghus/projects/fernerkundung/work/thiele67/Hylite Paper/Corte Atalaya/Hypercloud/input_RIKOLA/2016-1/"
     for file in glob.glob('*.dat'):
-        image = io.loadWithGDAL(path + file)
+        image = io.load(path + file)
         Rikola.correct_image(image, lens=True, align=True, crop=False)
-        io.saveWithGDAL(outpath+file[:-4] + '_CORRECTED.dat', image)
+        io.save(outpath+file[:-4] + '_CORRECTED.dat', image)
 
 Load example and plot preview
 -----------------------------
@@ -58,7 +58,7 @@ Load example and plot preview
 
     # Load image
     paths = path + 'Calib_K00082_CORRECTED.dat'
-    image = io.loadWithGDAL(paths)
+    image = io.load(paths)
     
     # Plot image
     fig,ax = image.quick_plot(hylite.RGB)

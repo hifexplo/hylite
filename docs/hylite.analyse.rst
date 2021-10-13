@@ -60,12 +60,6 @@ into labelled feature vectors to be used with scikit-learn.
 
 **Decision tree**
 
-.. toctree::
-   :maxdepth: 4
-
-   hylite.analyse.supervised
-   hylite.analyse.unsupervised
-
 .. automodule:: hylite.analyse.dtree
    :members:
    :undoc-members:

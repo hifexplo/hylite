@@ -21,7 +21,7 @@ Load and plot hypercloud and spectra (QAQC)
 .. code:: python
 
     cloud_path = '/Users/thiele67/Documents/Data/CA/hypercloud/CA_0082__3_3m00_4m00_radiance_non_uni_cc.ply'
-    cloud = io.loadCloudPLY(cloud_path)
+    cloud = io.load(cloud_path)
 
 .. code:: python
 
@@ -44,17 +44,17 @@ Generate preview images (QAQC: inspect these carefully! 🧐 )
 .. code:: python
 
     # generate preview
-    cam = cloud.header.get_camera(n)
-    
-    fig,ax = cloud.quick_plot(cam, hylite.RGB, s=s, fill_holes=True)
+    cam = cloud.header.get_camera(n) #use 'ortho' for top down view
+
+    fig,ax = cloud.quick_plot(hylite.RGB, cam, s=s, fill_holes=True)
     ax.set_title("Hypercloud RGB (%d nm,%d nm,%d nm) preview from position %d" % (*hylite.RGB, n))
     fig.show()
     
-    fig,ax = cloud.quick_plot(cam, hylite.SWIR, s=s, fill_holes=True)
+    fig,ax = cloud.quick_plot(hylite.SWIR, cam, s=s, fill_holes=True)
     ax.set_title("Hypercloud SWIR (%d nm,%d nm,%d nm) preview from position %d" % (*hylite.SWIR, n))
     fig.show()
     
-    fig,ax = cloud.quick_plot(cam, hylite.BROAD, s=s, fill_holes=True)
+    fig,ax = cloud.quick_plot(hylite.BROAD, cam, s=s, fill_holes=True)
     ax.set_title("Hypercloud BROAD (%d nm,%d nm,%d nm) preview from position %d" % (*hylite.BROAD, n))
     fig.show()
 
@@ -158,10 +158,10 @@ Export filtered cloud
     if not (method == '' or method == None):
         name = os.path.splitext(os.path.basename( cloud_path ))[0] + '_smth.ply'
         cloud.compress()
-        io.saveCloudPLY( os.path.join(export_directory, name), cloud)
+        io.save( os.path.join(export_directory, name), cloud)
     
     if hull_correct:
         name = os.path.splitext(os.path.basename( cloud_path ))[0] + '_hc.ply'
         cloud_hc.compress()
-        io.saveCloudPLY( os.path.join(export_directory, name), cloud_hc)
+        io.save( os.path.join(export_directory, name), cloud_hc)
 

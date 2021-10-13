@@ -15,6 +15,7 @@ def band_ratio(data, num, den):
      - den = the denominator of the band ratio. Values are treated like in band1.
     *Returns*:
      - a new HyData instance containing the band ratio.
+
     """
     if not isinstance(num, list):
         num = [num]

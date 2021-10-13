@@ -14,7 +14,7 @@ Create and activate a new python environment (anaconda users only).
 
   pip install hylite
 
-----------------------
+-------------------------
 
 If you want the newest version of *hylite* then you can install it directly from GitHub.
 
@@ -28,7 +28,7 @@ Then navigate into the hylite directory using terminal and install using setupto
 
 And.... Fix any issues  ¯\_(ツ)_/¯
 
-------
+------------------------
 
 Finally, check hylite is installed by opening a python console and running:
 

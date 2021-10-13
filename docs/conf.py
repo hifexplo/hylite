@@ -26,7 +26,7 @@ release = '1.0.2'
 
 autodoc_mock_imports = [ 'numpy', 'scipy', 'matplotlib', 'skimage', 'gdal', 'PIL',
                          'jupyter', 'cv2', 'tqdm', 'roipoly', 'pysptools', 'spectral', 'utm',
-                        'laspy', 'plyfile', 'astral', 'tzwhere', 'imageio', 'osgeo', 'piexif' ]
+                        'laspy', 'plyfile', 'astral', 'tzwhere', 'imageio', 'osgeo', 'piexif', 'numbers', 'warnings' ]
 # -- General configuration ---------------------------------------------------
 
 # Add any Sphinx extension module names here, as strings. They can be

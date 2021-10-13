@@ -76,4 +76,4 @@ Save sensor corrected images
 
     for i,image in enumerate(images):
         outpath = os.path.join(outdir, os.path.basename(paths[i]) + "_sc.hdr")
-        io.saveWithGDAL(outpath, image)
+        io.save(outpath, image)

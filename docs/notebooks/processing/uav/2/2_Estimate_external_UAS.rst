@@ -226,7 +226,7 @@ c) calculate by alignment to existing cloud
     def align_images_to_cloud(p, p2):    
         
         # Load image and read inital camera from header
-        image = io.loadWithGDAL(p)
+        image = io.load(p)
         cam_init = image.header.get_camera()
         if cam_init is not None:
             if image.header['camera status'] != 'optimized': 
@@ -280,7 +280,7 @@ offsets! :)
 
     # Load cloud if not yet done
     pth = '/net/fwghus/projects/fernerkundung/data/SPAIN/2016/Outcrops/Corta Atalaya/Sep_Oct_2016/Photogrammetry + Rikola UAV/Hypercloud_202007/Rikola_SfM_2020_cloud_aligned.ply'
-    cloud = io.loadCloudPLY(pth)
+    cloud = io.load(pth)
 
 .. code:: python
 
@@ -306,7 +306,7 @@ offsets! :)
 .. code:: python
 
     # Plot estimated camera view
-    ortho = cloud.render(image.header.get_camera(), 
+    ortho = cloud.render(cam=image.header.get_camera(),
                          fill_holes=True, 
                          blur=True,
                          s=2, 

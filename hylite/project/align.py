@@ -43,9 +43,9 @@ def align_to_cloud_manual( cloud, cam, points, pixels, **kwds ):
     Solve for camera location given a list of >4 manually chosen pixel -> point pairs.
 
     *Arguments*:
-     - cloud = the point cloud to match to
-     - cam = a Camera instance containing the camera parameters (fov, etc.)
-     - points = a list of point ids with length > 4.
+     - cloud = the point cloud (HyCloud instance) to match to
+     - cam = a Camera instance containing the camera parameters (fov, etc.). The cam.pos and cam.ori properties will be ignored so can be set to anything.
+     - points = a list of keypoint ids with length > 4. The position of each keypoint should thus be given by cloud.xyz[ points[i], : ].
      - pixels = a list of corresponding pixel coordinates (after projection), such that pixels[i] = (px,py).
 
     *Keywords*:

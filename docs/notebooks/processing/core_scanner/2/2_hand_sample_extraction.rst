@@ -27,13 +27,13 @@ Load radiance scans from directory
     front_face = '/Users/thiele67/Documents/Data/CA/Scanner/white panel/reflectance/batch 1_orientation2_whitepanel_CA 2019_0035_CA2019_5_5m00_6m00.hdr'
     back_face = '/Users/thiele67/Documents/Data/CA/Scanner/white panel/reflectance/batch1_orientation1_whitepanel_CA 2019_0032_CA2019_2_2m00_3m00.hdr'
     
-    front = io.loadWithGDAL( front_face )
+    front = io.load( front_face )
     fig,ax = front.quick_plot(hylite.RGB)
     ax.set_title("Front face")
     fig.show()
     
     if not back_face is None:
-        back = io.loadWithGDAL( back_face )
+        back = io.load( back_face )
         fig,ax = back.quick_plot(hylite.RGB)
         ax.set_title("Back face")
         fig.show()
@@ -67,8 +67,10 @@ Define sample numbers and front face/back face pairs
                   "EH-017",
                   "EH-007"]
 
-Extract point-spectra from samples for spectral library (and as seeds for segmentation)
+Extract point-spectra from samples for spectral library (and as seeds for segmentation).
 ---------------------------------------------------------------------------------------
+
+Note that this requires matplotlib to work in interactive mode, which can cause issues on some environments.
 
 .. code:: python
 
@@ -157,19 +159,19 @@ Extract updated spectral library using whole sample blocks
 
 
 Save classifications and library
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code:: python
 
     # save classification
     front_face_cls = os.path.splitext(front_face)[0] + '_labels.cls.hdr'
-    io.saveWithGDAL( front_face_cls, front_cls)
+    io.save( front_face_cls, front_cls)
     
     if back is not None:
         back_face_cls = os.path.splitext(back_face)[0] + '_labels.cls.hdr'
-        io.saveWithGDAL( back_face_cls, back_cls )
+        io.save( back_face_cls, back_cls )
 
 .. code:: python
 
     # save library
-    io.saveLibraryCSV( '/Users/thiele67/Documents/Data/CA/Scanner/samples.csv', library )
+    io.save( '/Users/thiele67/Documents/Data/CA/Scanner/samples.csv', library )

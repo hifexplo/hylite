@@ -21,7 +21,7 @@ Load image
 .. code:: python
 
     # load image
-    image = io.loadWithGDAL( '../demo_data/image.hdr')
+    image = io.load( '../demo_data/image.hdr')
 
 .. code:: python
 

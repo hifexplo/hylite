@@ -55,6 +55,7 @@ Point clouds
 
 Spectral libraries
 ------------------------
+
 .. automodule:: hylite.io.libraries
    :members:
    :undoc-members:
@@ -64,3 +65,23 @@ Spectral libraries
 ---------------------------------
 
 
+Other supported files
+------------------------
+
+
+.. automodule:: hylite.io.pmaps
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: hylite.io.mwl
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: hylite.io.cameras
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+---------------------------------

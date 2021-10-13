@@ -1,12 +1,18 @@
-Template notebooks
+Examples
 ========================
 
-*hylite* comes bundled with a variety of template jupyter notebooks implementing common workflows for
-loading, correcting, projecting and analysing hyperspectral datasets. Notebooks for data processing
-and correction are stored in the *Processing* folder, while notebooks containing analysis workflows
-for corrected datasets are in the *Analysis* folder.
+The following notebooks demonstrate some of the functionality of *hylite*. Note that these may not
+be up to date with the latest hylite versions, but should still give a useful indication of what is possible
+and how to perform common processing routines.
 
-Processing templates
+Additionally, live demonstration notebooks can be used via Binder.
+
+|BinderLink|_
+
+.. |BinderLink| image:: https://mybinder.org/badge_logo.svg
+.. _BinderLink: https://mybinder.org/v2/gh/samthiele/hylite_demo/HEAD
+
+Data processing
 -----------------------
 
 Processing notebooks are organised into three
@@ -48,7 +54,7 @@ notebooks, projection onto a hypercloud can then be performed:
    notebooks/processing/check_hypercloud/hypercloud_QAQC
 
 
-Analysis templates
+Data analysis
 ----------------------
 
 A selection of template notebooks for different analysis types can be found

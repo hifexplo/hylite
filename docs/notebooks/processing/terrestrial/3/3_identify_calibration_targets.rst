@@ -56,7 +56,7 @@ Attempt to automatically identify targets
 
     for i,p in enumerate(tqdm(image_paths)):
         
-        image = io.loadWithGDAL( p ) #load image
+        image = io.load( p ) #load image
         image.set_as_nan(0) # set nans 
         
         target = Panel(M,image,method='auto', bands=hylite.RGB) # look for panel
@@ -72,17 +72,6 @@ Attempt to automatically identify targets
         #save
         outpath = io.matchHeader(p)[0]
         io.saveHeader(outpath, image.header)
-
-
-
-.. parsed-literal::
-
-    HBox(children=(FloatProgress(value=0.0, max=4.0), HTML(value='')))
-
-
-.. parsed-literal::
-
-    
 
 
 
@@ -106,7 +95,7 @@ First, clear incorrectly set targets from header file.
 .. code:: python
 
     for i in incorrect:
-        image = io.loadWithGDAL( image_paths[i] )
+        image = io.load( image_paths[i] )
         image.header.remove_panel(None) # remove panels
         outpath = io.matchHeader(image_paths[i])[0]
         io.saveHeader(outpath, image.header)
@@ -119,7 +108,7 @@ targets exist.
     targets = []
     for i in incorrect:
         
-        image = io.loadWithGDAL( image_paths[i] ) #load image
+        image = io.load( image_paths[i] ) #load image
         target = Panel(M,image,method='manual',bands=hylite.RGB) # select panel
         
         #add to header

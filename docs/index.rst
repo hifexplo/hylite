@@ -37,11 +37,14 @@ Citing *hylite*
 
 If you use *hylite* for your work then please cite:
 
-
 *Thiele, S. T., Lorenz, S., et al., (2021). Multi-scale, multi-sensor data
 integration for automated 3-D geological mapping using hylite. Ore Geology Reviews.*
 
-(currently under review; stay tuned!)
+Other papers of interest may include:
+
+*Thiele, S. T., Lorenz, S., Kirsch, M., & Gloaguen, R. (2021). A Novel and Open-Source Illumination
+Correction for Hyperspectral Digital Outcrop Models. IEEE Transactions on Geoscience and Remote Sensing.*
+
 
 Contributing to  hylite
 -------------------------
@@ -57,7 +60,7 @@ you have any questions. Bug reports are also welcomed (though please do try to b
 
    installation
    quickstart
-   template_notebooks
+   examples
    hylite_data
    packages
 

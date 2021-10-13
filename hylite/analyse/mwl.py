@@ -565,6 +565,7 @@ def closestFeature(mwl, position, valid_range=None, depth_cutoff=0.05):
      - depth_cutoff = Features with depths below this value will be discared (and set to nan).
     *Returns*
      - a single HyData instance containing the closest minima.
+
     """
 
     # get data arrays

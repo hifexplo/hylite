@@ -15,21 +15,28 @@ hylite.correct
 
 ---------------------------------
 
-Data detrending
+Data detrending and equalisation
 -----------------------------
+
+Statistical and empirical techniques for data corrections, such as hull corrections or histogram equalisation.
 
 .. automodule:: hylite.correct.detrend
    :members:
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: hylite.correct.equalize
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 ---------------------------------
 
 
-
-Empirical line calibrations
+Calibration panels
 -----------------------------
+
+Utility class for finding and storing calibration spectra from targets placed in scenes during field acquisitions.
 
 .. automodule:: hylite.correct.panel
    :members:
@@ -40,11 +47,22 @@ Empirical line calibrations
 ---------------------------------
 
 
-
-Topographic correction
+Illumination correction
 --------------------------------
 
-.. automodule:: hylite.correct.topography
+Tools for correction external scenes for illumination and topographic effects. Work in progress.
+
+.. automodule:: hylite.correct.illumination
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: hylite.correct.illumination.occlusion
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: hylite.correct.illumination.reflection
    :members:
    :undoc-members:
    :show-inheritance:

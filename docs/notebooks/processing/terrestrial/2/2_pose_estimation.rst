@@ -84,13 +84,13 @@ Load point cloud and check initial camera estimate is reasonable
 
 .. code:: python
 
-    cloud = io.loadCloudPLY( cloud_path )
+    cloud = io.load( cloud_path )
 
 .. code:: python
 
     n = 0 # index of image to generate preview for
     cameras[n].dims=(1000, cameras[n].dims[1]) # set preview render size
-    fig,ax = cloud.quick_plot( cameras[n] ) # render preview
+    fig,ax = cloud.quick_plot( cam=cameras[n] ) # render preview
 
 
 
@@ -109,7 +109,7 @@ Run computer magics ㋡
 
     for i,p in enumerate(tqdm(image_paths)):
     
-        image = io.loadWithGDAL( p ) #load image
+        image = io.load( p ) #load image
         cam_est = image.header.get_camera() # look for stored camera
         
         if cam_est is None or recalculate: # image needs to be aligned

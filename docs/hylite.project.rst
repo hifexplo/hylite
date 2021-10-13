@@ -40,6 +40,28 @@ Camera class
 ---------------------------------
 
 
+Pushbroom cameras
+----------------------------
+
+.. automodule:: hylite.project.pushbroom
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+---------------------------------
+
+
+Projection mapping
+----------------------------
+
+.. automodule:: hylite.project.pmap
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+
+---------------------------------
 
 Camera alignment
 ---------------------------

@@ -88,4 +88,4 @@ Save reflectance images
     #specify output directory
     for i,image in enumerate(images):
         outpath = os.path.join(outdir, os.path.basename(paths[i])+"_refl.hdr")
-        io.saveWithGDAL(outpath, image)
+        io.save(outpath, image)
