@@ -789,6 +789,37 @@ class HyData(object):
 
         return nf
 
+    def percent_clip(self, minv=2, maxv=98, per_band=False, clip=True):
+        """
+        Scale self.data such that the specified percentiles become 0 and 1 respectively. Note that this
+        normalisation is applied in situ.
+
+        *Arguments*:
+         - minv = the lower percentile. Default is 2.
+         - maxv = the upper percentile. Default is 98.
+         - per_band = apply scaling to bands independently. Default is False.
+         - clip = True if values < minv or > maxv should be clipped to 0 or 1. Default is True.
+
+        *Returns*:
+         - vmin, vmax = the percentile clip thresholds used for the normalisation
+        """
+
+        # calculate percentile thresholds
+        if per_band:
+            minv, maxv = np.nanpercentile(self.data, (minv, maxv), tuple(np.arange(len(self.data.shape) - 1)))
+        else:
+            minv, maxv = np.nanpercentile(self.data, (minv, maxv))
+
+        # apply normalisation
+        self.data -= minv
+        self.data /= maxv
+
+        # apply clipping
+        if clip:
+            self.data = np.clip( self.data, 0, 1 )
+
+        return minv, maxv
+
     def correct_spectral_shift(self, position):
         """
         Corrects potential spectral sensor shifts by shifting the offset (right) part of the spectrum
