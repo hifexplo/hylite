@@ -112,6 +112,10 @@ class TestHyData(unittest.TestCase):
             data.smooth_median()
             data.smooth_savgol()
 
+            # percent clip
+            data.percent_clip(5,95,per_band=False,clip=True)
+            data.percent_clip(5, 95, per_band=True, clip=True)
+
             # normalise
             data.normalise()
 

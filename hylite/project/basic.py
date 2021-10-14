@@ -318,15 +318,15 @@ def pnp(kxyz, kxy, fov, dims, ransac=True, **kwds):
 
     # use opencv to solve pnp problem and hence camera position
     if ransac:
-        suc, rot, pos, inl = cv2.solvePnPRansac(objectPoints=kxyz[:, :3].copy(),  # points in world coords
-                                                imagePoints=kxy[:, :2].copy(),  # points in img coords
+        suc, rot, pos, inl = cv2.solvePnPRansac(objectPoints=kxyz[:, None, :3].copy(),  # points in world coords
+                                                imagePoints=kxy[:, None, :2].copy(),  # points in img coords
                                                 cameraMatrix=cameraMatrix,  # camera matrix
                                                 distCoeffs=dist_coef,
                                                 **kwds)
     else:
         inl = None
-        suc, rot, pos = cv2.solvePnP(objectPoints=kxyz[:, :3].copy(),  # points in world coords
-                                     imagePoints=kxy[:, :2].copy(),  # points in img coords
+        suc, rot, pos = cv2.solvePnP(objectPoints=kxyz[:, None,  :3].copy(),  # points in world coords
+                                     imagePoints=kxy[:, None, :2].copy(),  # points in img coords
                                      cameraMatrix=cameraMatrix,  # camera matrix
                                      distCoeffs=dist_coef,
                                      **kwds)
