@@ -80,6 +80,18 @@ def estimate_sun_vec(lat, lon, time):
 
     return sunvec, azimuth, elevation
 
+def estimate_skyview( normal ):
+    """
+    Return a crude estimate of sky-view factor by assuming geometry is an inclined plane (and that the sky is invisible
+    below the horizon level. Useful for e.g. estimating the skyview factor for calibration panels based on their orientation.
+
+    *Arguments*:
+     - normal = the panel normal orientation as a (3,) numpy array.
+    *Returns*:
+     - the skyview factor (0 - 1).
+    """
+    return ( np.pi - np.arccos( np.dot( np.array([0,0,1]), normal ) ) ) / np.pi # sky view factor for inclined plane
+
 def _regress(x, y, split=True, clip=(10, 90)):
     """ Loop through all bands in specified arrays and fit a line. Used for statistical adjustments (e.g. c-factor)"""
 
