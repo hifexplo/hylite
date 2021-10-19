@@ -4,6 +4,7 @@ import pytz
 from scipy import stats
 import datetime
 import matplotlib.pyplot as plt
+import numpy as np
 
 #####################
 ## Utility functions

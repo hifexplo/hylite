@@ -213,6 +213,32 @@ class HyCloud( HyData ):
         if self.has_normals():
             self.normals = np.delete(self.normals, msk, axis=0)
 
+    def compute_normals(self, radius, vb=True):
+        """
+        Compute surface normals by fitting a plane to points within  the specified distance of each point in the cloud.
+        Note that this can be slow... (especially for large values of radius).
+
+        *Arguments*:
+         - radius = the search distance for points to use in the plane fitting.
+         - vb = True if a progress bar should be created. Default is true.
+        """
+        from scipy.spatial import KDTree
+        tree = KDTree(self.xyz, leafsize=10) # build kdtree
+
+        self.normals = np.zeros(self.xyz.shape)
+        loop = range(self.xyz.shape[0])
+        if vb:
+            loop = tqdm(loop)
+        for n in loop:
+            # get neighbours
+            n = tree.query_ball_point(self.xyz[n, :], r=radius)
+            if len(n) > 3:
+                # fit plane to points
+                patch = self.xyz[n, :]
+                patch -= np.mean(patch, axis=0)[None, :]  # convert to barycentric coords
+                u, s, vh = np.linalg.svd(patch)  # fit plane using SVD
+                self.normals[n, :] = vh[2, :]
+        self.normals[self.normals[:, 2] < 0, :] *= -1 # normals point upwards
 
     ############################
     ## Plotting functions
