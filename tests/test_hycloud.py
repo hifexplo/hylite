@@ -17,7 +17,7 @@ class TestHyCloud(unittest.TestCase):
         self.assertEqual( np.sum( n0 + cloud.normals[0,:] ), 0 )
 
         # test generate normals
-        cloud.compute_normals(1.0)
+        cloud.compute_normals(1.0, vb=True)
 
         cloud.filter_points(0,val=(0.1,0.5),trim=True)
         self.assertGreaterEqual(np.nanmin(cloud.data[:,0]), 0.1)

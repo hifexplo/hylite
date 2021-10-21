@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.spatial as spatial
+from scipy.spatial import KDTree
 from tqdm import tqdm
 
 import hylite
@@ -213,6 +214,48 @@ class HyCloud( HyData ):
         if self.has_normals():
             self.normals = np.delete(self.normals, msk, axis=0)
 
+    def point_neighbourhood_operation(self, radius, function, vb=False, args=()):
+        """
+        Apply the specified function to each point neighbourhood (points within the specified radius).
+
+        *Arguments*:
+         - radius = the radius around each point defining the neighbourhood.
+         - function = the operator to call. This should have the following form: function( radius, current_id, neighbour_ids, *args ).
+         - vb = True if a progress bar should be created. Default is True.
+         - args = remainin arguments are passed to function(...).
+
+        *Returns*:
+        - a list of values corresponding to the returned value of function for each point in this cloud (or None if the
+          function has no return value).
+        """
+
+        tree = KDTree(self.xyz, leafsize=10)  # build kdtree
+        loop = range(self.xyz.shape[0])
+        out = []
+        if vb:
+            loop = tqdm(loop, leave=False)
+        for n in loop:
+            # get neighbours
+            N = tree.query_ball_point(self.xyz[n, :], r=radius)
+
+            # run operation
+            result = function( radius, n, N, *args )
+            if result is None: # no return
+                out = None
+            elif out is not None:
+                out.append( result )
+        return result
+
+    def despeckle(self, radius, bands):
+        """
+        Despeckle scalar fields or rgb bands associated with this point cloud using a median filter.
+
+        *Arguments*:
+         - radius = the radius to use to define point neighbourhoods for median calculation
+         - bands = the bands to apply the median filter to. Options are:
+        """
+        pass
+
     def compute_normals(self, radius, vb=True):
         """
         Compute surface normals by fitting a plane to points within  the specified distance of each point in the cloud.
@@ -222,23 +265,24 @@ class HyCloud( HyData ):
          - radius = the search distance for points to use in the plane fitting.
          - vb = True if a progress bar should be created. Default is true.
         """
-        from scipy.spatial import KDTree
-        tree = KDTree(self.xyz, leafsize=10) # build kdtree
 
+        # reset normals
         self.normals = np.zeros(self.xyz.shape)
-        loop = range(self.xyz.shape[0])
-        if vb:
-            loop = tqdm(loop)
-        for n in loop:
-            # get neighbours
-            n = tree.query_ball_point(self.xyz[n, :], r=radius)
-            if len(n) > 3:
+
+        # function for computing normal on each neighbourhood
+        def cmpN( r, n, N ):
+            if len(N) > 3:
                 # fit plane to points
-                patch = self.xyz[n, :]
+                patch = self.xyz[N, :]
                 patch -= np.mean(patch, axis=0)[None, :]  # convert to barycentric coords
                 u, s, vh = np.linalg.svd(patch)  # fit plane using SVD
                 self.normals[n, :] = vh[2, :]
-        self.normals[self.normals[:, 2] < 0, :] *= -1 # normals point upwards
+
+        # compute normals for each point
+        normals = self.point_neighbourhood_operation( radius, cmpN, vb=vb )
+
+        # orient normals upwards
+        self.normals[self.normals[:, 2] < 0, :] *= -1
 
     ############################
     ## Plotting functions

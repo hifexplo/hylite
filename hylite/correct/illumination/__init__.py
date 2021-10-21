@@ -225,7 +225,7 @@ class IlluModel(object):
             R = np.array(R).squeeze()
         return (self.skv[..., None] * self.S + ((1 - self.oc) * self.rf)[..., None]) * R[..., None] * self.I + self.P
 
-    def getReflectance(self, r):
+    def getReflectance(self, r, strict=True):
         """
         Evaluate the reflectance from measured radiance, based on the equation:
 
@@ -233,6 +233,7 @@ class IlluModel(object):
 
         *Arguments*:
          - r = a (..., n) array containing the measured radiance values.
+         - strict = True if reflectance values should be clipped to the physically plausible range (0 - 1). Default is True.
         *Returns*:
          - an array containing the reflectance spectra in its last axis.
         """
@@ -241,8 +242,11 @@ class IlluModel(object):
         else:
             self.r = np.array(r).squeeze()
 
-        self.R = np.clip((self.r - self.P + self.rboost) / (
-                    self.skv[..., None] * self.S + ((1 - self.oc) * self.rf)[..., None] * self.I + self.iboost), 0, 1)
+        self.R = (self.r - self.P + self.rboost) / (
+                self.skv[..., None] * self.S + ((1 - self.oc) * self.rf)[..., None] * self.I + self.iboost)
+        if strict:
+            self.R = np.clip(self.R, 0, 1)
+
         return self.R
 
     # def fit(self, radiance, shift='x'):
