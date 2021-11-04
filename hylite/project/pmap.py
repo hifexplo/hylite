@@ -513,7 +513,7 @@ def push_to_cloud(pmap, bands=(0, -1), method='best', image=None, cloud=None ):
 
     # convert pmap to csc format
     pmap.csc()  # thunk; would csr format be faster??
-    pmap.remove_nan_pixels() # drop nan pixels
+    pmap.remove_nan_pixels(image=image) # drop nan pixels
 
     # build weights matrix
     if 'closest' in method.lower():
