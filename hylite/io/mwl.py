@@ -63,5 +63,6 @@ def loadMultiMWL( path ):
         out.set_band_names(['pos', 'width', 'depth', 'strength'])
         out.push_to_header()
         mwl.append(out)
-
-    return mwl
+    if len(mwl) == 1:
+        return mwl # drop list
+    return mwl #otherwise, return list
