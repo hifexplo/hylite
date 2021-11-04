@@ -64,5 +64,5 @@ def loadMultiMWL( path ):
         out.push_to_header()
         mwl.append(out)
     if len(mwl) == 1:
-        return mwl # drop list
+        return mwl[0] # drop list
     return mwl #otherwise, return list
