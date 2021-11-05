@@ -379,9 +379,14 @@ class HyHeader( dict ):
         radiance = radiance.astype(np.float32)
 
         # get normal vector (if defined)
-        normal = None
         if ('target %s normal' % name) in self:
-            normal = np.fromstring( self['target %s normal' % name], sep=",")
+            normal = self['target %s normal' % name]
+            if isinstance(normal, str):  # parse string
+                normal = np.fromstring(self['target %s normal' % name], sep=",")
+            elif isinstance(normal, list):
+                normal = np.array(normal)
+            else:
+                assert isinstance(normal, np.ndarray), "Error - %s is an invalid normal." % normal
 
         # create dummy Target instance
         material = Target(self.get_wavelengths(), reflectance, name=name)
