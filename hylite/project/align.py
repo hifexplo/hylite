@@ -116,7 +116,18 @@ def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
                matching accuracy, troubleshooting and evaluating the accuracy of the reconstructed camera position.
                Default is True.
     *Keywords*:
-     - keyword arguments are passed to the hylite.project.p2p( ... ).
+      - keyword arguments are passed to the opencv feature detecting and matching algorithms.
+      For matching, selectivity can be adjusted using the dist parameter:
+      - dist = the similarity threshold for identifying matches. Default is 0.7.
+      For keypoint detection using SIFT, available parameters are:
+        - contrastThreshold: default is 0.01.
+        - edgeThreshold: default is 10.
+        - sigma: default is 2.0
+
+        For keypoint detection using ORB, available parameters are:
+            - nfeatures = the number of features to detect. Default is 5000.
+
+        Remaining keywords are passed to hylite.project.pnp( ... ).
 
     *Returns*:
      - cam_est = a camera object with optimised positions.
@@ -144,12 +155,26 @@ def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
     for b in range(3):
 
         # extract points
-        k1, d1 = ortho.get_keypoints(band=b, method=method, mask=True, sigma=2.0 * sf, cfac=cfac, bfac=bfac)
-        k2, d2 = image.get_keypoints(band=bands[b], method=method, mask=True, sigma=2.0, cfac=cfac, bfac=bfac)
-
+        if 'sift' in method:
+            sigma = kwds.pop('sigma',2.0)
+            contrastThreshold = kwds.pop('contrastThreshold',0.01)
+            edgeThreshold = kwds.pop('edgeThreshold', 10)
+            k1, d1 = ortho.get_keypoints(band=b, method=method, mask=True,
+                                         sigma=sigma*sf, contrastThreshold=contrastThreshold,edgeThreshold=edgeThreshold,
+                                         cfac=cfac, bfac=bfac)
+            k2, d2 = image.get_keypoints(band=bands[b], method=method, mask=True,
+                                         sigma=sigma*sf, contrastThreshold=contrastThreshold,edgeThreshold=edgeThreshold,
+                                         cfac=cfac, bfac=bfac)
+        elif 'orb' in method:
+            nfeatures = kwds.pop('nfeatures', 5000)
+            k1, d1 = ortho.get_keypoints(band=b, method=method, mask=True, nfeatures=nfeatures, cfac=cfac, bfac=bfac)
+            k2, d2 = image.get_keypoints(band=bands[b], method=method, mask=True, nfeatures=nfeatures, cfac=cfac, bfac=bfac)
+        else:
+            assert False, "Error - unknown matching method %s" % method
         # match points
+        dist = kwds.pop('dist',0.7)
         k_o, k_h = HyImage.match_keypoints(k1, k2,
-                                         d1, d2, method=method, dist=0.7)
+                                         d1, d2, method=method, dist=dist)
 
         if (not k_o is None) and vb: print("..%s=%d.." % ('rgb'[b], len(k_o)), end='')
 

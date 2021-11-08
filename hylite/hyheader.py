@@ -379,6 +379,7 @@ class HyHeader( dict ):
         radiance = radiance.astype(np.float32)
 
         # get normal vector (if defined)
+        normal = None
         if ('target %s normal' % name) in self:
             normal = self['target %s normal' % name]
             if isinstance(normal, str):  # parse string
@@ -393,7 +394,8 @@ class HyHeader( dict ):
 
         # create Panel instance and return
         P = Panel( material, radiance, wavelengths=self.get_wavelengths() )
-        P.set_normal(normal)
+        if normal is not None:
+            P.set_normal(normal)
         return P
 
     def remove_panel(self, name = None):
