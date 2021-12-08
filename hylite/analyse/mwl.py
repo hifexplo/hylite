@@ -1,13 +1,234 @@
-import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import tqdm
 import matplotlib
-import hylite
-from hylite.correct.detrend import hull, polynomial
-from hylite.hyfeature import HyFeature, MixedFeature
-from hylite.multiprocessing import parallel_chunks
+from hylite.correct.detrend import get_hull_corrected
+from gfit import initialise, gfit
 
-def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, ftol=1e-2, order=3, threads=1, constraints=True, vb=True):
+class MWL(object):
+    """
+    A convenient class for manipulating and storing minimum wavelength mapping results.
+    """
+
+    def __init__(self, model, nfeatures, sym=False):
+        """
+        Create a new MWL dataset based on the underlying HyData instance.
+
+        *Arguments*:
+         - model = the underlying HyData instance containing feature parameters.
+         - nfeatures = the number of features stored in the underlying model.
+         - sym = True if symmetric features are stored (3-parameters). Default is False (4-parameters).
+        """
+
+        # store attributes
+        self.model = model  # store underlying feature model
+        self.n = nfeatures  # store number of features
+        self.sym = sym
+        if sym:
+            self.stride = 3
+        else:
+            self.stride = 4
+
+        # add related header flags
+        self.header = self.model.header
+        self.header['nfeatures'] = nfeatures
+        self.header['sym'] = int(sym)
+        self.header['multimwl'] = 'true'
+
+    def __getitem__(self, n):
+        """
+        Slice this MWL object to return specific features or feature parameters.
+
+        Options are:
+         self[n] = get the n'th feature (as a HyData instance). See self.sortByDepth(..) and self.sortByPos(..) to
+                   change feature order.
+         self[n,b] = return a numpy array containing a specific property of the n'th feature. b can be an index 0-3
+                     for symmetric and 0-4 for asymmetric features, or string ('depth', 'pos', 'width', 'width2').
+        """
+
+        # return MWL as HyData instance
+        if isinstance(n, int):
+            assert n < self.n, "Error - MWL has only %d features (not %d)" % (self.n, n + 1)
+            out = self.model.copy(data=False)
+            out.data = self.model[...,
+                       n * self.stride:(n + 1) * self.stride]  # return bands associated with the features
+            return out
+        else:  # return slice of MWL data as numpy array.
+            assert len(n) == 2, "Error - %s is an invalid key." % (n)
+            #  parse parameter descriptor
+            if isinstance(n[1], str):
+                if 'depth' in n[1]:
+                    b = 0
+                if 'pos' in n[1]:
+                    b = 1
+                elif 'width2' in n[1]:
+                    b = 3
+                    assert not self.sym, "Error - symmetric mwl features have no width2."
+                elif 'width' in n[1]:
+                    b = 2
+            elif isinstance(n[1], slice):
+                b = n[1]  # no change needed
+            else:
+                assert isinstance(n[1], int), "Error - key should be integer"
+                b = n[1]
+                if self.sym:
+                    assert b < 2, "Error - %d is an invalid (symmetric) mwl band index. Should be 0 - 2."
+                else:
+                    assert b < 3, "Error - %d is an invalid mwl band index. Should be 0 - 3."
+
+            if isinstance(n[0], slice):  # we want to slice only depth or only
+                assert not isinstance(b, slice), "Error - invalid slice key %s" % (n)
+                return self.model[..., b::self.stride]
+            else:
+                assert n[0] < self.n, "Error - MWL has only %d features (not %d)" % (self.n, n[0] + 1)
+                return self.model[..., n[0] * self.stride + b]
+
+    def getFeature(self, n):
+        """
+        Return a HyData instance containing bands associated with th nth minimum wavelength feature.
+        """
+        return self[n]
+
+    def sortByDepth(self):
+        """
+        Sort features such that they are stored/returned from deepest to shallowest.
+        """
+        # sort by depth
+        depth = self.model.X()[:, ::self.stride]
+        idx = np.argsort(-depth, axis=-1)
+
+        # expand index
+        idx_full = np.zeros((depth.shape[0], self.model.band_count()), dtype=int)
+        for c in range(self.stride):
+            for n in range(idx.shape[-1]):
+                idx_full[:, n * self.stride + c] = idx[:, n] * self.stride + c
+
+        # take values to rearranged form
+        out = np.take_along_axis(self.model.X(), idx_full, axis=-1).reshape(self.model.data.shape)
+        self.model.set_raveled(out)
+
+    def sortByPos(self):
+        """
+        Sort features such that they are stored/returned from lowest to highest wavelength.
+        """
+        # sort by depth
+        pos = self.model.X()[:, 1::self.stride]
+        idx = np.argsort(pos, axis=-1)
+
+        # expand index
+        idx_full = np.zeros((pos.shape[0], self.model.band_count()), dtype=int)
+        for c in range(self.stride):
+            for n in range(idx.shape[-1]):
+                idx_full[:, n * self.stride + c] = idx[:, n] * self.stride + c
+
+        # take values to rearranged form
+        out = np.take_along_axis(self.model.X(), idx_full, axis=-1).reshape(self.model.data.shape)
+        self.model.set_raveled(out)
+
+    def deepest(self, wmin=0, wmax=-1):
+        """
+        Returns a HyData instance containing the deepest feature within the specified range.
+
+        *Arguments*:
+         - wmin = the lower bound of the wavelength range. Default is 0 (accept all positions)
+         - wmax = the upper bound of the wavelength range. Default is -1 (accept all positions)
+        *Returns*:
+         - a MWL instance containing the deepest features within the range, or nans if no feature exists.
+        """
+
+        if wmin==0:
+            wmin = np.nanmin(self[:,'pos'])
+        if wmax==-1:
+            wmax = np.nanmax(self[:,'pos'])
+
+        # get valid positions
+        valid_pos = (self[:, 'pos'] > wmin) & (np.array(self[:, 'pos']) < wmax)
+
+        # get depths and filter to only include valid positions
+        depth = self[:, 'depth'].copy()
+        depth[np.logical_not(valid_pos)] = 0
+        depth = depth.reshape((-1, self.n))
+
+        # find deepest feature and expand index
+        idx = np.argmax(depth, axis=-1)
+        idx_full = np.zeros((depth.shape[0], self.stride), dtype=int)
+        for c in range(self.stride):
+            idx_full[:, c] = idx * self.stride + c
+
+        # return deepest feature
+        out = self.model.copy(data=False)
+        out.data = np.take_along_axis(self.model.X(), idx_full, axis=-1).reshape(
+            self.model.data.shape[:-1] + (-1,)).copy()
+        out.data[out.data[..., 0] == 0, :] = np.nan  # remove 0 depths
+        out.data[np.logical_not(valid_pos.any(axis=-1)), :] = np.nan  # remove invalid positions
+        return out
+
+    def closest(self, position, valid_range=None, depth_cutoff=0.05):
+        """
+        Returns a HyData instance containing the closest feature within the specified range.
+
+        *Arguments*:
+         - position = the 'ideal' feature position to compare with (e.g. 2200.0 for AlOH)
+         - valid_range = A tuple defining the minimum and maximum acceptible wavelengths, or None (default). Values outside
+                         of the valid range will be set to nan.
+         - depth_cutoff = Features with depths below this value will be discared (and set to nan).
+        *Returns*
+         - a single HyData instance containing the closest minima.
+        """
+        # get valid positions
+        valid_pos = np.isfinite(self[:, 'pos'])
+        if valid_range is not None:
+            valid_pos = (self[:, 'pos'] > valid_range[0]) & (np.array(self[:, 'pos']) < valid_range[1])
+
+        # get deviations and filter to only include valid positions
+        dp = self[:, 'pos'].copy() - position
+        dp[np.logical_not(valid_pos)] = np.inf
+        dp = dp.reshape((-1, self.n))
+
+        # find closest feature and expand index
+        idx = np.argmin(dp, axis=-1)
+        idx_full = np.zeros((dp.shape[0], self.stride), dtype=int)
+        for c in range(self.stride):
+            idx_full[:, c] = idx * self.stride + c
+
+        # return closest feature
+        out = self.model.copy(data=False)
+        out.data = np.take_along_axis(self.model.X(), idx_full, axis=-1).reshape(
+            self.model.data.shape[:-1] + (-1,)).copy()
+        out.data[out.data[..., 0] == 0, :] = np.nan  # remove 0 depths
+        out.data[np.logical_not(valid_pos.any(axis=-1)), :] = np.nan  # remove invalid positions
+        return out
+
+    def feature_between(self, wmin, wmax, depth_cutoff=0.05):
+        """
+        Return True if the entries in each pixel/point include a feature within the specified wavelength range,
+        and False otherwise. Useful for e.g. decision tree classifications.
+
+        *Arguments*:
+         - wmin = the lower bound of the wavelength range.
+         - wmax = the upper bound of the wavelength range.
+         - depth_cutoff = the minimum depth required for a feature to count as existing.
+
+        *Returns*:
+         - a numpy array  populated with False (no feature) or True (feature).
+        """
+        valid_pos = (self[:, 'pos'] > wmin) & (np.array(self[:, 'pos']) < wmax)
+        valid_depth = (self[:, 'depth'] > depth_cutoff)
+        return (valid_pos & valid_depth).any(axis=-1)
+
+    def getHyFeature(self, idx, source ):
+        """
+        Return a HyFeature instance based on the specified point or pixel index. Useful for plotting fitted results
+        vs actual spectra.
+
+        *Arguments*:
+         - idx = the index of the point or pixel to be retrieved.
+         - source = the source dataset, for plotting original spectra. Default is None.
+        *Returns*: a HyFeature instance containing the modelled minimum wavelength data at this point.
+        """
+        pass
+
+
+def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
+                       sym=False, minima=True, k=4, nthreads=1, vb=True, **kwds):
     """
     Perform minimum wavelength mapping to map the position of absorbtion features.
 
@@ -16,156 +237,71 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, f
      - minw = the lower limit of the range of wavelengths to search (in nanometers).
      - maxw = the upper limit of the range of wavelengths to search (in nanometers).
      - method = the method/model used to quantify the feature. Options are:
-                 - "minmax" - performs a continuum removal and extracts feature depth as max - min. If n > 1 it detects local minima using scipy.signal.
-                 - "gaussian" - fits one or more gaussians to the detrended spectra. This is the default.
-                 - "lorentz" - fits one or more lorentzians equation to the detrended spectra.
-                 - "tpt" - uses hylite.filter.tpt.TPT( ... ) to identify turning points in smoothed spectra and so identify absorbtions.
-                           This only works for a single feature, but is quite fast and insensitive to asymetric features (but is limited
-                           to the spectral resolution of the input data). Additionally, it can be run on data without doing detrending first.
-     - trend = the method used to detrend the spectra. Can be 'poly' (fast) or 'hull' (slow) or None. Default is 'poly'.
+                 - "minmax" - Identifies the n most prominent local minima to approximately resolve absorbtion feature positions. Fast but inaccurate.
+                 - "poly" - Applies the minmax method but then interpolates feature position between bands using a polynomial function. TODO.
+                 - "gaussian" - fits n gaussian absorbtion features to the detrended spectra. Slow but most accurate.
+     - trend = the method used to detrend the spectra. Can be 'hull' or None. Default is 'hull'.
      - n = the number of features to fit. Note that this is not compatible with method = 'tpt'.
-     - ftol = the convergence tolerance to use during least squares fitting. Default is 1e-2.
-     - order = the order of local minima detection. Default is 3. Smaller numbers return smaller local minima but are more
-           sensitive to noise. For method = 'tpt' order gives the number of polynomial terms used for savgol filtering.
-     - threads = the number of threads to use for the computation. Default is 1 (no multithreading).
-     - constraints = Use constrained solver to constrain search bounds and avoid spurious results. Default is True (slower
-                     but generally more accurate).
+     - minima = True if features should fit minima. If False then 'maximum wavelength mapping' is performed.
+     - sym = True if symmetric gaussian fitting should be used. Default is False.
+     - k = the number of adjacent measurements to look at during detection of local minima. Default is 10. Larger numbers ignore smaller features as noise.
+     - nthreads = the number of threads to use for the computation. Default is 1 (no multithreading).
      - vb = True if graphical progress updates should be created.
 
-    *Returns*:
-     A HyImage (single-feature fitting) or list of HyImages (multi-feature fitting) with four bands each, feature
-     position, depth, width and strength. Multi-features arrays will be returned in an arbitrary order, but can be
-     sorted using sortMultiMWL( ... ).
+    *Keywords*: Keywords are passed to gfit.gfit( ... ).
+    *Returns*: A MWL (n>1) or HyData instance containing the minimum wavelength mapping results.
     """
 
-    # handle multi-threading
-    if threads > 1:
-        result = parallel_chunks( minimum_wavelength,
-                                  data=data,
-                                  minw=minw,
-                                  maxw=maxw,
-                                  method=method,
-                                  trend=trend,
-                                  n=n,
-                                  ftol=ftol,
-                                  order=order,
-                                  threads=-1, # flag that this is being run multi-threaded
-                                  constraints=constraints,
-                                  vb=vb,
-                                  nthreads=threads)
-        if result.band_count() > 4: # special case - this is a stacked image returned by multifitting
-            mwl = []
-            if not (result.band_count() - 1) % 3 == 0:
-                print("Warning: weird shit is happening?")
-                return result
-            for i in range(0,n):
-                out = result.copy(data=False)
-                out.header.drop_all_bands()
-                out.data = result.data[..., [i,n+i,n*2+i,-1]]
-                out.set_band_names(['pos', 'width', 'depth', 'strength'])
-                out.push_to_header()
-                mwl.append(out)
-            return mwl
-        else:
-            return result
+    # prepare data
+    idx0, idx1 = [data.get_band_index(b) for b in (minw, maxw)]
+    S = data.X()[:, idx0:idx1]
 
-    # convert wavelengths to band ids
-    minidx = data.get_band_index(minw)
-    maxidx = data.get_band_index(maxw)
+    # remove invalid y-values
+    mask = np.isfinite(S).all(axis=-1)  # drop nans
+    mask = mask & (S != S[:, 0][:, None]).any(axis=1)  # drop flat spectra (e.g. all zeros)
+    X = S[mask]
 
-    # subset spectra from this range
-    subset = np.array(data.data[..., minidx:maxidx]).copy()  # copy subset
-    subset = subset.reshape(-1, subset.shape[-1])  # reshape to list of pixels/points
+    # flip for maximum wavelength mapping if needed
+    if not minima:
+        X = -X
 
-    wav = data.get_wavelengths()[minidx:maxidx]
-
-    # get vector of valid spectra (non-nan and non-flat)
-    mask = np.isfinite(subset).all(axis=1)  # drop nans
-    mask = mask & (subset != subset[:, 0][:, None]).any(axis=1)  # drop flat spectra (e.g. all zeros)
-    X = subset[mask]
-
-    # special case - no valid data points! This happens fairly often with multiprocessing...
-    if not mask.any():
-        out = []
-        for i in range(0, n): # make empty mwl maps of the right size/shape
-            img = data.copy(data=False)
-            img.header.drop_all_bands()
-            img.data = np.full(data.data.shape[:-1] + (n*3 + 1,), np.nan)
-            img.push_to_header()
-            out.append(img)
-        if n > 1 and threads != -1:
-            return out # return multiple empty dataset
-        else:
-            return out[0] # return single dataset
-
-    # detrend
-    if not trend is None:
-        if 'poly' in trend.lower():  # polynomial (vectorised == fast))
-            X, _ = polynomial(X)
-        elif 'hull' in trend.lower():  # convex hull (per pixel == slow)
-            loop = range(X.shape[0])
-            if vb: loop = tqdm(loop, desc="Hull correction", leave=False)
-            for _n in loop:
-                X[_n], _ = hull(X[_n, :])
-        else:
-            assert False, "Error: Unknown detrend method. Should be 'hull' or 'poly'."
-
-    X = X / np.nanmax(X, axis=-1)[..., None]  # set max to 1.0
-    # N.B. flat spectra/spectra with no feature should now be a horizontal line with value == 1 (plus noise). Features
-    #     will thus appear as < 1.0.
-
-    # remove any mystery nans... (hack!)
-    if not np.isfinite(X).all():
-        X[ np.logical_not( np.isfinite(X) ) ] = 1.0
-        print( "Warning: data has mystery nans after hull correction. Beware!" )
-
-    # fit features
-    # special case - apply mwl using TPT
-    if 'tpt' in method.lower():
-        assert n == 1, "Error - TPT fitting only works for a single feature. Try using several MWL ranges in" \
-                       "separate function calls to fit multiple features."
-
-        # put filtered and detrended spectra in a HyData instance
-        from hylite.filter import TPT, TPT2MWL
-        D = hylite.HyData( X )
-
-        D.set_wavelengths( wav )
-
-        # apply TPT filter
-        tpt, pos, depth = TPT( D, window=11, n=order, vb=vb )
-
-        # convert to MWL map and reshape
-        mwl = np.full((data.get_raveled().shape[0], n * 3 + 1), np.nan, dtype=np.float32)
-        mwl[mask, :] = TPT2MWL( pos, depth, data=D, vb=vb).data
-        mwl = mwl.reshape((*data.data.shape[:-1], mwl.shape[-1]))
+    # setup output
+    if sym:
+        out = np.full((np.prod(data.data.shape[:-1]), n * 3), np.nan)
     else:
-        pos, width, depth, strength = HyFeature.fit( wav, X, method=method, n=n, ftol=ftol, order=order, vb=vb )
+        out = np.full((np.prod(data.data.shape[:-1]), n * 4), np.nan)
 
-        # assemble and reshape
-        mwl = np.full( (data.get_raveled().shape[0], n*3 + 1), np.nan, dtype=np.float32)
-        mwl[mask,:] = np.vstack( [pos.T, width.T, depth.T, strength.T ] ).T
-        mwl = mwl.reshape((*data.data.shape[:-1], mwl.shape[-1]))
+    if mask.any():  # if no valid spectra, skip to end
 
-    # convert to HyData instance and return :-)
-    if mwl.shape[-1] > 4 and threads != -1: # split into multiple images
-        out = []
-        if not (mwl.shape[-1]-1) % 3 == 0:
-            assert False, "Warning: weird shit is happening? MWL image has %d bands" % mwl.shape[-1]
-        for i in range(0,n):
-            img = data.copy(data=False)
-            img.header.drop_all_bands()
-            img.data = mwl[..., [i,n+i,n*2+i,-1]]
-            img.set_band_names(['pos', 'width', 'depth', 'strength'])
-            img.push_to_header()
-            out.append(img)
-        return out
-    else: #return single image
-        out = data.copy(data=False)
-        out.header.drop_all_bands()
-        out.data = mwl
-        if mwl.shape[-1] == 4:
-            out.set_band_names(['pos', 'width', 'depth', 'strength'])
-        return out
+        # detrend
+        if not trend is None:
+            if 'hull' in trend:
+                X = get_hull_corrected(X, method='div', vb=vb)
+            else:
+                assert False, "Error - %s is an unsupported detrending method." % trend
+
+        # flip hull corrected spectra as gfit only fits maxima
+        X = 1 - X
+
+        # get initial values
+        x = data.get_wavelengths()[idx0:idx1]
+        x0 = initialise(x, X, n, sym=sym, d=k, nthreads=nthreads)  # get initial values [ minmax method ]
+        if 'minmax' in method:
+            out[mask, :] = x0  # just use x0 as output
+        elif 'gauss' in method:
+            out[mask, :] = gfit(x, X, x0, n, sym=sym, nthreads=nthreads, vb=vb, **kwds)  # fit gaussians
+        elif 'poly' in method:
+            assert False, "Error - polynomial mwl mapping is not yet implemented."  # todo
+        else:
+            assert False, "Error - %s is an unsupported fitting method." % method
+
+    # reshape output and add to HyData instance
+    mwld = data.copy(data=False)
+    mwld.data = out.reshape(data.data.shape[:-1] + (out.shape[-1],))
+    if n == 1:
+        return mwld # just return HyData instance; no need for multi-feature complexity
+    else:
+        return MWL(mwld, n, sym)
 
 class mwl_legend(object):
     """
@@ -289,15 +425,13 @@ class mwl_legend(object):
         ax.set_yticks([])
         return ax
 
-def colourise_mwl(mwl, strength=True, mode='p-d', **kwds):
+def colourise_mwl(mwl, mode='p-d', **kwds):
     """
     Takes a HyData instance containing minimum wavelength bands (pos, depth, width and strength) and creates
     a RGB composite such that hue ~ pos, sat ~ width and val ~ strength or depth.
 
     *Arguments*:
      - mwl = the HyData instance containing minimum wavelength data.
-     - strength = True if brightness should be proportional to strength. Otherwise brightness is proportional to depth
-                    (sensitive to noise). Default is True.
      - mode = the mapping from position (p), width (w) and depth and (d) to hsv. Default is 'pwd', though other options
               are 'p-d' (constant saturation of 80%), 'pdw' and 'pd-' (constant brightness of 85%).
     *Keywords*:
@@ -315,16 +449,11 @@ def colourise_mwl(mwl, strength=True, mode='p-d', **kwds):
     """
 
     # extract data
-    assert mwl.band_count() == 4, "Error - HyData instance does not contain minimum wavelength data?"
+    assert (mwl.band_count() == 4) or (mwl.band_count() == 3), "Error - HyData instance does not contain minimum wavelength data?"
 
-    h = mwl.get_raveled()[..., 0].copy()  # pos
-    s = mwl.get_raveled()[..., 1].copy()  # width
-    v = mwl.get_raveled()[..., 2].copy()  # strength
-
-    # multiply depth by strength to suppress deep minima from noisy spectra
-    if strength and np.isfinite( mwl.get_raveled()[...,3]).any():
-        v *= mwl.get_raveled()[...,3]
-        v = np.sqrt(np.abs(v)) # as we basically squared the answer, take the sqrt to keep mapping similar to depth
+    h = mwl.get_raveled()[..., 1].copy()  # pos
+    s = mwl.get_raveled()[..., 2].copy()  # width
+    v = mwl.get_raveled()[..., 0].copy()  # depth
 
     # normalise to range 0 - 1
     stretch = ['hue_map', 'sat_map', 'val_map']
@@ -395,6 +524,9 @@ def colourise_mwl(mwl, strength=True, mode='p-d', **kwds):
     elif 'pd-' in mode.lower():  # pos, depth, const
         rgb = matplotlib.colors.hsv_to_rgb(np.array([h, v, np.full(len(h), 0.8)]).T)
 
+    # add nans back in
+    rgb[ mask, : ] = np.nan
+
     # create a colourbar object
     if 'pdw' in mode.lower() or 'pd-' in mode.lower():
         cbar = mwl_legend(ranges[0][0], ranges[0][1], ranges[2][0], ranges[2][1], mode='sat')
@@ -420,276 +552,4 @@ def colourise_mwl(mwl, strength=True, mode='p-d', **kwds):
         rgb[rgb <= 0.01] = 0.01  # avoid 0 as these are masked by plotting functions
         out.rgb = (rgb * 255).astype(np.uint8)
         return out, cbar
-
-def plotmws(data, minw, maxw, trend='poly', step=2000, **kwds):
-    """
-    Plot detrended spectra over a small spectral range to assist with minimum wavelength mapping.
-
-    *Arguments*:
-     - data = the HyData instance to analyse.
-     - minw = the lower limit of the range of wavelengths to search (in nanometers).
-     - maxw = the upper limit of the range of wavelengths to search (in nanometers).
-     - trend = the method used to detrend the spectra. Can be 'poly' (fast) or 'hull' (slow) or None. Default is 'poly'.
-     - step = step used to skip pixels (rather than plotting everything). Default is 1000.
-    *Keywords*:
-     - keywords are passed to plt.plot(...)
-    """
-
-    # convert wavelengths to band ids
-    minidx = data.get_band_index(minw)
-    maxidx = data.get_band_index(maxw)
-
-    # subset spectra from this range
-    subset = np.array(data.data[..., minidx:maxidx])  # copy subset
-    subset = subset.reshape(-1, subset.shape[-1])  # reshape to list of data points/pixels
-    subset = subset[::step, :]  # throw out most of the pixels
-    wav = data.get_wavelengths()[minidx:maxidx]
-
-    # detrend
-    if not trend is None:
-        if 'poly' in trend.lower():  # polynomial (vectorised == fast))
-            subset, _ = polynomial(subset)
-        elif 'hull' in trend.lower():  # convex hull (per pixel == slow)
-            for _n in tqdm(range(subset.shape[0]), desc="Hull correction", leave=False):
-                subset[_n], _ = hull(subset[_n])
-        else:
-            assert False, "Error: Unknown detrend method. Should be 'hull' or 'poly'."
-    else:  # trend is none, but still set max to 1.0
-        with np.errstate(all='ignore'):
-            subset = subset / np.nanmax(subset, axis=-1)[..., None]
-
-    # do quick minmax interpolation to estimate initial values (can be vectorised == fast)
-    m = wav[np.argmin(subset, axis=-1)]
-    with np.errstate(all='ignore'):
-        d = 1.0 - np.nanmin(subset, axis=-1)  # np.ptp(subset, axis=2)
-
-    # calculate color based on minima position
-    if "color" in kwds:
-        calc_color = False
-    else:
-        calc_color = True
-        cmap_name = kwds.get("cmap", "rainbow")
-        if "cmap" in kwds:
-            del kwds["cmap"]
-
-        cmap = plt.get_cmap(cmap_name)
-        cols = cmap((m - minw) / (maxw - minw))  # color from minima position
-
-        # calculate brightness
-        with np.errstate(invalid='ignore'):  # ignore nan errors
-            b = (np.vstack([d, d, d, d] - np.nanmin(d)) / np.nanpercentile(d, 95)).T
-            b[b > 1.0] = 1.0  # ensure valid range
-            b[b < 0] = 0.0  # ensure valid range
-            b[np.isnan(b)] = 0.0
-
-            cols *= b  # apply brightness to colors
-
-        cols[..., 3] = kwds.get('alpha', 0.1)
-        if 'alpha' in kwds:
-            del kwds['alpha']
-
-    # plot
-    fig, ax = plt.subplots(2, 2, figsize=(15, 10),
-                           gridspec_kw={'width_ratios': [3, 1],
-                                        'height_ratios': [3, 1]})
-
-    ax[0, 0].set_title("Stacked spectra")
-
-    kwds['alpha'] = kwds.get('alpha', 0.2)  # set default alpha
-    for _n in range(subset.shape[0]):  # need to loop ... slow
-        if np.isfinite(subset[_n]).all():  # skip nans
-
-            # calculate color
-            if calc_color:
-                kwds['color'] = cols[_n]  # set color
-            # plot
-            ax[0, 0].plot(wav, subset[_n, :], **kwds)
-    ax[0, 0].axhline(1.0, color='k')  # trend line
-
-    mask = np.logical_and(np.isfinite(d), np.isfinite(m))
-
-    ax[1, 0].set_title("Minimum wavelength")
-    ax[1, 0].hist(m[mask].ravel(), bins=wav, color='k', alpha=0.75,
-                  density=True, weights=d[mask].ravel(), histtype='step')
-    n, bins, patches = ax[1, 0].hist(m[mask].ravel(), bins=wav, color='k', alpha=0.5,
-                                     density=True, weights=d[mask].ravel())
-    if calc_color:
-        for i, p in enumerate(patches):
-            p.set_facecolor(cmap(i / float(len(patches))))
-
-    ax[0, 1].set_title("Feature depth")
-    ax[0, 1].hist(d[mask].ravel(), bins=100, orientation='horizontal', color='k',
-                  alpha=0.75, density=True,
-                  range=(np.nanmin(d), np.nanpercentile(d, 95)),
-                  histtype='step')
-    n, bins, patches = ax[0, 1].hist(d[mask].ravel(), bins=100, orientation='horizontal', color='k',
-                                     alpha=0.5, density=True,
-                                     range=(np.nanmin(d), np.nanpercentile(d, 95)))
-    ax[0, 1].invert_yaxis()
-    if calc_color:
-        for i, p in enumerate(patches):
-            p.set_facecolor(np.array([1.0, 1.0, 1.0]) * (i / float(len(patches))))
-
-    ax[1, 1].set_axis_off()
-    fig.show()
-
-    return fig, ax
-
-def has_feature_between(mwl, wmin, wmax, depth_cutoff=0.05):
-    """
-    Calculate if a feature has been modelled between the specified wavelength ranges.
-
-    *Arguments*:
-     - mwl = a list of minimum wavelength maps as returned by minimum_wavelength(...) with multiple feature fitting.
-     - wmin = the lower bound of the wavelength range.
-     - wmax = the upper bound of the wavelength range.
-     - depth_cutoff = the minimum depth required for a feature to count as existing.
-
-    *Returns*:
-     - a numpy array  populated with False (no feature) or True (feature).
-    """
-
-    return np.sum(
-        [((m.data[..., 0] >= wmin) & (m.data[..., 0] <= wmax) & (m.data[..., 2] >= depth_cutoff)) for m in mwl],
-        axis=0) > 0
-
-def closestFeature(mwl, position, valid_range=None, depth_cutoff=0.05):
-    """
-    Returns the closest feature to the specified position from a list of minimum wavelength maps, as returned by
-    multi-mwl.
-    *Arguments*:
-     - mwl = a list of minimum HyImage or HyCloud instances containing minimum wavelength data (pos,width,depth,strength).
-     - position = the 'ideal' feature position to compare with (e.g. 2200.0 for AlOH)
-     - valid_range = A tuple defining the minimum and maximum acceptible wavelengths, or None (default). Values outside
-                     of the valid range will be set to nan.
-     - depth_cutoff = Features with depths below this value will be discared (and set to nan).
-    *Returns*
-     - a single HyData instance containing the closest minima.
-
-    """
-
-    # get data arrays
-    if mwl[0].is_image():
-        pos = np.dstack([m.data[..., 0] for m in mwl])
-        width = np.dstack([m.data[..., 1] for m in mwl])
-        depth = np.dstack([m.data[..., 2] for m in mwl])
-        strength = np.dstack([m.data[..., 3] for m in mwl])
-    else:
-        pos = np.vstack([m.data[..., 0] for m in mwl]).T
-        width = np.vstack([m.data[..., 1] for m in mwl]).T
-        depth = np.vstack([m.data[..., 2] for m in mwl]).T
-        strength = np.vstack([m.data[..., 3] for m in mwl]).T
-
-    # find differences
-    diff = np.abs(pos - position)
-    idx = np.argmin(diff, axis=-1)
-    pos = np.take_along_axis(pos, idx[..., None], axis=-1)
-    width = np.take_along_axis(width, idx[..., None], axis=-1)
-    depth = np.take_along_axis(depth, idx[..., None], axis=-1)
-    strength = np.take_along_axis(strength, idx[..., None], axis=-1)
-
-    msk = depth < depth_cutoff
-    if valid_range is not None:
-        msk = np.logical_or(msk, np.logical_or(pos < valid_range[0], pos > valid_range[1]))
-    pos[msk] = np.nan
-    width[msk] = np.nan
-    depth[msk] = np.nan
-    strength[msk] = np.nan
-
-    out = mwl[0].copy(data=False)
-
-    if mwl[0].is_image():
-        out.data = np.dstack([pos, width, depth, strength])
-    else:
-        out.data = np.hstack([pos, width, depth, strength])
-    return out
-
-def sortMultiMWL( mwl, mode='pos'):
-    """
-    Sort a list of minimum wavelength maps, as returned by minimum_wavelength using multi-feature fitting, based on feature
-    position or depth.
-
-    *Arguments*:
-     - mwl = a list of minimum HyImage or HyCloud instances containing minimum wavelength data (pos,width,depth,strength).
-     - mode = the mode to sort by. Options are 'pos', to sort in acending order by position, or 'depth', to sort in
-              decending order by feature depth.
-
-    *Returns*:
-     - a list of sorted HyData instances.
-    """
-
-    # get data arrays
-    if mwl[0].is_image():
-        pos = np.dstack([m.data[..., 0] for m in mwl])
-        width = np.dstack([m.data[..., 1] for m in mwl])
-        depth = np.dstack([m.data[..., 2] for m in mwl])
-        strength = np.dstack([m.data[..., 3] for m in mwl])
-    else:
-        pos = np.vstack([m.data[..., 0] for m in mwl]).T
-        width = np.vstack([m.data[..., 1] for m in mwl]).T
-        depth = np.vstack([m.data[..., 2] for m in mwl]).T
-        strength = np.vstack([m.data[..., 3] for m in mwl]).T
-
-    if 'pos' in mode.lower():
-        idx = np.argsort(pos,axis=-1)
-    elif 'width' in mode.lower():
-        idx = np.argsort(width, axis=-1)
-    elif 'depth' in mode.lower():
-        idx = np.argsort(depth, axis=-1)[..., ::-1]
-    else:
-        assert False, "Error - sorting mode %s unrecognised. Use 'pos', 'width' or 'depth'." % mode
-
-    # apply sorting
-    pos = np.take_along_axis(pos, idx, axis=-1)
-    width = np.take_along_axis(width, idx, axis=-1)
-    depth = np.take_along_axis(depth, idx, axis=-1)
-    strength = np.take_along_axis(strength, idx, axis=-1)
-
-    # assemble into HyImage
-    mwls = []
-    for i in range(len(mwl)):
-        _mwl = mwl[i].copy()
-        if mwl[0].is_image():
-            _mwl.data = np.dstack( [pos[...,i], width[...,i], depth[...,i], strength[...,i]] )
-        else:
-            _mwl.data = np.vstack( [pos[...,i], width[...,i], depth[...,i], strength[...,i]] ).T
-        mwls.append( _mwl )
-    return mwls
-
-def getMixedFeature(idx, mwl, source=None):
-    """
-    Return a MixedFeature index corresponding to the specified point or pixel index. Useful for plotting fitted results
-    vs actual spectra.
-
-    *Arguments*:
-     - idx = the index of the point or pixel to be retrieved.
-     - mwl = a list of minimum wavelength datasets (as returned by multi-mwl fitting).
-     - source = the source dataset, for plotting original spectra. Default is None.
-
-    *Returns*: a MixedFeature instance containing the modelled minimum wavelength data at this point.
-    """
-
-    # extract fitted feature info
-    if isinstance(idx, int):
-        idx = (idx,)
-    if not isinstance(idx, tuple):
-        idx = tuple(idx)
-
-    pos = [m.data[(*idx, 0)] for m in mwl]
-    width = [m.data[(*idx, 1)] for m in mwl]
-    depth = [m.data[(*idx, 2)] for m in mwl]
-
-    if isinstance(idx, int):
-        idx = (idx)
-    if not source is None:  # we have source data
-        wav = source.get_wavelengths()
-        refl = source.data[idx]
-        refl, corr = hull(refl)
-        feats = [HyFeature('fit', p, w, d) for p, w, d in zip(pos, width, depth)]
-        return MixedFeature('mix', feats, data=np.array([wav, refl]), color='r')
-    else:  # we have no source data
-        # domain = np.max(pos) - np.min(pos)
-        # wav = np.linspace( np.min(pos) - domain*0.5, np.max(pos)+domain*0.5, 1000 )
-        feats = [HyFeature('fit', p, w, d) for p, w, d in zip(pos, width, depth)]
-        return MixedFeature('mix', feats, color='r')
 

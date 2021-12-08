@@ -11,66 +11,74 @@ from hylite.io import saveMultiMWL, loadMultiMWL
 
 
 class MyTestCase(unittest.TestCase):
+    def test_hull(self):
+        from hylite.correct import get_hull_corrected
+        image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+        cloud = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+
+        # test hull correction on numpy array
+        Xhc = get_hull_corrected( image.data,vb=False )
+        self.assertTrue( np.nanmax(Xhc) <= 1.0 )
+        self.assertTrue( np.nanmin(Xhc) >- 0.0)
+        self.assertEqual( image.data.shape, Xhc.shape )
+
+        # test hull correction on HyData instances
+        for D in [image, cloud]:
+            Xhc = get_hull_corrected(D,vb=False)
+            self.assertEqual(image.data.shape, Xhc.data.shape)
+            self.assertTrue(np.nanmax(Xhc.data) <= 1.0)
+            self.assertTrue(np.nanmin(Xhc.data) >= 0.0)
+
     def test_mwl(self):
         image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
-        image.data = image.data[0:20,:,:] # crop to speed up
+        cloud = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
 
-        # test normal mwl
-        mwl = minimum_wavelength(image, 2100., 2380., trend='hull', method='minmax', n=1, threads=1, vb=False)
-        self.assertGreater(np.nanmax(mwl.data[..., 0]), 2100.)  # check some valid features were identified
+        for D in [image,cloud]:
+            # test normal mwl
+            mwl = minimum_wavelength(D, 2100., 2380., trend='hull', method='minmax', n=1, nthreads=1, vb=False)
+            self.assertGreater(np.nanmax(mwl.data[..., 1]), 2100.)  # check some valid features were identified
 
-        mwl = minimum_wavelength(image, 2100., 2380., trend='hull', method='gauss', n=1, threads=1, vb=False)
-        self.assertGreater(np.nanmax(mwl.data[..., 0]), 2100.)  # check some valid features were identified
+            mwl = minimum_wavelength(D, 2100., 2380., trend='hull', method='gauss', n=1, nthreads=1, vb=True)
+            self.assertGreater(np.nanmax(mwl.data[..., 1]), 2100.)  # check some valid features were identified
 
-        # test multi mwl
-        np.warnings.filterwarnings('ignore')  # supress warnings when comparing to nan
-        mwl = minimum_wavelength( image, 2100., 2380., trend='hull', method='gauss', n=3, threads=1, vb=False )
-        self.assertGreater(np.nanmax(mwl[0].data[..., 0]), 2100.) # check some valid features were identified
+            # test multi-mwl
+            M = minimum_wavelength( D, minw=2100., maxw=2400., sym=False,method='gauss',n=3, vb=True )
+            mask = np.isfinite(M[0, 0])
 
-        # test sort function
-        mwl = sortMultiMWL(mwl, 'pos')
+            # check depth sorting
+            M.sortByDepth()
+            self.assertTrue( (M[0, 'depth'][mask] >= M[1, 'depth'][mask]).all())
+            self.assertTrue( (M[2, 'depth'][mask] >= M[2, 'depth'][mask]).all())
 
-        # test rgb mapping
-        rgb = colourise_mwl( mwl[0] )
-        self.assertTrue( np.isfinite( rgb[0].data ).any() )
+            # check pos sorting
+            M.sortByPos()
+            self.assertTrue( (M[0, 'pos'][mask] <= M[1, 'pos'][mask]).all())
+            self.assertTrue( (M[2, 'pos'][mask] <= M[2, 'pos'][mask]).all())
 
-        # test save/load
-        pth = mkdtemp()
-        try:
+            # check deepest feature extraction
+            deepest = M.deepest(2100., 2400.)
+            M.sortByDepth()
+            self.assertTrue( (np.nan_to_num(deepest.data) == np.nan_to_num(M[0].data)).all() )
 
-            # using function directly
-            saveMultiMWL(os.path.join(pth, "mwl.hdr"), mwl )
-            mwl2 = loadMultiMWL( os.path.join(pth, "mwl.hdr") )
+            # check closest feature extraction
+            closest = M.closest(2100.)
+            M.sortByPos()
+            self.assertTrue( (np.nan_to_num(closest.data) == np.nan_to_num(M[0].data)).all() )
 
-            # using hylite.io
-            io.save( os.path.join(pth, "mwl2.hdr"), mwl )
-            mwl3 = io.load( os.path.join(pth, "mwl2.hdr") )
-            shutil.rmtree(pth) # delete temp directory
-        except:
-            shutil.rmtree(pth)  # delete temp directory
-            self.assertFalse(True, "Error - could not save mwl data?")
-        for n in range(3): # check loaded files more or less match saved ones
-            for lmwl in [mwl2, mwl3]:
-                self.assertAlmostEquals(np.nanmax(mwl[n].data[..., 0]), np.nanmax(lmwl[n].data[..., 0]),
-                                        2, msg="Error - load incorrect.")
-                self.assertGreater(np.nanmax(lmwl[n].data[..., 0]), 2100.)
+            closest = M.closest(2200., valid_range=(2195., 2205.))
+            self.assertTrue( np.nanmin(closest.data[..., 1]) >= 2195., "Error - %s" % np.nanmin(closest.data[..., 1]))
+            self.assertTrue( np.nanmin(closest.data[..., 1]) <= 2205., "Error - %s" % np.nanmin(closest.data[..., 1]))
 
-        # test multithreading
-        mwl3 = minimum_wavelength(image, 2100., 2380., trend='hull', method='gauss', n=3, threads=2, vb=False)
-        mwl3 = sortMultiMWL(mwl3, 'pos')
-        for n in range(3): # check results more-or-less match single-threaded ones
-            self.assertAlmostEquals(np.nanmax(mwl[n].data[..., 0]), np.nanmax(mwl3[n].data[..., 0]),
-                                    2, msg="Error - multi mwl is incorrect.")
-            self.assertGreater(np.nanmax(mwl3[n].data[..., 0]), 2100.)
+            # test colourise function [ just run it to check for crashes ]
+            rgb, leg = colourise_mwl( M.closest(2200., valid_range=(2150., 2230.) ) )
+
+            # test multithreading (again; just see if it runs for now )
+            M1 = minimum_wavelength( D, minw=2100., maxw=2400., sym=False, method='gauss',n=3, vb=True, nthreads=-1 )
+
     def test_TPT(self):
-
         from hylite.filter import TPT
         image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
         tpt,p,d = TPT(image, sigma=10., window=7, thresh=0, vb=False)
 
-        # test TPT MWL
-        from hylite.analyse import minimum_wavelength
-        mwl = minimum_wavelength(image, 2100., 2380., trend='hull', method='tpt', n=1, threads=2, vb=False)
-        self.assertGreater( np.nanmax(mwl.data[...,0]), 2100. )
 if __name__ == '__main__':
     unittest.main()

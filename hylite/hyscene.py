@@ -43,7 +43,7 @@ class HyScene( HyCollection ):
         p = os.path.splitext( HyCollection._getDirectory(self, root, name) )[0]
         return p + ".hys"
 
-    def construct(self, image, cloud, camera, s=1, occ_tol = 10, maxf=0, vb = True, **kwds):
+    def construct(self, image, cloud, camera, s=1, occ_tol = 10, maxf=0, bf=True, vb = True, **kwds):
         """
         Construct a mapping between the specified image and cloud based on the camera position / orientation / track.
 
@@ -51,15 +51,15 @@ class HyScene( HyCollection ):
           - image = a HyImage instance containing data map onto the point cloud.
           - cloud = a HyCloud instance containing data/geometry to map onto the image.
           - camera = hylite.project.Camera or hylite.project.Pushbroom object describing the projection geometry.
-          - occ_tol = the distance between a point and the z-buffer before it becomes occluded. Default is 10. Set to 0 to
-                    disable occlusion.
-          - maxf = the maximum acceptible pixel footprint. Pixels containing > than this number of points will be excluded
-                   from the dataset. Set as 0 to disable (default).
           - s = a dilation to apply when mapping point data to the image (to fill gaps/holes). Default is 1 (do not
                 apply a dilation). If s is an integer then an (s,s) dilation filter is applied. Alternatively, s
                 can be a tuple such that s=(n,m) defining the 2-D dimensions of the dilation (useful for e.g. pushbroom
                 data).
-
+         - occ_tol = the distance between a point and the z-buffer before it becomes occluded. Default is 10. Set to 0 to
+                    disable occlusion.
+         - maxf = the maximum acceptible pixel footprint. Pixels containing > than this number of points will be excluded
+                   from the dataset. Set as 0 to disable (default).
+         - bf = True if backface culling (using cloud normal vectors) should be applied during projection. Default is True.
         *Keywords*: Keywords are passed to project_pushbroom for pushbroom type cameras.
         """
 
@@ -76,14 +76,17 @@ class HyScene( HyCollection ):
 
         # build projection map
         self.pmap = PMap(camera.dims[0], camera.dims[1], cloud.point_count(), cloud=cloud, image=image)
+        normals = None
+        if bf:
+            normals = cloud.normals
         if isinstance(self.camera, Camera): # conventional camera
             if 'persp' in camera.proj:
                 pp, vis = proj_persp(cloud.xyz, C=camera.pos, a=camera.ori,
-                                     fov=camera.fov, dims=camera.dims, normals=cloud.normals)
+                                     fov=camera.fov, dims=camera.dims, normals=normals)
                 self.pmap.set_ppc( pp, vis )
             elif 'pano' in camera.proj:
                 pp, vis = proj_pano(cloud.xyz, C=camera.pos, a=camera.ori,
-                                    fov=camera.fov, dims=camera.dims, step=camera.step, normals=cloud.normals)
+                                    fov=camera.fov, dims=camera.dims, step=camera.step, normals=normals)
                 self.pmap.set_ppc(pp, vis)
             else:
                 assert False, "Error, %s is an incompatible projection type" % camera.proj

@@ -115,7 +115,10 @@ class HyData(object):
         """
         Get the wavelength that corresponds with each band of this image, as stored in the .hdr file.
         """
-        return self.header.get_wavelengths()
+        if self.has_wavelengths():
+            return self.header.get_wavelengths() # return wavelengths
+        else:
+            return np.arange(self.band_count()) # return band indices as proxy
 
     def has_band_names(self):
         """
@@ -479,7 +482,7 @@ class HyData(object):
 
         thresh = kwds.get("thresh", hylite.band_select_threshold)
 
-        if isinstance(w, int):  # already a valid band index
+        if np.issubdtype( type(w), np.integer ):  # already a valid band index
             assert -self.band_count() <= w <= self.band_count(), "Error - band index %d is out of range (image has %d bands)." % (w, self.band_count())
             if w < 0: #convert negative indices to positive ones
                 return self.band_count() + w
@@ -488,7 +491,7 @@ class HyData(object):
         elif isinstance(w, str): # treat w as band name
             assert w in self.get_band_names(), "Error - could not find band with name %s" % w
             return int(self.get_band_names().index(w))
-        elif isinstance(w, float): # otherwise treat w as wavelength
+        elif np.issubdtype( type(w), np.floating ): # otherwise treat w as wavelength
             wavelengths = self.get_wavelengths()
             diff = np.abs( wavelengths - w)
             assert np.nanmin(diff) <= thresh, "Error - no bands exist within %d nm of wavelength %f. Try increasing the 'thresh' keyword?" % (thresh, w)

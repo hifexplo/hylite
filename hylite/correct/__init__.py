@@ -3,7 +3,7 @@ A package for applying radiometric and topographic corrections to hyperspectral 
 radiance to reflectance. Data detrending methods (e.g. hull corrections) are also included here.
 """
 
-from .detrend import hull, polynomial, get_hull_corrected
+from .detrend import get_hull_corrected
 from .panel import Panel
 from .equalize import norm_eq, hist_eq
 

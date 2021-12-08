@@ -1,7 +1,6 @@
-from hylite import HyLibrary
+from hylite import HyLibrary, HyData
 import numpy as np
-from scipy.spatial.qhull import ConvexHull
-from tqdm import tqdm
+from gfit.util import remove_hull
 
 def polynomial(data, degree = 1, method='div'):
 
@@ -34,45 +33,6 @@ def polynomial(data, degree = 1, method='div'):
 
     return y.reshape(data.shape), t.reshape(data.shape)
 
-def hull(spectra, div=True):
-    """
-    Detrend a 1D spectra by performing a hull correction. Note that this performs the correction in-situ.
-
-    *Arguments*:
-     - div = True if the spectra should be divided by it's hull (default). False if the hull should be subtracted.
-    *Returns*:
-     - corr = hull corrected spectra.
-     - trend = the (hull) trend that was subtracted to give the corrected spectra
-
-    Returns an unchanged spectra and trend = [0,0,...] if the spectra contains nans or infs.
-    """
-
-    # calculate convex hull
-    hull = ConvexHull(np.array([np.hstack([0, np.arange(len(spectra)), len(spectra) - 1]),
-                                np.hstack([0, spectra, 0])]).T)
-
-    # remove unwanted simplices (e.g. along sides and base)
-    mask = (hull.simplices != 0).all(axis=1) & (hull.simplices != len(spectra) + 1).all(axis=1)
-
-    # build piecewise equations
-    x = np.arange(len(spectra), dtype=np.float32)
-    if not mask.any():  # edge case - convex hull is one simplex between first and last points!
-        y = spectra[0] + (spectra[-1] - spectra[0]) / x[-1]
-    else:
-        grad = -hull.equations[mask, 0]
-        itc = -hull.equations[mask, 2]
-        dom = [(min(x[s[0]], x[s[1]]), max(x[s[0]], x[s[1]])) for s in (hull.simplices[mask] - 1)]
-        cl = [(x >= d[0]) & (x <= d[1]) for d in dom]
-
-        # evaluate piecewise functions
-        fn = [(lambda x, m=grad[i], c=itc[i]: m * x + c) for i in range(len(grad))]
-        y = np.piecewise(x, cl, fn)
-
-    # return
-    if div:
-        return spectra / y, y
-    else:
-        return 1 + spectra - y, y
 
 def get_hull_corrected(data, band_range=None, method='div', vb=True):
     """
@@ -80,71 +40,57 @@ def get_hull_corrected(data, band_range=None, method='div', vb=True):
     the input dataset.
 
     *Arguments*:
+     - data = a numpy array or HyData instance to detrend.
      - band_range = Tuple containing the (min,max) band indices or wavelengths to run the correction between. If None
-                     (default) then the correction is run of the entire range.
+                     (default) then the correction is run of the entire range. Only works if data is a HyData instance.
      - method = Trend removal method: 'divide' or 'subtract'. Default is 'divide'.
      - vb = True if this should print output.
     """
 
-    # create copy containing the bands of interest
-    if band_range is None:
-        band_range = (0, -1)
-    else:
-        band_range = (data.get_band_index(band_range[0]), data.get_band_index(band_range[1]))
-    corrected = data.export_bands(band_range)
+    if isinstance(data, HyData):
 
-    # convert integer data to floating point (we need floats for the hull correction)
-    comp = False
-    if corrected.is_int():
-        if np.nanmax( corrected.data ) > 100: # check large number used in compressed form
-            corrected.decompress()
+        # create copy containing the bands of interest
+        if band_range is None:
+            band_range = (0, -1)
         else:
-            corrected.data = corrected.data.astype(np.float32) # cast to float for hull correction
-        comp = True
+            band_range = (data.get_band_index(band_range[0]), data.get_band_index(band_range[1]))
+        corrected = data.export_bands(band_range)
 
-    method = 'div' in method  # convert method to bool (for performance)
+        # convert integer data to floating point (we need floats for the hull correction)
+        comp = False
+        if corrected.is_int():
+            if np.nanmax( corrected.data ) > 100: # check large number used in compressed form
+                corrected.decompress()
+            else:
+                corrected.data = corrected.data.astype(np.float32) # cast to float for hull correction
+            comp = True
 
-    # get valid pixels
-    D = corrected.get_raveled()
-    nan = corrected.header.get_data_ignore_value()
+        # get valid pixels
+        D = corrected.get_raveled()
+        nan = corrected.header.get_data_ignore_value()
+    else:
+        shape = data.shape
+        D = data.reshape((-1, shape[-1]))
+        nan = np.inf
+
     valid = (np.isfinite(D) & (D != nan)).all(axis=1)  # drop nans/no-data values
     valid = valid & (D != D[:, 0][:, None]).any(axis=1)  # drop flat spectra (e.g. all zeros)
+    if len(valid) == 0:
+        return corrected  # quick exit for empty images
 
-    if len(valid > 0): # if some valid points exist, do correction
-        X = D[valid]
-        upper = []
-        lower = []
-        loop = range(X.shape[0])
-        if vb:
-            loop = tqdm(loop, leave=False, desc='Applying hull correction')
-        for p in loop:
-            X[p, :], fac = hull(X[p, :], div=method)
+    # do hull correction
+    X = remove_hull( D[valid],upper=True, div=('div' in method), vb=vb)
+    D[valid] = X  # copy data back into original array
 
-            # special case - also apply this correction to upper/lower spectra of the HyData instance
-            if isinstance(corrected, HyLibrary):
-                if corrected.upper is not None:
-                    # also apply correction to bounds
-                    if method:
-                        upper.append(corrected.upper[valid][p, :] / fac)
-                    else:
-                        upper.append(corrected.upper[valid][p, :] - fac)
-                if corrected.lower is not None:
-                    # also apply correction to bounds
-                    if method:
-                        lower.append(corrected.lower[valid][p, :] / fac)
-                    else:
-                        lower.append(corrected.lower[valid][p, :] - fac)
-
-                        # copy data back into original array
-        D[valid] = X
+    # do housekeeping and return
+    if isinstance(data, HyData):
+        if isinstance(corrected, HyLibrary):
+            corrected.upper = None # reset upper and lower limits as these will now be incorrect
+            corrected.lower = None # reset upper and lower limits as these will now be incorrect
         corrected.set_raveled(D)
-        if len(upper) > 0:
-            corrected.upper[valid] = np.array(upper)
-        if len(lower) > 0:
-            corrected.lower[valid] = np.array(lower)
-
-    # convert back to integer if need be
-    if comp:
-        corrected.compress()
-
-    return corrected
+        # convert back to integer if need be
+        if comp:
+            corrected.compress()
+        return corrected
+    else:
+        return D.reshape( shape )

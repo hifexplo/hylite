@@ -246,15 +246,52 @@ class HyCloud( HyData ):
                 out.append( result )
         return result
 
-    def despeckle(self, radius, bands):
+    def despeckle(self, radius, bands, vb=True):
         """
         Despeckle scalar fields or rgb bands associated with this point cloud using a median filter.
 
         *Arguments*:
          - radius = the radius to use to define point neighbourhoods for median calculation
-         - bands = the bands to apply the median filter to. Options are:
+         - bands = the bands to apply the median filter to. Options are: 'rgb' to smooth colours, a list of integer
+                   or float band wavelengths, or a tuple of length 2.
+         - vb = True if a progress bar should be created, as this can be a slow operation.
         """
-        pass
+
+        # build appropriate smoothing function
+        if isinstance(bands, str) and 'rgb' in bands:  # smooth RGB
+            def median(radius, current_id, neighbour_ids):
+                self.rgb[current_id, :] = np.nanmedian(
+                    np.vstack([self.rgb[neighbour_ids, :], self.rgb[[current_id], :]]), axis=0)
+        elif isinstance(bands, int) or isinstance(bands, float):  # smooth single band
+            idx = self.get_band_index(bands)
+
+            def median(radius, current_id, neighbour_ids):
+                self.data[current_id, idx] = np.nanmedian(
+                    np.vstack([self.data[neighbour_ids, idx], self.data[[current_id], idx]]), axis=0)
+        elif isinstance(bands, tuple) and len(bands) == 2:  # (min,max) tuple
+            idx0 = self.get_band_index(bands[0])
+            idx1 = self.get_band_index(bands[1])
+
+            def median(radius, current_id, neighbour_ids):
+                self.data[current_id, idx0:idx1] = np.nanmedian(
+                    np.vstack([self.data[neighbour_ids, idx0:idx1], self.data[[current_id], idx0:idx1]]), axis=0)
+        elif len(bands) > 2:  # list of bands
+            bands = np.array(bands)
+            if bands.dtype == 'bool':
+                assert len(
+                    bands) == self.band_count(), "Error - band mask has invalid shape (%s) for dataset with %d bands." % (
+                bands.shape, self.band_count())
+            else:
+                bands = [self.get_band_index(int(b)) for b in bands]
+
+            def median(radius, current_id, neighbour_ids):
+                subset = np.vstack([self.data[neighbour_ids, :], self.data[[current_id], :]])
+                self.data[current_id, bands] = np.nanmedian(subset[:, bands], axis=0)
+        else:
+            assert False, 'Error - %s is an invalid band descriptor' % bands
+
+        # apply it
+        self.point_neighbourhood_operation(radius, median, vb)
 
     def compute_normals(self, radius, vb=True):
         """
@@ -279,7 +316,7 @@ class HyCloud( HyData ):
                 self.normals[n, :] = vh[2, :]
 
         # compute normals for each point
-        normals = self.point_neighbourhood_operation( radius, cmpN, vb=vb )
+        self.point_neighbourhood_operation( radius, cmpN, vb=vb )
 
         # orient normals upwards
         self.normals[self.normals[:, 2] < 0, :] *= -1
