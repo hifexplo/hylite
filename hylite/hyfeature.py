@@ -4,6 +4,8 @@ from scipy.optimize import least_squares
 from scipy.signal import argrelmin
 from tqdm import tqdm
 
+from gfit import gfit, initialise, evaluate
+
 class HyFeature(object):
     """
     Utility class for representing and fitting individual or multiple absorption features.
@@ -58,60 +60,7 @@ class HyFeature(object):
     ######################
 
     @classmethod
-    def lorentzian(cls, x, pos, width, depth, offset=1.0):
-        """
-        Static function for evaluating a Lorentzian feature model
-
-        *Arguments*:
-         - x = wavelengths (nanometres) to evaluate the feature over
-         - pos = the position of the features (nanometres)
-         - width = parameter controlling the width of the feature.
-                   Scaled such that pos - width / 2 -> pos + width / 2 contains ~99% of an equivalent
-                   gaussian feature.
-         - depth = the depth of the feature (max to min)
-         - offset = the vertical offset of the feature (i.e. value where no absorption exists). Default is 1.0.
-        """
-
-        width = width / 6  # conversion so that width contains ~99% of (gaussian) feature
-        return offset - (depth * width ** 2 / width) * width / ((x - pos) ** 2 + width ** 2)
-
-    @classmethod
-    def gaussian(cls, x, pos, width, depth, offset=1.0):
-        """
-        Static function for evaluating a Gaussian feature model
-
-        *Arguments*:
-         - x = wavelengths (nanometres) to evaluate the feature over
-         - pos = the position of the features (nanometres)
-         - width = parameter controlling the width of the feature (= standard deviation / 6).
-                   Scaled such that pos - width / 2 -> pos + width / 2 contains ~99% of the feature.
-         - depth = the depth of the feature (max to min)
-         - offset = the vertical offset of the feature (i.e. value where no absorption exists). Default is 1.0.
-        """
-
-        width = width / 6  # conversion so that width contains ~99% of (gaussian) feature
-        return offset - depth * np.exp(-(x - pos) ** 2 / (2 * width ** 2))
-
-    @classmethod
-    def multi_lorentz(cls, x, pos, width, depth, offset=1.0):
-        """
-        Static function for evaluating a multi-Lorentzian feature model
-
-        *Arguments*:
-         - x = wavelengths (nanometres) to evaluate the feature over
-         - pos = a list of positions for each individual lorentzian function (nanometres)
-         - width = a list of widths for each individual lorentzian function.
-         - depth = a list of depths for each individual lorentzian function (max to min)
-         - offset = the vertical offset of the functions. Default is 1.0.
-        """
-
-        y = np.zeros_like(x)
-        for p, w, d in zip(pos, width, depth):
-            y += cls.lorentzian(x, p, w, d, 0)
-        return y + offset
-
-    @classmethod
-    def multi_gauss(cls, x, pos, width, depth, offset=1.0):
+    def multi_gauss(cls, x, pos, width, depth, asym=None, offset=1.0):
         """
         Static function for evaluating a multi-gaussian feature model
 
@@ -122,37 +71,18 @@ class HyFeature(object):
          - depth = a list of depths for each individual gaussian function (max to min)
          - offset = the vertical offset of the functions. Default is 1.0.
         """
-
-        y = cls.gaussian(x, pos[0], width[0], depth[0], 0)
-        if len(pos) > 1:
-            for p, w, d in zip(pos[1:], width[1:], depth[1:]):
-                y += cls.gaussian(x, p, w, d, 0)
-        return y + offset
+        if asym is None:
+            asym = np.ones( len(width) )
+        y = evaluate( x, np.array(depth), np.array(pos), np.array(width), np.array(asym) * np.array(width), sym=False )
+        return 1 - y
 
     ############################
     ## Feature fitting
     ############################
 
-    @classmethod
-    def _lsq(cls, params, func, x, y, n=1):
-        """
-        Calculate error for least squares optimization
-        """
-        return np.nan_to_num( y - func(x, *params), nan=99999999999999,
-                                                    posinf=99999999999999,
-                                                    neginf=99999999999999 )
 
     @classmethod
-    def _lsq_multi(cls, params, func, x, y, n):
-        """
-        Calculate error for least squares optimization of multi-gauss or multi-lorentz
-        """
-        return np.nan_to_num( y - func(x, params[0:n], params[n:(2*n)], params[(2*n):]), nan=99999999999999,
-                                                              posinf=99999999999999,
-                                                              neginf=99999999999999 )
-
-    @classmethod
-    def fit(cls, wav, refl, method='lorentz', n=1, vb=True, ftol=1e-4, order=3):
+    def fit(cls, wav, refl, method='gauss', n=1, vb=True, ftol=1e-4, order=3):
         """
         Fit a hyperspectral feature(s) to a (detrended) spectra.
 

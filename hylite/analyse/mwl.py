@@ -1,37 +1,61 @@
+import os
 import numpy as np
 import matplotlib
 from hylite.correct.detrend import get_hull_corrected
-from gfit import initialise, gfit
+from gfit import initialise, gfit,evaluate
+from hylite import HyCollection, HyCloud, HyImage
 
-class MWL(object):
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+
+class MWL(HyCollection):
     """
     A convenient class for manipulating and storing minimum wavelength mapping results.
     """
 
-    def __init__(self, model, nfeatures, sym=False):
+    def bind(self, model, nfeatures, x, X, sym=False):
         """
-        Create a new MWL dataset based on the underlying HyData instance.
+        Band a new MWL mapping results. Essentially treat this as the constructor.
 
         *Arguments*:
          - model = the underlying HyData instance containing feature parameters.
          - nfeatures = the number of features stored in the underlying model.
+         - x = Wavelengths that the model should be evaluated at.
+         - X = the underlying data that the model was fitted to. Useful for plotting / debugging. Default is None.
          - sym = True if symmetric features are stored (3-parameters). Default is False (4-parameters).
         """
 
         # store attributes
         self.model = model  # store underlying feature model
+        self.x = x # model domain
+        self.X = X # fitted data
         self.n = nfeatures  # store number of features
-        self.sym = sym
-        if sym:
+        self.sym = sym # store symmetry
+        if sym: # set stride
             self.stride = 3
         else:
             self.stride = 4
 
-        # add related header flags
-        self.header = self.model.header
-        self.header['nfeatures'] = nfeatures
-        self.header['sym'] = int(sym)
-        self.header['multimwl'] = 'true'
+    def getAttributes(self):
+        """
+        Return a list of available attributes in this HyScene. We must override the HyCollection implementation to remove
+        functions associated with HyScene.
+        """
+        return list(set(dir(self)) - set(dir(HyCollection)) - set(dir(MWL)) - set(['header', 'root', 'name']))
+
+    def _getDirectory(self, root=None, name=None):
+        """
+        Return the directory files associated with the HyScene are stored in. We override this to change the file extension
+        associated with HyScene objects.
+
+         *Arguments*:
+         - root = the directory to store this HyCollection in. Defaults to the root directory specified when
+                  this HyCollection was initialised, but this can be overriden for e.g. saving in a new location.
+         - name = the name to use for the HyCollection in the file dictionary. If None (default) then this instance's
+                  name will be used, but this can be overriden for e.g. saving in a new location.
+        """
+        p = os.path.splitext( super()._getDirectory(root,name) )[0]
+        return p + ".mwl"
 
     def __getitem__(self, n):
         """
@@ -226,6 +250,316 @@ class MWL(object):
         """
         pass
 
+    def evaluate(self):
+        """
+        Evaluate this model and return the result as a HyData instance.
+
+        *Returns*
+         - A HyData instance containing the estimated spectra based on the fitted features.
+        """
+        out = self.model.copy(data=False)
+        out.data = 1. - evaluate(self.x, self.model.data)
+        out.set_wavelengths(self.x)
+        return out
+
+    def residual(self, sum=False):
+        """
+        Evaluate and return the residuals to the fitted minimum wavelength model.
+
+        *Returns*
+         - A HyData instance containing the residuals in band 0.
+        """
+        out = self.model.copy(data=False)
+        out.data = np.sum(np.abs(self.X.data - self.evaluate().data), axis=-1)[..., None]
+        return out
+
+    def classify(self, n, nf=2):
+        """
+        Identify clusters in feature position space to classify this MWL map.
+        This uses the hierarchichal method scipy.cluster.hierarchy.fclusterdata.
+
+        See this publication for more details: https://doi.org/10.3390/min11020136
+
+        *Arguments*:
+         - n = the number of classes to use.
+         - nf = the number of feature positions to use. Default is 2. Must not exceed the number of features fitted.
+
+        *Returns*:
+         - labels =  a HyData instance containing integer class labels in band 0.
+         - centroids = a list containing the index of each class centroid (in the dataset).
+        """
+
+        assert nf <= self.n, "Error - MWL map has only %d features (<%d)." % (self.n, nf)
+        import scipy.cluster.hierarchy as shc
+        X = self[:, 'pos'][..., 0:nf]
+
+        # remove nans
+        mask = np.isfinite(X).all(axis=-1)
+        X = X[mask, :]
+
+        L = shc.fclusterdata(X, n, criterion='maxclust', method='ward')  # class labels
+        C = [np.median(X[L == i, :], axis=0) for i in range(1, n + 1)]  # class centroids
+        Cn = [np.unravel_index(np.argmin(np.linalg.norm(X - c, axis=1)), self[:, 'pos'].shape[:-1]) for c in
+              C]  # center pixels
+
+        out = self.model.copy(data=False)
+        out.data = np.full(self[:, 'pos'].shape[:-1] + (1,), np.nan)
+        out.data[mask, 0] = L
+        return out, Cn
+
+
+    ####################################
+    ## Plotting functions
+    ####################################
+    def plot_features(self, ax=None, **kwds):
+        """
+        Plot all features in this minimum wavelength model on a scatter plot.
+
+        *Arguments*:
+         - ax = a different axes to plot this figure on. Default is None (creates a new axis).
+        *Keywords*
+         - n = the number of classes to use for classification (see self.classify()),
+             or a list of class ids as returned by classify.
+         - cmap = the colour map to use (string). Default is 'tab10'.
+         - point_size = the size of the points to plot.
+         - point_alpha = the transparency of the points to plot.
+         - legend = True if a legend should be plotted. Default is True.
+        *Returns*:
+         - fig,ax = the figure that was plotted.
+        """
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(10, 5))
+        fig = ax.get_figure()
+
+        ax.set_title('Spectral feature summary')
+
+        # get data
+        symbols = ['s', 'v', 'o', '.']
+        names = ['Primary', 'Secondary', 'Tertiary', 'Other']
+        p = self[:, 'pos']
+        d = self[:, 'depth']
+
+        # compute colours
+        n = kwds.get('n', 5)
+        if isinstance(n, int):
+            L, _ = self.classify(n)
+            n = L.X()
+        c = mpl.cm.get_cmap(kwds.get('cmap', 'tab10'))(n.ravel() / np.nanmax(n))
+
+        for i, f in enumerate(range(self.n)):
+            if i >= len(symbols):
+                i = -1
+            ax.scatter(p[..., f].ravel()[0], d[..., f].ravel()[0], c='k', marker=symbols[i],
+                       label='%s' % names[i], zorder=-1)  # plot single point for legend
+            ax.scatter(p[..., f].ravel(), d[..., f].ravel(), c=c,
+                       marker=symbols[i],
+                       s=kwds.get("point_size", 20), alpha=kwds.get("point_alpha", 0.5), lw=0)
+
+            ax.set_title("Spectral feature summary")
+            ax.set_xlabel("Feature position (nm)")
+            ax.set_ylabel("Hull-corrected depth")
+        if kwds.get('legend', True):
+            ax.legend()
+
+        return fig, ax
+
+    def biplot(self, f1=0, f2=1, ax=None, **kwds):
+        """
+        Plot all features in this minimum wavelength model on a scatter plot. Note that calling
+        this function will sort the features in this MWL instance by depth.
+
+        *Arguments*:
+         - f1 = the index of the first feature to plot (sorted by depth). Default is 0 (deepest feature).
+         - f2 = the index of the first feature to plot (sorted by depth). Default is 1.
+         - ax = a different axes to plot this figure on. Default is None (creates a new axis).
+        *Keywords*
+         - n = the number of classes to use for classification (see self.classify()),
+             or a list of class ids as returned by classify.
+         - cmap = the colour map to use (string). Default is 'tab10'.
+         - point_size = the size of the points to plot.
+         - point_alpha = the transparency of the points to plot.
+         - legend = True if a legend should be plotted. Default is True.
+        *Returns*:
+         - fig,ax = the figure that was plotted.
+        """
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(10, 5))
+        fig = ax.get_figure()
+
+        ax.set_title('Spectral feature summary')
+
+        # get feature information
+        self.sortByDepth()
+        p = self[:, 'pos']
+
+        # compute colours
+        n = kwds.get('n', 5)
+        if isinstance(n, int):
+            L, _ = self.classify(n)
+            n = L.X()
+        c = mpl.cm.get_cmap(kwds.get('cmap', 'tab10'))(n.ravel() / np.nanmax(n))
+
+        # draw biplot
+        ax.scatter(p[..., 0].ravel(), p[..., 1].ravel(), c=c, lw=0, s=kwds.get("point_size", 20),
+                   alpha=kwds.get("point_alpha", 0.5))  # plot
+
+        ax.set_title("Deepest feature bi-plot")
+        ax.set_xlabel("Deepest feature position (nm)")
+        ax.set_ylabel("Secondary feature position (nm)")
+
+        return fig, ax
+
+    def quick_plot(self, **kwds):
+        """
+        Plot an overview visualisation that is useful for QAQC of MWL mapping results.
+
+        *Keywords*:
+         - mode = the plotting mode. 'class' (default) plots a classification. 'resid' plots the average residuals.
+         - residual_clip = the (mn,mx) percentile colour stretch to apply to the residuals.
+         - n = the number of clusters do create during absorbtion-feature clustering, or a list with precalculated
+                    cluster labels.
+         - nf = the number of features to use for this clustering. Default is 2.
+         - offset = the vertical offset between spectra in the spectral summaries. Default is 0.25
+         - cmap = the colour map to use (string). Default is 'tab10'.
+         - point_size = the size of the points to plot.
+         - point_alpha = the transparency of the points to plot.
+         - legend = True if a legend should be plotted. Default is True.
+         - cam = a camera instance if the underlying dataset is a pointcloud. Default is 'ortho'.
+         - s = specify point size if the underlying dataset is a pointcloud. Default is 1.
+        *Returns*:
+         - fig,ax = the plot that was created.
+        """
+
+        # todo; write another function for single-feature maps?
+        assert self.n >= 2, "Error - quick_plot(...) can only be used for MWL instances with > 2 features."
+
+        fig = plt.figure(constrained_layout=True, figsize=kwds.get('figsize', (15, 10)))
+        gs = fig.add_gridspec(3, 2)
+        ax1 = fig.add_subplot(gs[0, :])
+        ax2a = fig.add_subplot(gs[1, 0])
+        ax2b = fig.add_subplot(gs[1, 1])
+        ax3a = fig.add_subplot(gs[2, 0])
+        ax3b = fig.add_subplot(gs[2, 1])
+
+        # compute residuals
+        E = self.residual()
+        mn, mx = np.nanpercentile(E.data, kwds.get("residual_clip", (2, 98)))
+
+        # compute clustering
+        n = kwds.get('n', 5)
+        if isinstance(n, int):  # compute clustering if need be
+            L, Cn = self.classify(n, kwds.get('nf', 2))
+            kwds['n'] = L.X().ravel()
+
+        # get colormap
+        cmap = mpl.cm.get_cmap(kwds.get('cmap', 'tab10'))
+
+        # plot overview image
+        ax1.set_xticks([])
+        ax1.set_yticks([])
+        if 'class' in kwds.get('mode', 'class') or 'biplot' in kwds.get('mode', 'class'):  # plot class
+            if isinstance(self.model, HyImage):
+                L.quick_plot(0, cmap=cmap, ax=ax1, vmin=0, vmax=np.nanmax(L.X()))  # plot
+            elif isinstance(self.model, HyCloud):
+                L.quick_plot(0, cam=kwds.get('cam', 'ortho'), s=kwds.get('s', 1), cmap=cmap,
+                             ax=ax1, vmin=0, vmax=np.nanmax(L.X()))
+            ax1.set_title("Classification")
+        elif 'resid' in kwds.get('mode', 'resid'):  # plot residual
+            if isinstance(self.model, HyImage):
+                E.quick_plot(0, cmap='gray', vmin=mn, vmax=mx, ax=ax1)
+            elif isinstance(self.model, HyCloud):
+                E.quick_plot(0, cam=kwds.get('cam', 'ortho'), s=kwds.get('s', 1),
+                             cmap='gray', vmin=mn, vmax=mx, ax=ax1)
+            ax1.set_title("Residuals")
+        else:
+            assert False, 'Error = %s is an unknown plotting mode.' % kwds['mode']
+
+        # position / depth plots
+        self.plot_features(ax=ax2a, **kwds)
+
+        # biplot
+        self.biplot(ax=ax2b, **kwds)
+
+        # biggest residual spectra
+        ax3a.set_title('Spectral fitting quality')
+        offs = 0
+        mm = self.evaluate()
+        for p, c, n in zip((50, 75, 95, 99), ['lightgreen', 'skyblue', 'orange', 'red'],
+                           ['typical', 'dodgy', 'bad', 'worst']):
+            t = np.nanpercentile(E.X(), p)
+            idx = np.argmin(np.abs(np.nan_to_num(E.X()[:, 0] - t, nan=np.inf)))
+            ax3a.plot(self.x, self.X.X()[idx, :] + offs, color=c, lw=2, label=n)
+            ax3a.plot(self.x, mm.X()[idx, :] + offs, color=c, ls=':')
+            offs += kwds.get('offset', 0.25)
+        ax3a.legend()
+        ax3a.set_xlabel("Wavelength (nm)")
+        ax3a.set_ylabel("Hull-corrected reflectance")
+
+        # plot cluster centroids
+        offs = 0
+        for i, idx in enumerate(Cn):
+            c = cmap((i + 1) / np.nanmax(L.X()))
+            if isinstance(self.model, HyImage):  # N.B doesn't work on clouds.
+                ax1.scatter(idx[0], idx[1], color=c, marker='o', edgecolors='k', lw=1)
+
+            # stack spectra and plot
+            y = self.X.data[idx]
+            ax3b.plot(self.x, y + offs, color=c, lw=1.7, label=n, alpha=0.8)
+            y = mm.data[idx]
+            ax3b.plot(self.x, y + offs, color=c, ls='--', alpha=0.8)
+
+            offs += kwds.get('offset', 0.25)
+
+        ax3b.set_title("Cluster centroids")
+        ax3b.set_xlabel("Wavelength (nm)")
+        ax3b.set_ylabel("Hull-corrected reflectance")
+
+        return fig, [ax1, ax2a, ax2b, ax3a, ax3b]
+
+    def plot_spectra(self, indices, ax=None, **kwds):
+        """
+        Plot the fitted features (and underlying data) for the specified indices.
+
+        *Arguments*:
+         - indices = a list containing the indices to plot.
+         - ax = a matplotlib axes to plot to, or None (default) to create a new one.
+
+        *Keywords*:
+         - offset = the vertical offset between successive spectra. Default is 0.25.
+        """
+
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(10, 5))
+        fig = ax.get_figure()
+        ax.set_title('Fitted spectra')
+        offs = 0
+
+        for i, idx in enumerate(indices):
+
+            # evaluate model and plot it
+            if np.issubdtype(type(idx), int):
+                y = 1 - evaluate(self.x, self.model[idx, :], self.sym)
+            else:
+                y = 1 - evaluate(self.x, self.model[idx[0], idx[1], :], self.sym)
+            ax.plot(self.x, y + offs, color=plt.cm.tab10(i), ls='--', lw=2, label='Spectra %s' % (str(idx)))
+
+            # plot data (if it is defined)
+            try:
+                if np.issubdtype(type(idx), int):
+                    y = self.X[idx, :]
+                else:
+                    y = self.X[idx[0], idx[1], :]
+                ax.plot(self.x, y + offs, color=plt.cm.tab10(i), lw=2, ls='-')
+            except:
+                continue
+
+            offs += kwds.get('offset', 0.25)
+        ax.legend()
+        ax.set_xlabel("Wavelength (nm)")
+
+        return fig, ax
+
+
 
 def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
                        sym=False, minima=True, k=4, nthreads=1, vb=True, **kwds):
@@ -252,18 +586,15 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
     *Returns*: A MWL (n>1) or HyData instance containing the minimum wavelength mapping results.
     """
 
-    # prepare data
-    idx0, idx1 = [data.get_band_index(b) for b in (minw, maxw)]
-    S = data.X()[:, idx0:idx1]
-
-    # remove invalid y-values
-    mask = np.isfinite(S).all(axis=-1)  # drop nans
-    mask = mask & (S != S[:, 0][:, None]).any(axis=1)  # drop flat spectra (e.g. all zeros)
-    X = S[mask]
-
-    # flip for maximum wavelength mapping if needed
-    if not minima:
-        X = -X
+    # get relevant bands and detrend
+    hc = data.export_bands((minw, maxw))
+    if not minima: # flip if need be
+        hc.data = -hc.data
+    if trend is not None:
+        if 'hull' in trend:
+            hc = get_hull_corrected(hc,vb=vb)
+        else:
+            assert False, "Error - %s is an unsupported detrending method." % trend
 
     # setup output
     if sym:
@@ -271,20 +602,19 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
     else:
         out = np.full((np.prod(data.data.shape[:-1]), n * 4), np.nan)
 
-    if mask.any():  # if no valid spectra, skip to end
+    # remove invalid y-values from input
+    S = hc.X()
+    mask = np.isfinite(S).all(axis=-1)  # drop nans
+    mask = mask & (S != S[:, 0][:, None]).any(axis=1)  # drop flat spectra (e.g. all zeros)
+    X = S[mask]
 
-        # detrend
-        if not trend is None:
-            if 'hull' in trend:
-                X = get_hull_corrected(X, method='div', vb=vb)
-            else:
-                assert False, "Error - %s is an unsupported detrending method." % trend
+    if mask.any():  # if no valid spectra, skip to end
 
         # flip hull corrected spectra as gfit only fits maxima
         X = 1 - X
 
         # get initial values
-        x = data.get_wavelengths()[idx0:idx1]
+        x = hc.get_wavelengths()
         x0 = initialise(x, X, n, sym=sym, d=k, nthreads=nthreads)  # get initial values [ minmax method ]
         if 'minmax' in method:
             out[mask, :] = x0  # just use x0 as output
@@ -295,13 +625,14 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
         else:
             assert False, "Error - %s is an unsupported fitting method." % method
 
-    # reshape output and add to HyData instance
+    # reshape outputs and add to HyData instance
     mwld = data.copy(data=False)
     mwld.data = out.reshape(data.data.shape[:-1] + (out.shape[-1],))
-    if n == 1:
-        return mwld # just return HyData instance; no need for multi-feature complexity
-    else:
-        return MWL(mwld, n, sym)
+
+    # setup mwl collection and return
+    mwl = MWL('M', '')
+    mwl.bind( mwld, n, x=hc.get_wavelengths(), sym=sym, X=hc )
+    return mwl
 
 class mwl_legend(object):
     """

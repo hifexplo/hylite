@@ -39,8 +39,8 @@ class HyScene( HyCollection ):
          - name = the name to use for the HyCollection in the file dictionary. If None (default) then this instance's
                   name will be used, but this can be overriden for e.g. saving in a new location.
         """
-
-        p = os.path.splitext( HyCollection._getDirectory(self, root, name) )[0]
+        p = os.path.splitext( super()._getDirectory(root,name) )[0]
+        print(p)
         return p + ".hys"
 
     def construct(self, image, cloud, camera, s=1, occ_tol = 10, maxf=0, bf=True, vb = True, **kwds):

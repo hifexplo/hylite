@@ -9,11 +9,10 @@ from .clouds import *
 from .libraries import *
 from .pmaps import *
 from .cameras import saveCameraTXT, loadCameraTXT
-from .mwl import saveMultiMWL, loadMultiMWL
 
 from hylite import HyImage, HyCloud, HyLibrary, HyCollection, HyScene, HyData
 from hylite.project import PMap, Camera, Pushbroom
-
+from hylite.analyse.mwl import MWL
 import shutil
 
 def save(path, data, **kwds):
@@ -74,13 +73,11 @@ def save(path, data, **kwds):
         ext = 'hyc'
         if isinstance(data, HyScene): # special type of HyCollection, should have different extension
             ext = 'hys'
+        if isinstance(data, MWL): # special type of HyCollection, should have different extension
+            ext = 'mwl'
         if os.path.splitext(path)[0]+"."+ext != data._getDirectory(): # we're moving to a new home! Copy folder
             if os.path.exists(data._getDirectory()): # if it exists...
                 shutil.copytree( data._getDirectory(), os.path.splitext(path)[0]+"."+ext)
-    elif isinstance(data, list) and np.array( [isinstance(d, HyData) ] for d in data ).all(): # save multiMWL
-        # add flag to header stating that this is a multimwl file
-        ext = 'hdr'
-        save_func = saveMultiMWL
     elif isinstance(data, np.ndarray):
         save_func = np.save
         ext = 'npy'
@@ -118,16 +115,10 @@ def load(path):
 
     # file (should/could) have header - look for it
     header, data = matchHeader( path )
-    assert os.path.exists(data), "Error - file %s does not exist." % data
+    assert os.path.exists(data), "Error - data file %s does not exist." % path
     ext = os.path.splitext(data)[1].lower()
     if ext == '':
         assert os.path.isfile(data), "Error - %s is a directory not a file." % data
-
-    # load header and check if this is a multiMWL file
-    multiMWL = False
-    if header is not None:
-        header = loadHeader(header)
-        multiMWL = 'true' in header.get('multimwl', 'false' ).lower()
 
     # load other file types
     if 'ply' in ext: # point or hypercloud
@@ -140,7 +131,7 @@ def load(path):
         out = loadLibrarySED(path)
     elif 'tsg' in ext: # spectral library
         out = loadLibraryTSG(path)
-    elif 'hyc' in ext or 'hys' in ext: # load hylite collection or hyscene
+    elif 'hyc' in ext or 'hys' in ext or 'mwl' in ext: # load hylite collection, hyscene or mwl map
         out = loadCollection(path)
     elif 'cam' in ext or 'brm' in ext: # load pushbroom and normal cameras
         out = loadCameraTXT(path)
@@ -156,10 +147,6 @@ def load(path):
                 out = loadWithGDAL(path)
             except ModuleNotFoundError: # no gdal, use SPy
                 out = loadWithSPy(path)
-
-    # check if this is a multimwl file that needs to be split
-    if multiMWL:
-        out = loadMultiMWL(out)  # split multimwl
 
     return out  # return dataset
 
@@ -188,6 +175,8 @@ def loadCollection(path):
         C = HyCollection(name, root, header=loadHeader(header))
     elif 'hys' in os.path.splitext(directory)[1]:
         C = HyScene(name, root, header=loadHeader(header))
+    elif 'mwl' in os.path.splitext(directory)[1]:
+        C = MWL(name, root, header=loadHeader(header))
     else:
         print(header, directory )
         assert False, "Error - %s is an invalid collection." % directory

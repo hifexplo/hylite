@@ -202,13 +202,21 @@ class HyCollection(object):
         assert root is not None, "Error - root argument must be set during HyCollection initialisation or function call."
         assert name is not None, "Error - name argument must be set during HyCollection initialisation or function call."
 
-        return os.path.join(root, name + ".hyc")
+        return os.path.join(root, os.path.splitext(name)[0] + ".hyc")
 
     def getAttributes(self):
         """
         Return a list of available attributes in this HyCollection.
         """
-        return list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root', 'name']))
+        # get potential attributes
+        attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root', 'name']))
+
+        # loop through and remove all functions
+        out = []
+        for a in attr:
+            if not type(super().__getattribute__(a)) == type(self.getAttributes): # ignore methods
+                out.append(a)
+        return out
 
     def print(self):
         """
