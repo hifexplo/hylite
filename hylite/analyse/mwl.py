@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib
 from hylite.correct.detrend import get_hull_corrected
 from gfit import initialise, gfit,evaluate
-from hylite import HyCollection, HyCloud, HyImage
+from hylite import HyCollection, HyCloud, HyImage, HyData
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -273,7 +273,7 @@ class MWL(HyCollection):
         out.data = np.sum(np.abs(self.X.data - self.evaluate().data), axis=-1)[..., None]
         return out
 
-    def classify(self, n, nf=2):
+    def classify(self, n, nf=2, step=1):
         """
         Identify clusters in feature position space to classify this MWL map.
         This uses the hierarchichal method scipy.cluster.hierarchy.fclusterdata.
@@ -283,9 +283,9 @@ class MWL(HyCollection):
         *Arguments*:
          - n = the number of classes to use.
          - nf = the number of feature positions to use. Default is 2. Must not exceed the number of features fitted.
-
+         - step = the step to subsample points (used to avoid really slow plotting). Computes on all points by default.
         *Returns*:
-         - labels =  a HyData instance containing integer class labels in band 0.
+         - labels =  a HyData instance (or numpy array if step > 1) containing integer class labels in band 0.
          - centroids = a list containing the index of each class centroid (in the dataset).
         """
 
@@ -293,19 +293,34 @@ class MWL(HyCollection):
         import scipy.cluster.hierarchy as shc
         X = self[:, 'pos'][..., 0:nf]
 
+        # subsample?
+        if step > 1:
+            X = X.reshape((-1, X.shape[-1]))[::step, :]
+
         # remove nans
         mask = np.isfinite(X).all(axis=-1)
         X = X[mask, :]
 
-        L = shc.fclusterdata(X, n, criterion='maxclust', method='ward')  # class labels
-        C = [np.median(X[L == i, :], axis=0) for i in range(1, n + 1)]  # class centroids
-        Cn = [np.unravel_index(np.argmin(np.linalg.norm(X - c, axis=1)), self[:, 'pos'].shape[:-1]) for c in
-              C]  # center pixels
+        # step is 1:
+        if step <= 1:
+            L = shc.fclusterdata(X, n, criterion='maxclust', method='ward')  # class labels
+            C = [np.median(X[L == i, :], axis=0) for i in range(1, n + 1)]  # class centroids
+            Cn = [np.unravel_index(np.argmin(np.linalg.norm(X - c, axis=1)), self[:, 'pos'].shape[:-1]) for c in
+                  C]  # center pixels
 
-        out = self.model.copy(data=False)
-        out.data = np.full(self[:, 'pos'].shape[:-1] + (1,), np.nan)
-        out.data[mask, 0] = L
-        return out, Cn
+            out = self.model.copy(data=False)
+            out.data = np.full(self[:, 'pos'].shape[:-1] + (1,), np.nan)
+            out.data[mask, 0] = L
+            return out, Cn
+        else:
+            L = shc.fclusterdata(X, n, criterion='maxclust', method='ward')  # class labels
+            C = [np.median(X[L == i, :], axis=0) for i in range(1, n + 1)]  # class centroids
+            Cn = [np.unravel_index(np.argmin(np.linalg.norm(X - c, axis=1)), self[:, 'pos'].shape[:-1]) for c in
+                  C]  # center pixels
+
+            out = np.full(mask.shape[0], np.nan)
+            out[mask] = L
+            return out, Cn
 
 
     ####################################
@@ -318,6 +333,7 @@ class MWL(HyCollection):
         *Arguments*:
          - ax = a different axes to plot this figure on. Default is None (creates a new axis).
         *Keywords*
+        - step = the step to subsample points (to avoid really slow plotting). Defaults to a step that gives 1000 points.
          - n = the number of classes to use for classification (see self.classify()),
              or a list of class ids as returned by classify.
          - cmap = the colour map to use (string). Default is 'tab10'.
@@ -339,11 +355,19 @@ class MWL(HyCollection):
         p = self[:, 'pos']
         d = self[:, 'depth']
 
+        # compute step
+        step = int(kwds.get("step", np.prod(p.shape[:-1]) / 5000.))
+        step = max(step, 1)  # step cannot be < 1
+
         # compute colours
         n = kwds.get('n', 5)
         if isinstance(n, int):
-            L, _ = self.classify(n)
-            n = L.X()
+            L, _ = self.classify(n, step=step)  # self.classify(n, step=step)
+            if step == 1:
+                n = L.X()
+            else:
+                n = L
+
         c = mpl.cm.get_cmap(kwds.get('cmap', 'tab10'))(n.ravel() / np.nanmax(n))
 
         for i, f in enumerate(range(self.n)):
@@ -351,7 +375,7 @@ class MWL(HyCollection):
                 i = -1
             ax.scatter(p[..., f].ravel()[0], d[..., f].ravel()[0], c='k', marker=symbols[i],
                        label='%s' % names[i], zorder=-1)  # plot single point for legend
-            ax.scatter(p[..., f].ravel(), d[..., f].ravel(), c=c,
+            ax.scatter(p[..., f].ravel()[::step], d[..., f].ravel()[::step], c=c,
                        marker=symbols[i],
                        s=kwds.get("point_size", 20), alpha=kwds.get("point_alpha", 0.5), lw=0)
 
@@ -373,6 +397,7 @@ class MWL(HyCollection):
          - f2 = the index of the first feature to plot (sorted by depth). Default is 1.
          - ax = a different axes to plot this figure on. Default is None (creates a new axis).
         *Keywords*
+         - step = the step to subsample points (to avoid really slow plotting). Defaults to a step that gives 1000 points.
          - n = the number of classes to use for classification (see self.classify()),
              or a list of class ids as returned by classify.
          - cmap = the colour map to use (string). Default is 'tab10'.
@@ -392,15 +417,23 @@ class MWL(HyCollection):
         self.sortByDepth()
         p = self[:, 'pos']
 
+        # compute step
+        step = int(kwds.get("step", np.prod(p.shape[:-1]) / 5000.))
+        step = max(step, 1)  # step cannot be < 1
+
         # compute colours
         n = kwds.get('n', 5)
         if isinstance(n, int):
-            L, _ = self.classify(n)
-            n = L.X()
+            L, _ = self.classify(n, step=step)  # self.classify(n, step=step)
+            if step == 1:
+                n = L.X()
+            else:
+                n = L
+
         c = mpl.cm.get_cmap(kwds.get('cmap', 'tab10'))(n.ravel() / np.nanmax(n))
 
         # draw biplot
-        ax.scatter(p[..., 0].ravel(), p[..., 1].ravel(), c=c, lw=0, s=kwds.get("point_size", 20),
+        ax.scatter(p[..., 0].ravel()[::step], p[..., 1].ravel()[::step], c=c, lw=0, s=kwds.get("point_size", 20),
                    alpha=kwds.get("point_alpha", 0.5))  # plot
 
         ax.set_title("Deepest feature bi-plot")
@@ -414,7 +447,11 @@ class MWL(HyCollection):
         Plot an overview visualisation that is useful for QAQC of MWL mapping results.
 
         *Keywords*:
-         - mode = the plotting mode. 'class' (default) plots a classification. 'resid' plots the average residuals.
+         - image = the image preview to plot. Can be a HyData instance, or 'resid' (default) to plots the average residuals,
+                   or 'class' to a classification [slow!].
+         - bands = the bands of image to plot (if image is provided).
+         - vmin = the vmin value for plotting 'image' (if image is provided).
+         - vmax = the vmax value for plotting 'image' (if image is provided).
          - residual_clip = the (mn,mx) percentile colour stretch to apply to the residuals.
          - n = the number of clusters do create during absorbtion-feature clustering, or a list with precalculated
                     cluster labels.
@@ -445,11 +482,24 @@ class MWL(HyCollection):
         E = self.residual()
         mn, mx = np.nanpercentile(E.data, kwds.get("residual_clip", (2, 98)))
 
-        # compute clustering
+        # compute step
+        step = int(kwds.get("step", np.prod(self.model.data.shape[:-1]) / 5000.))
+        step = max(step, 1)  # step cannot be < 1
+        if isinstance(kwds.get('image','resid'), str) and 'class' in kwds.get('image', 'resid'):
+            step = 1 # step must be one if we want to plot the classification
+        kwds["step"] = step  # store for later functions
+
+        # do clustering
         n = kwds.get('n', 5)
-        if isinstance(n, int):  # compute clustering if need be
-            L, Cn = self.classify(n, kwds.get('nf', 2))
-            kwds['n'] = L.X().ravel()
+        if isinstance(n, int):
+            if step == 1: # compute full clustering... (slow)
+                if E.X().shape[0] > 5000: # warn about speed
+                    print("Computing clusters... this can be slow.")
+                L, Cn = self.classify(n, kwds.get('nf', 2))
+                kwds['n'] = L.X().ravel()
+            else:
+                L, Cn = self.classify(n, kwds.get('nf', 2), step=step)
+                kwds['n'] = L.ravel()
 
         # get colormap
         cmap = mpl.cm.get_cmap(kwds.get('cmap', 'tab10'))
@@ -457,14 +507,25 @@ class MWL(HyCollection):
         # plot overview image
         ax1.set_xticks([])
         ax1.set_yticks([])
-        if 'class' in kwds.get('mode', 'class') or 'biplot' in kwds.get('mode', 'class'):  # plot class
+        image = kwds.get('image', 'resid')
+        if isinstance(image, HyData): # image has been provided
+            bands = kwds.get('bands', (0,1,2))
+            vmin = kwds.get('vmin', 0)
+            vmax = kwds.get('vmax', 99)
+            if isinstance(image, HyImage):
+                image.quick_plot(bands, ax=ax1, vmin=vmin, vmax=vmax)  # plot
+            elif isinstance(image, HyCloud):
+                image.quick_plot(bands, cam=kwds.get('cam', 'ortho'), s=kwds.get('s', 1),
+                             ax=ax1, vmin=vmin, vmax=vmax)
+        elif 'class' in image:  # plot classification
+            assert step == 1, "Error - to plot classification, step must = 1."
             if isinstance(self.model, HyImage):
-                L.quick_plot(0, cmap=cmap, ax=ax1, vmin=0, vmax=np.nanmax(L.X()))  # plot
+                L.quick_plot(0, cmap=cmap, ax=ax1, vmin=0, vmax=np.nanmax(kwds['n']))  # plot
             elif isinstance(self.model, HyCloud):
                 L.quick_plot(0, cam=kwds.get('cam', 'ortho'), s=kwds.get('s', 1), cmap=cmap,
-                             ax=ax1, vmin=0, vmax=np.nanmax(L.X()))
+                             ax=ax1, vmin=0, vmax=np.nanmax(kwds['n']))
             ax1.set_title("Classification")
-        elif 'resid' in kwds.get('mode', 'resid'):  # plot residual
+        elif 'resid' in image:  # plot residuals
             if isinstance(self.model, HyImage):
                 E.quick_plot(0, cmap='gray', vmin=mn, vmax=mx, ax=ax1)
             elif isinstance(self.model, HyCloud):
@@ -472,7 +533,7 @@ class MWL(HyCollection):
                              cmap='gray', vmin=mn, vmax=mx, ax=ax1)
             ax1.set_title("Residuals")
         else:
-            assert False, 'Error = %s is an unknown plotting mode.' % kwds['mode']
+            assert False, 'Error = %s is an unknown image type.' % image
 
         # position / depth plots
         self.plot_features(ax=ax2a, **kwds)
@@ -498,7 +559,7 @@ class MWL(HyCollection):
         # plot cluster centroids
         offs = 0
         for i, idx in enumerate(Cn):
-            c = cmap((i + 1) / np.nanmax(L.X()))
+            c = cmap((i + 1) / np.nanmax(kwds['n']))
             if isinstance(self.model, HyImage):  # N.B doesn't work on clouds.
                 ax1.scatter(idx[0], idx[1], color=c, marker='o', edgecolors='k', lw=1)
 
@@ -523,9 +584,9 @@ class MWL(HyCollection):
         *Arguments*:
          - indices = a list containing the indices to plot.
          - ax = a matplotlib axes to plot to, or None (default) to create a new one.
-
         *Keywords*:
          - offset = the vertical offset between successive spectra. Default is 0.25.
+         - leg = True if a legend should be plotted. Default is True.
         """
 
         if ax is None:
@@ -554,12 +615,11 @@ class MWL(HyCollection):
                 continue
 
             offs += kwds.get('offset', 0.25)
-        ax.legend()
+
+        if kwds.get('leg', True):
+            ax.legend()
         ax.set_xlabel("Wavelength (nm)")
-
         return fig, ax
-
-
 
 def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
                        sym=False, minima=True, k=4, nthreads=1, vb=True, **kwds):

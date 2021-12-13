@@ -2,8 +2,31 @@ import unittest
 import numpy as np
 from tests import genCloud, genImage
 from hylite.project import Camera
-
+from hylite.project.basic import proj_persp, rasterize, proj_ortho, proj_pano
+import os
+from pathlib import Path
+from hylite import io
 class TestHyCloud(unittest.TestCase):
+
+    def test_projection(self):
+        # load point cloud
+        cloud = io.load( os.path.join(str(Path(__file__).parent.parent), "test_data/hypercloud.hdr") )
+        cam = cloud.header.get_camera(0)
+
+        # project perspective
+        pp, viz = proj_persp( cloud.xyz, cam.pos, cam.ori, cam.fov, cam.dims )
+        self.assertTrue(viz.all())
+
+        R,zz = rasterize( pp, viz, cloud.rgb, cam.dims, s=2 )
+        self.assertTrue( np.isfinite(zz).any() )
+        self.assertTrue( np.isfinite(R).any() )
+        # test rendering
+        #import matplotlib.pyplot as plt
+        #plt.imshow(np.isfinite(zz), vmin=0, vmax=1)
+        #plt.savefig('/Users/thiele67/Documents/tests/proj.png')
+        #plt.show()
+
+
     def test_cloud(self):
 
         cloud = genCloud(npoints = 1000, nbands=10)

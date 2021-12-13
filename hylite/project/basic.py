@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import spatial
+from numba import jit, prange
 import cv2
 
 def proj_persp( xyz, C, a, fov, dims, normals=None):
@@ -121,6 +122,39 @@ def proj_ortho( xyz, C, V, s=1.0 ):
     xyz -= (V[None, :] * pz[:, None])  # project onto plane (by removing depth)
     return s*np.array([ xyz[:,0], xyz[:,1], pz]).T, pz > 0
 
+@jit(nopython=True)
+def _rast( points, s, dims, vals  ):
+    """
+    Fast loop function for rasterise.
+    """
+    # create image arrays
+    out = np.full((dims[0], dims[1], vals.shape[1]), np.nan)
+    depth = np.full((dims[0], dims[1]), np.inf)
+
+    for i in range(points.shape[0]):
+        x = int(points[i,0]) # cast point to integer
+        y = int(points[i,1])
+        z = points[i,2]
+
+        # double check point in the image
+        if x < 0 or x >= dims[0] or y < 0 or y > dims[1]:
+            continue  # skip
+
+        if z < depth[x, y]:  # in front of depth buffer?
+            for dx in np.arange(-s+1,s):
+                for dy in np.arange(-s+1,s):
+                    _x = x+dx
+                    _y = y+dy
+                    if _x < 0: continue # skip invalid
+                    if _y < 0: continue
+                    if _x >= dims[0]: continue
+                    if _y >= dims[1]: continue
+                    out[ _x, _y, : ] = vals[i]
+                    depth[ _x, _y ] = z
+
+    return out, depth
+
+
 def rasterize(points, vis, vals, dims, s=1):
     """
     Rasterizes projected points onto an image grid.
@@ -150,32 +184,29 @@ def rasterize(points, vis, vals, dims, s=1):
     if len(np.array(vals).shape) == 1:
         vals = vals[None, :].T
 
-    # create image arrays
-    out = np.full((dims[0], dims[1], vals.shape[1]), np.nan)
-    depth = np.full((dims[0], dims[1]), np.inf)
-
     # cull invisible points
-    points = points[vis, :]
-    vals = vals[vis, :]
+    points = np.array(points[vis, :], dtype=float)
+    vals = np.array(vals[vis, :], dtype=float)
 
     # loop through points
     assert points.shape[1] == 3, "Error - points array should have shape (N,3)."
     assert isinstance(s, int), "Error - size (s) must be an integer."
-    if s > 0: s -= 1 #reduce s by one due to how numpy does indexing.
-    for i, p in enumerate(points):
-        x = int(p[0])
-        y = int(p[1])
-        z = p[2]
+    if s < 1: s = 1 # s must be at least 1.
+    return _rast(points, int(s), dims, vals ) # call compiled loop with numba
 
-        # double check point in the image
-        if x < 0 or x >= dims[0] or y < 0 or y > dims[1]:
-            continue  # skip
+    #for i, p in enumerate(points):
+    #    x = int(p[0])
+    #    y = int(p[1])
+    #    z = p[2]
+    #
+    #    # double check point in the image
+    #    if x < 0 or x >= dims[0] or y < 0 or y > dims[1]:
+    #        continue  # skip
+    #
+    #    if z < depth[x, y]:  # in front of depth buffer?
+    #        out[(x - s):(x + s + 1), (y - s):(y + s + 1), :] = vals[None, None, i]
+    #        depth[(x - s):(x + s + 1), (y - s):(y + s + 1)] = z
 
-        if z < depth[x, y]:  # in front of depth buffer?
-            out[(x - s):(x + s + 1), (y - s):(y + s + 1), :] = vals[None, None, i]
-            depth[(x - s):(x + s + 1), (y - s):(y + s + 1)] = z
-
-    return out, depth
 
 def pix_to_ray_persp(x, y, fov, dims):
     """

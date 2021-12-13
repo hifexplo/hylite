@@ -37,15 +37,14 @@ def polynomial(data, degree = 1, method='div'):
 def get_hull_corrected(data, band_range=None, method='div', smooth=0, vb=True):
     """
     Apply a hull correction to an entire HyData instance (HyImage, HyCloud or HyLibrary). Returns a corrected copy of
-    the input dataset.
+    the input dataset. Note that noise can greatly effect hull corrections, so you should consider denoising first (see
+    HyData.smooth_median(...) and HyData.smooth_savgol(...).
 
     *Arguments*:
      - data = a numpy array or HyData instance to detrend.
      - band_range = Tuple containing the (min,max) band indices or wavelengths to run the correction between. If None
                      (default) then the correction is run of the entire range. Only works if data is a HyData instance.
      - method = Trend removal method: 'divide' or 'subtract'. Default is 'divide'.
-     - smooth = the window size of a smoothing median-filter to apply before extracting the hull. Note that this can allow
-                hull corrected values to be > 1. Default is 0 (no smoothing). Todo - implement this!
      - vb = True if this should print output.
     """
 
