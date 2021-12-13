@@ -29,6 +29,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_mwl(self):
         image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+        image.data[:50,:,:] = np.nan # add some nans to make more realistic
         cloud = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
         for D in [image,cloud]:
             # test normal mwl
@@ -81,6 +82,7 @@ class MyTestCase(unittest.TestCase):
 
             # run plotting code
             fig,ax = M1.quick_plot()
+            fig, ax = M1.quick_plot(step=3)
 
     def testIO(self):
         image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))

@@ -292,35 +292,32 @@ class MWL(HyCollection):
         assert nf <= self.n, "Error - MWL map has only %d features (<%d)." % (self.n, nf)
         import scipy.cluster.hierarchy as shc
         X = self[:, 'pos'][..., 0:nf]
+        idx = np.array(np.meshgrid(*[np.arange(i) for i in self.X.data.shape[:-1]])).T
 
-        # subsample?
-        if step > 1:
-            X = X.reshape((-1, X.shape[-1]))[::step, :]
-
-        # remove nans
-        mask = np.isfinite(X).all(axis=-1)
+        # generate mask that subsamples and removes nans
+        mask = np.full(X.shape[:-1], False)
+        mask.ravel()[::step] = True  # subsample
+        mask = mask & np.isfinite(X).all(axis=-1)  # remove nans
         X = X[mask, :]
+        idx = idx[mask, :]
 
-        # step is 1:
-        if step <= 1:
-            L = shc.fclusterdata(X, n, criterion='maxclust', method='ward')  # class labels
-            C = [np.median(X[L == i, :], axis=0) for i in range(1, n + 1)]  # class centroids
-            Cn = [np.unravel_index(np.argmin(np.linalg.norm(X - c, axis=1)), self[:, 'pos'].shape[:-1]) for c in
-                  C]  # center pixels
+        # do clustering and get class centroids (in MWL space)
+        L = shc.fclusterdata(X, n, criterion='maxclust', method='ward')
+        C = np.array([np.median(X[L == i, :], axis=0) for i in range(1, n + 1)])
 
+        # get index of centroids
+        Cn = np.array([idx[np.argmin(np.linalg.norm(X - c, axis=1)), :] for c in C])  # center indices
+
+        # return results
+        if step == 1:
             out = self.model.copy(data=False)
             out.data = np.full(self[:, 'pos'].shape[:-1] + (1,), np.nan)
             out.data[mask, 0] = L
-            return out, Cn
         else:
-            L = shc.fclusterdata(X, n, criterion='maxclust', method='ward')  # class labels
-            C = [np.median(X[L == i, :], axis=0) for i in range(1, n + 1)]  # class centroids
-            Cn = [np.unravel_index(np.argmin(np.linalg.norm(X - c, axis=1)), self[:, 'pos'].shape[:-1]) for c in
-                  C]  # center pixels
-
-            out = np.full(mask.shape[0], np.nan)
+            out = np.full( mask.shape, np.nan )
             out[mask] = L
-            return out, Cn
+
+        return out, Cn
 
 
     ####################################
@@ -375,7 +372,8 @@ class MWL(HyCollection):
                 i = -1
             ax.scatter(p[..., f].ravel()[0], d[..., f].ravel()[0], c='k', marker=symbols[i],
                        label='%s' % names[i], zorder=-1)  # plot single point for legend
-            ax.scatter(p[..., f].ravel()[::step], d[..., f].ravel()[::step], c=c,
+            #print(c.shape, n.shape, n.ravel().shape, '   ', p[...,f].ravel().shape, p[...,f].ravel()[::step].shape)
+            ax.scatter(p[..., f].ravel()[::step], d[..., f].ravel()[::step], c=c[::step],
                        marker=symbols[i],
                        s=kwds.get("point_size", 20), alpha=kwds.get("point_alpha", 0.5), lw=0)
 
@@ -433,7 +431,7 @@ class MWL(HyCollection):
         c = mpl.cm.get_cmap(kwds.get('cmap', 'tab10'))(n.ravel() / np.nanmax(n))
 
         # draw biplot
-        ax.scatter(p[..., 0].ravel()[::step], p[..., 1].ravel()[::step], c=c, lw=0, s=kwds.get("point_size", 20),
+        ax.scatter(p[..., 0].ravel()[::step], p[..., 1].ravel()[::step], c=c[::step], lw=0, s=kwds.get("point_size", 20),
                    alpha=kwds.get("point_alpha", 0.5))  # plot
 
         ax.set_title("Deepest feature bi-plot")
@@ -560,13 +558,15 @@ class MWL(HyCollection):
         offs = 0
         for i, idx in enumerate(Cn):
             c = cmap((i + 1) / np.nanmax(kwds['n']))
-            if isinstance(self.model, HyImage):  # N.B doesn't work on clouds.
+
+            # plot spectra on main image?
+            if isinstance(self.model, HyImage):
                 ax1.scatter(idx[0], idx[1], color=c, marker='o', edgecolors='k', lw=1)
 
             # stack spectra and plot
-            y = self.X.data[idx]
-            ax3b.plot(self.x, y + offs, color=c, lw=1.7, label=n, alpha=0.8)
-            y = mm.data[idx]
+            y = self.X.data[ tuple(idx) ]
+            ax3b.plot(self.x, y+offs, color=c, lw=1.7, label=n, alpha=0.8)
+            y = mm.data[ tuple(idx)]
             ax3b.plot(self.x, y + offs, color=c, ls='--', alpha=0.8)
 
             offs += kwds.get('offset', 0.25)
