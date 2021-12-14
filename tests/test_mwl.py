@@ -73,7 +73,7 @@ class MyTestCase(unittest.TestCase):
             rgb, leg = colourise_mwl( M.closest(2200., valid_range=(2150., 2230.) ) )
 
             # test multithreading (again; just see if it runs for now )
-            M1 = minimum_wavelength( D, minw=2100., maxw=2400., sym=False, method='gauss',n=3, vb=True, nthreads=-1, xtol=0.1, ftol=0.1)
+            M1 = minimum_wavelength( D, minw=2100., maxw=2400., sym=True, method='gauss',n=3, vb=True, nthreads=-1, xtol=0.1, ftol=0.1)
 
             # run some other fun functions
             ev = M1.evaluate()

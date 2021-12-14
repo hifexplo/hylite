@@ -258,7 +258,7 @@ class MWL(HyCollection):
          - A HyData instance containing the estimated spectra based on the fitted features.
         """
         out = self.model.copy(data=False)
-        out.data = 1. - evaluate(self.x, self.model.data)
+        out.data = 1. - evaluate(self.x, self.model.data, sym=self.sym)
         out.set_wavelengths(self.x)
         return out
 
@@ -434,7 +434,7 @@ class MWL(HyCollection):
         ax.scatter(p[..., 0].ravel()[::step], p[..., 1].ravel()[::step], c=c[::step], lw=0, s=kwds.get("point_size", 20),
                    alpha=kwds.get("point_alpha", 0.5))  # plot
 
-        ax.set_title("Deepest feature bi-plot")
+        ax.set_title("Deepest feature biplot")
         ax.set_xlabel("Deepest feature position (nm)")
         ax.set_ylabel("Secondary feature position (nm)")
 
