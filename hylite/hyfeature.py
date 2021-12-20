@@ -58,11 +58,10 @@ class HyFeature(object):
     ######################
     ## Feature models
     ######################
-
     @classmethod
-    def multi_gauss(cls, x, pos, width, depth, asym=None, offset=1.0):
+    def gaussian(cls, _x, pos, width, depth):
         """
-        Static function for evaluating a multi-gaussian feature model
+        Static function for evaluating a gaussian feature model
 
         *Arguments*:
          - x = wavelengths (nanometres) to evaluate the feature over
@@ -71,177 +70,26 @@ class HyFeature(object):
          - depth = a list of depths for each individual gaussian function (max to min)
          - offset = the vertical offset of the functions. Default is 1.0.
         """
-        if asym is None:
-            asym = np.ones( len(width) )
-        y = evaluate( x, np.array(depth), np.array(pos), np.array(width), np.array(asym) * np.array(width), sym=False )
-        return 1 - y
-
-    ############################
-    ## Feature fitting
-    ############################
-
+        return 1 - depth * np.exp( -(_x - pos)**2 / width )
 
     @classmethod
-    def fit(cls, wav, refl, method='gauss', n=1, vb=True, ftol=1e-4, order=3):
+    def multi_gauss(cls, x, pos, width, depth, asym=None):
         """
-        Fit a hyperspectral feature(s) to a (detrended) spectra.
+        Static function for evaluating a multi-gaussian feature model
 
         *Arguments*:
-         - wav = the wavelength of the spectral subset to fit to.
-         - refl = the reflectance spectra to fit to.
-         - method = the spectra type to fit. Options are: 'minmax' (quick but rough), 'lorentz' or 'gauss'.
-         - n = the number of features to fit. Default is 1.
-         - verbose = True if a progress bar should be created when fitting to multiple spectra (as this can be slow).
-         - ftol = the stopping criterion for the least squares optimization. Default is 1e-4.
-         - order = the order of local minima detection. Default is 3. Smaller numbers return smaller local minima but are more
-                   sensitive to noise.
-        *Returns*: a HyData, or list of HyData instances (n>1) describing each features:
-         - pos = the optimised feature position ( number or array depending on shape of refl)
-         - width = the optimised feature width
-         - depth = the optimised feature depth
-         - strength = the feature strength (reduction in variance compared to no feature)
+         - x = wavelengths (nanometres) to evaluate the feature over
+         - pos = a list of positions for each individual gaussian function (nanometres)
+         - width = a list of widths for each individual gaussian function.
+         - depth = a list of depths for each individual gaussian function (max to min)
+         - asym = a list of feature asymmetries. The right-hand width will be calculated as:
+                         w2 = asym * width. Default is 1.0.
         """
-
-        # get list of spectra and check it is the correct shape
-        X = np.array(refl)
-        if len(X.shape) == 1:
-            vb = False
-            X = X[None, :]
-
-        assert len(X.shape) == 2, "Error - refl must be an Nxm array of N spectra over m wavelenghts."
-        assert X.shape[1] == len(wav), "Error - inconsistent lengths; reflectance data must match provided wavelengths."
-        assert np.isfinite(X).all(), "Error - input spectra contain nans"
-        X /= max(1.0, np.max(X))  # ensure max of refl is 1
-
-        # calculate initial guesses
-        if n == 1:
-            idx = np.argmin(X, axis=1)
-            pos = wav[idx]
-            depth = 1.0 - X[range(X.shape[0]), idx]
-            width = 0.5 * (wav[-1] - wav[0])  # TODO; is there a better way to estimate width?
-            X0 = np.vstack([pos, [width] * len(pos), depth, depth]).T
-        else:
-            idx, minima = argrelmin( X, axis=1, order=order ) # get all local minima
-            width = 0.5 * (wav[-1] - wav[0])  # TODO; is there a better way to estimate width?
-            midp =  int( len(wav) / 2 ) # index of middle of search domain (used as default for pos).
-            X0 = np.zeros( (X.shape[0], 3*n + 1) )
-            loop = range(X.shape[0])
-            if vb: loop = tqdm(loop, desc="Extracting local minima", leave=False)
-            for i in loop:
-
-                # get indices of local minima
-                _idx = minima[ idx==i ]
-                if _idx.shape[0] == 0:
-                    continue # no minima
-                if _idx.shape[0] < n: # ensure we have an index for each feature we want to fit
-                    _idx = np.hstack([_idx,[midp] * (n-len(_idx))])
-
-                # get depths
-                d = 1 - X[i, _idx]
-
-                # too many features?
-                if _idx.shape[0] > n:
-                    srt = np.argsort(d)[::-1][0:n] # keep deepest features
-                    d = d[ srt ]
-                    _idx = _idx[ srt ]
-
-                # sort by depth
-                #srt = np.argsort(d)[::-1]
-                #d = d[srt]
-                #_idx = _idx[srt]
-
-                # get position and build width prior
-                p = wav[ _idx ]
-                w = [ width ] * _idx.shape[0]
-
-                # store
-                X0[i] = np.hstack( [p,w,d,0] )
-
-        # quick and dirty and done already!
-        if 'minmax' in method.lower():
-            out = X0
-
-        else:  # loop through all spectra (sloooooooow!)
-            X0 = X0[:,:-1] # drop last value (faked strengths) from X0
-            # choose model and associated optimisation function
-            if 'lorentz' in method.lower():
-                if n == 1:
-                    fmod = cls.lorentzian
-                    lsq = cls._lsq
-                else:
-                    fmod = cls.multi_lorentz
-                    lsq = cls._lsq_multi
-            elif 'gauss' in method.lower():
-                if n == 1:
-                    fmod = cls.gaussian
-                    lsq = cls._lsq
-                else:
-                    fmod = cls.multi_gauss
-                    lsq = cls._lsq_multi
-            else:
-                assert False, "Error: %s is an unknown method" % method
-
-            # calculate bounds constraints
-            if n == 1:
-                mn = [wav[0] - 1, (wav[1] - wav[0]) * 5, 0]  # min pos, width, depth
-                mx = [wav[-1] + 1, (wav[-1] - wav[0]) * 2, 1]  # max pos, width, depth
-            else:
-                mn = np.array([wav[0] - 1] * n + [(wav[1] - wav[0]) * 5] * n + [0] * n) # min pos, width, depth
-                mx = np.array([wav[-1] + 1] * n  + [(wav[-1] - wav[0]) * 2] * n + [1] * n ) # max pos, width, depth
-            bnds = [mn,mx]
-
-            x0 = X0[0, :]  # prior x0 for first feature, after this we test x0 from previous spectra
-            out = np.zeros((X.shape[0], n*3 + 1)) # output array
-
-            loop = range(X.shape[0])
-            if vb:
-                loop = tqdm(loop, desc="Fitting features", leave=False)
-            for i in loop:
-                # check if opt values from previous spectra are a better initial guess
-                # (as the spectra are probably very similar!).
-                #if np.sum(lsq(X0[i], fmod, wav, X[i],n)**2) < np.sum(lsq(x0, fmod, wav, X[i],n) ** 2):
-                #    x0 = X0[i]
-                x0 = X0[i]
-
-                # check x0 is feasible
-                if not ((x0 > bnds[0]).all() and (x0 < bnds[1]).all()):
-                    continue # skip
-
-                # do optimisation
-                fit = least_squares(lsq, x0=x0, args=(fmod, wav, X[i], n), bounds=bnds, ftol=ftol)
-
-                #if n > 1: # multi-feature - sort by depth
-                    #idx = np.argsort( fit.x[2*n : 3*n] )[::-1]
-                    #out[i, :] = (*fit.x[0:n][idx], *fit.x[n:(2 * n)][idx], *fit.x[2*n:3*n][idx],
-                    #             max(0, np.std(1 - refl) - np.std(fit.fun)))
-                #else:
-                #    out[i,:] = (*fit.x, max(0, np.std(1 - refl) - np.std(fit.fun)))
-
-                # store output
-                out[i, :] = (*fit.x, max(0, np.std(1 - refl) - np.std(fit.fun)))
-                #x0 = fit.x
-
-        # resolve out into pos, width, depth and strength
-        if out.shape[0] == 1: # run on a single spectra - return HyFeature instances
-            if out.shape[1] == 4: # single feature
-                feat = cls('est', out[0, 0], out[0, 1], out[0, 2], data=np.array([wav, X[0, :]]), color='r')
-                feat.strength = out[0, 3]
-                return feat
-            else:
-                feat = []
-                for i in range(n):
-                    feat.append(cls('est', out[0, 0+i], out[0, n+i], out[0, (2*n+i)], data=np.array([wav, X[0, :]]), color='r'))
-                mf = MixedFeature('mix', feat, data=np.array([wav, X[0, :]]), color='r' )
-                mf.strength = out[0,-1]
-                return mf
-        else:
-            # resolve out into pos, width, depth and strength
-            pos = out[:, 0:n]
-            width = out[:, n:(n*2)]
-            depth = out[:, (n*2):(n*3)]
-            strength = out[:, -1]
-
-            return pos, width, depth, strength
+        if asym is None:
+            asym = np.ones( len(width) )
+        M = np.hstack( [depth[i], pos[i], width[i], width[i]*asym[i]] for i in range(len(depth)) )
+        y = evaluate( x, M, sym=False )
+        return 1 - y
 
     # noinspection PyDefaultArgument
     def quick_plot(self, method='gauss', ax=None, label='top', lab_kwds={}, **kwds):
@@ -251,7 +99,6 @@ class HyFeature(object):
         *Arguments*:
          - method = the method used to represent this feature. Options are:
                         - 'gauss' = represent using a gaussian function
-                        - 'lorentz' = represent using a lorentzian function
                         - 'range' = draw vertical lines at pos - width / 2 and pos + width / 2.
                         - 'fill' = fill a rectangle in the region dominated by the feature with 'color' specifed in kwds.
                         - 'line' = plot a (vertical) line at the position of this feature.
@@ -297,14 +144,6 @@ class HyFeature(object):
                 _y = HyFeature.multi_gauss(_x, [c.pos for c in self.components],
                                                [c.width for c in self.components],
                                                [c.depth for c in self.components] )
-            ax.plot(_x, _y, **kwds)
-        if 'lorentz' in method.lower() or 'all' in method.lower():
-            if self.components is None:  # plot single feature
-                _y = HyFeature.lorentzian(_x, self.pos, self.width, self.depth)
-            else:
-                _y = HyFeature.multi_lorentz(_x, [c.pos for c in self.components],
-                                                 [c.width for c in self.components],
-                                                 [c.depth for c in self.components] )
             ax.plot(_x, _y, **kwds)
         if 'fill' in method.lower() or 'all' in method.lower():
             kwds['alpha'] = kwds.get('alpha', 0.25)
@@ -378,7 +217,6 @@ class MultiFeature(HyFeature):
          *Arguments*:
           - method = the method used to represent this feature. Options are:
                          - 'gauss' = represent using a gaussian function at each endmember.
-                         - 'lorentz' = represent using a lorentzian function at each endmember.
                          - 'range' = draw vertical lines at pos - width / 2 and pos + width / 2.
                          - 'fill' = fill a rectangle in the region dominated by the feature with 'color' specifed in kwds.
                          - 'line' = plot a (vertical) line at the position of each feature.
@@ -411,10 +249,6 @@ class MultiFeature(HyFeature):
         if 'gauss' in method.lower() or 'all' in method.lower():
             for e in self.endmembers:  # plot gaussian for each end-member
                 e.quick_plot(method='gauss', ax=ax, label=None, **kwds)
-                if isinstance(sublabel, int): sublabel += 1
-        if 'lorentz' in method.lower() or 'all' in method.lower():
-            for e in self.endmembers:  # plot lorentzian for each end-member
-                e.quick_plot(method='lorentz', ax=ax, label=None, **kwds)
                 if isinstance(sublabel, int): sublabel += 1
         if 'fill' in method.lower() or 'all' in method.lower():
             super().quick_plot(method='fill', ax=ax, label=None, **kwds)

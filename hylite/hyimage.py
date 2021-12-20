@@ -600,8 +600,11 @@ class HyImage( HyData ):
 
             # save?
             if 'path' in kwds:
+                path = kwds.pop('path')
                 from matplotlib.pyplot import imsave
-                imsave(kwds.pop("path"), np.transpose((img*255).astype(np.uint8), (1, 0, 2)))  # save the image
+                if not os.path.exists(os.path.dirname(path)):
+                    os.makedirs(os.path.dirname(path)) # ensure output directory exists
+                imsave(path, np.transpose( np.clip( img*255, 0, 255).astype(np.uint8), (1, 0, 2)))  # save the image
 
             #plot
             ax.imshow(np.transpose(img, (1,0,2)), **kwds)

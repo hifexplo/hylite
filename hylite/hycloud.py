@@ -244,7 +244,7 @@ class HyCloud( HyData ):
                 out = None
             elif out is not None:
                 out.append( result )
-        return result
+        return np.array(out)
 
     def despeckle(self, radius, bands, vb=True):
         """

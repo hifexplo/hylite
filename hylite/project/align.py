@@ -266,7 +266,7 @@ def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
         #                           bands='rgb')
 
         # plot original image as background (fast)
-        fig, ax = image.quick_plot(hylite.RGB)
+        fig, ax = image.quick_plot(bands)
 
         #plot tie points and residuals
         ax.scatter(pp[vis, 0], pp[vis, 1], c='r', s=2)

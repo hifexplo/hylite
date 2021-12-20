@@ -9,6 +9,8 @@ import hylite.reference.features as ref
 from hylite.hyfeature import HyFeature, MultiFeature, MixedFeature
 from matplotlib.ticker import AutoMinorLocator
 
+from tqdm import tqdm
+
 class HyData(object):
 
     """
@@ -498,6 +500,55 @@ class HyData(object):
             return int(np.argmin(diff))
         else:
             assert False, "Error - %s is an unknown band descriptor type." % type(w)
+
+    def resample(self, w, agg=True, bw=None, vb=True, **kwds):
+        """
+        Return a copy of this dataset resampled onto the specified wavelength array. Note that this does not
+        do any interpolation, but rather selects the nearest band(s) and averages them if need be. Hence it is useful
+        for reducing spectral resolution, but should not be used to sample bands at higher spectral resolution.
+
+        *Arguments*:
+          - w = Either a 1-D numpy array containing the wavelengths to sample onto (see bw for setting the band width), or
+               a (n,2) array containing (start, end) wavelength ranges for each band (in this case bw will be ignored).
+          - agg = True if bands between each entry in w (i.e. w - bw -> w + bw) should be averaged (i.e. spectral binning).
+                  Default is True. If False then the closest value will be used (i.e. spectral subsampling).
+          - bw = the width of each band. If None (default) then this is calculated as w[1] - w[0] (i.e. assume regular
+                 spacing). This has no effect if agg is False.
+          - vb = True if a progress bar should be created. Default is True.
+        *Keywords*:
+          - if provided, the thresh keyword will be passed to get_band_index(...) to control tolerances when selecting the
+            closest bands. See documentation for get_band_index(...) for more details.
+        *Returns*:
+         - a copy of this HyData instance resampled onto the new wavelength array.
+        """
+
+        out = self.copy(data=False)  # create output array
+        out.data = np.full(self.data.shape[:-1] + (len(w),), np.nan)
+        out_wav = []
+        w = np.array(w)  # ensure this is an array
+        if bw is None and len(w.shape) == 1:
+            bw = abs(w[1] - w[0])
+        loop = range(len(w))
+        if vb:
+            loop = tqdm(loop, desc='Resampling bands', leave=False)
+        for i in loop:
+            if agg:  # binning
+                if len(w.shape) == 1: # W is 1-D
+                    idx0 = self.get_band_index(w[i] - bw * 0.5, **kwds)
+                    idx1 = self.get_band_index(w[i] + bw * 0.5, **kwds)
+                    out_wav.append(w[i]) # use specified wavelength.
+                else: # W is 1-D, containing (start,end) pairs.
+                    idx0 = self.get_band_index(w[i,0], **kwds)
+                    idx1 = self.get_band_index(w[i,1], **kwds)
+                    out_wav.append( (w[i,0] + w[i,1] ) / 2 ) # use midpoint as wavelength
+                out.data[..., i] = np.nanmean(self.data[..., idx0:idx1], axis=-1)
+            else:
+                assert len(w.shape) == 1, "Error - if agg is False then w must be 1d, not %s" % str(w.shape)
+                idx = self.get_band_index(w[i], **kwds)
+                out_wav.append( self.get_wavelengths()[idx]) # use real wavelength
+                out.data[..., i] = self.data[..., idx]  # nearest-neighbour resampling
+        out.set_wavelengths(out_wav)
+        return out
 
     def contiguous_chunks(self, p=75, min_size=0):
         """

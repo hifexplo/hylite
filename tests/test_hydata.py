@@ -119,5 +119,15 @@ class TestHyData(unittest.TestCase):
             # normalise
             data.normalise()
 
+            # resampling
+            sub = data.resample( data.get_wavelengths()[2::4], agg = True, thresh=30. )
+            self.assertEqual( sub.band_count(), int( data.band_count() / 4 ) )
+            sub2 = data.resample(data.get_wavelengths()[2::5], agg=False, thresh=30.)
+            self.assertEqual(sub2.band_count(), int(data.band_count() / 5))
+            rg = [ (data.get_wavelengths()[i], data.get_wavelengths()[i+2]) for i in range(0,data.band_count()-2, 2) ]
+            sub3 = data.resample(rg, agg=True, thresh=0.1)
+            self.assertEqual(sub3.band_count(), len(rg))
+
+
 if __name__ == '__main__':
     unittest.main()

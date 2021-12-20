@@ -38,8 +38,9 @@ def save(path, data, **kwds):
                 from matplotlib.pyplot import imsave
                 rgb = np.transpose( data.data, (1,0,2) )
                 if not ((data.is_int() and np.max(rgb) <= 255)): # handle normalisation
-                    rgb = rgb - kwds.get("vmin", 0)
-                    rgb /= (kwds.get("vmax", np.max(rgb) ) - kwds.get("vmin", 0) )
+                    vmin = kwds.get("vmin", np.nanpercentile(rgb, 1 ) )
+                    vmax = kwds.get("vmax", np.nanpercentile(rgb, 99) )
+                    rgb = (rgb - vmin) / (vmax-vmin)
                     rgb = (np.clip(rgb, 0, 1) * 255).astype(np.uint8) # convert to 8 bit image
                 imsave( path, rgb ) # save the image
                 return
