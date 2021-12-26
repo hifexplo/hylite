@@ -839,43 +839,6 @@ class HyImage( HyData ):
 
         return points
 
-    def getSpectralLibrary(self, samples=None, names=None, s = 8):
-        """
-        Extract a spectral library by sampling and averaging pixels within the specified distance of sample points.
-
-        *Arguments*:
-         - samples = a list of samples to use, as returned by pickSamples(...). If None (default) then sample points
-                     are pulled from the header file (if defined).
-         - Array of names corresponding to the samples (or None).
-         - s = the number of pixels on either side of the sample point to extract. Default is 8.
-
-        *Returns*: a HyLibrary instance
-        """
-
-        if samples is None:
-            names = self.header.get_class_names()
-            samples = [ self.header.get_sample_points(n) for n in names]
-
-        refl = []
-        upper = []
-        lower = []
-        for n, sample in zip(names, samples):
-            spectra = []
-            for p in sample:
-                spectra.append(self.data[max(p[0] - s, 0): min(p[0] + s, self.data.shape[0]),
-                               max(p[1] - s, 0): min(p[1] + s, self.data.shape[1])
-                               ].reshape(-1, self.band_count()))
-            spectra = np.vstack(spectra)
-            l,m,u = np.nanpercentile( spectra, (25,50,75), axis=0 )
-            lower.append( l )
-            refl.append( m )
-            upper.append( u )
-
-        return HyLibrary(names, np.vstack(refl),
-                            lower=np.vstack(lower),
-                            upper=np.vstack(upper),
-                            wav=self.get_wavelengths())
-
 
 
 

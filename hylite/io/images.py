@@ -28,15 +28,18 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
 
     #parse file format
     _, ext = os.path.splitext(path)
-    if len(ext) == 0 or 'hdr' in ext.lower() or 'dat' in ext.lower() or 'img' in ext.lower(): #load ENVI file?
+    # load envi file or its variants
+    if len(ext) == 0 or 'hdr' in ext.lower() or \
+            'dat' in ext.lower() or \
+            'img' in ext.lower() or \
+            'lib' in ext.lower():
         header, image = matchHeader(path)
     elif 'tif' in ext.lower() or 'png' in ext.lower() or 'jpg' in ext.lower(): #standard image formats
         image = path
         header = None
     else:
-        print( 'Warning - %s is an unknown/unsupported file format. Trying to load anyway....')
-        #assert False, "Error - %s is an unknown/unsupported file format." % ext
-
+        print( 'Warning - %s is an unknown/unsupported file format. Trying to load anyway....' % ext)
+        header, image = matchHeader(path)
     # load header
     if not header is None:
         header = loadHeader(header)

@@ -13,7 +13,7 @@ from hylite import io
 from tqdm import tqdm
 
 # create foreground and background masks for grab cut algorithm
-def label_blocks(image, fg=None, s=8, epad=20, boost=3, erode=3, vb=True, **kwds):
+def label_blocks(image, fg=None, s=8, epad=20, boost=3, erode=3, bands=hylite.RGB, vb=True, **kwds):
     """
     Segments an image into background and different hand samples based on point labels.
 
@@ -24,6 +24,7 @@ def label_blocks(image, fg=None, s=8, epad=20, boost=3, erode=3, vb=True, **kwds
      - epad = padding around the edge of the image to be specified as background. Default is 20 pixels.
      - boost = multiplication factor to exaggurate foreground background contrast.
      - erode = Amount of erosion to apply to remove small regions labelled as sample. Default is 3. Set to 0 to disable.
+     - bands = the bands to use for segmentation. Default is hylite.RGB.
      - vb = True if figures should be generated for QAQC. Default is True.
 
     *Keywords*:
@@ -51,7 +52,7 @@ def label_blocks(image, fg=None, s=8, epad=20, boost=3, erode=3, vb=True, **kwds
     mask[fg != 0] = cv2.GC_FGD
 
     # extract RGB image and boost contrast
-    rgb = image.data[..., [image.get_band_index(b) for b in hylite.RGB]].copy()
+    rgb = image.data[..., [image.get_band_index(b) for b in bands]].copy()
     rgb -= np.nanmin(rgb)
     rgb /= np.nanmax(rgb)
     rgb *= boost
@@ -72,7 +73,7 @@ def label_blocks(image, fg=None, s=8, epad=20, boost=3, erode=3, vb=True, **kwds
         mask = mask == 1
 
     # extract contours and create label mask
-    _, contours, _ = cv2.findContours(mask.astype(np.uint8) * 255, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours,_ = cv2.findContours(mask.astype(np.uint8) * 255, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     labels = np.zeros(mask.shape, dtype=np.int)
     xx, yy = np.meshgrid(np.arange(mask.shape[0]), np.arange(mask.shape[1]))
     xx = xx.flatten()
@@ -96,7 +97,7 @@ def label_blocks(image, fg=None, s=8, epad=20, boost=3, erode=3, vb=True, **kwds
 
     # plot
     if vb:
-        fig, ax = image.quick_plot(hylite.RGB, **kwds)
+        fig, ax = image.quick_plot(bands, **kwds)
         ax.imshow(np.ma.MaskedArray(fg, fg == 0).T, alpha=0.8)
         ax.imshow(np.ma.MaskedArray(labels, labels == 0).T, alpha=0.5)
         fig.show()

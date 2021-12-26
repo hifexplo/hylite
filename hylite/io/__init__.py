@@ -50,7 +50,10 @@ def save(path, data, **kwds):
                 save_func = saveWithGDAL
             except ModuleNotFoundError:  # no gdal, use SPy
                 save_func = saveWithSPy
-            ext = 'dat'
+            if 'lib' in ext: # special case - we are actually saving a HyLibrary (as an image)
+                ext = 'lib'
+            else:
+                ext = 'dat'
     elif isinstance(data, HyHeader):
         save_func = saveHeader
         ext = 'hdr'
@@ -58,8 +61,8 @@ def save(path, data, **kwds):
         save_func = saveCloudPLY
         ext = 'ply'
     elif isinstance(data, HyLibrary):
-        save_func = saveLibraryCSV
-        ext = 'csv'
+        save_func = saveLibraryLIB
+        ext = 'lib'
     elif isinstance(data, PMap ):
         save_func = savePMap
         ext = 'npz'
@@ -126,11 +129,11 @@ def load(path):
         out = loadCloudPLY(path) # load dataset
     elif 'las' in ext: # point or hypercloud
         out =  loadCloudLAS(path)
-    elif 'csv' in ext: # spectral library
+    elif 'csv' in ext: # (flat) spectral library
         out = loadLibraryCSV(path)
-    elif 'sed' in ext: # spectral library
+    elif 'sed' in ext: # (flat) spectral library
         out = loadLibrarySED(path)
-    elif 'tsg' in ext: # spectral library
+    elif 'tsg' in ext: # (flat) spectral library
         out = loadLibraryTSG(path)
     elif 'hyc' in ext or 'hys' in ext or 'mwl' in ext: # load hylite collection, hyscene or mwl map
         out = loadCollection(path)
@@ -149,6 +152,9 @@ def load(path):
             except ModuleNotFoundError: # no gdal, use SPy
                 out = loadWithSPy(path)
 
+        # special case - loading spectral library; convert image to HyData
+        if 'lib' in ext:
+            out = HyLibrary(out.data, header=out.header)
     return out  # return dataset
 
 ##############################################

@@ -34,7 +34,7 @@ def polynomial(data, degree = 1, method='div'):
     return y.reshape(data.shape), t.reshape(data.shape)
 
 
-def get_hull_corrected(data, band_range=None, method='div', smooth=0, vb=True):
+def get_hull_corrected(data, band_range=None, method='div', vb=True):
     """
     Apply a hull correction to an entire HyData instance (HyImage, HyCloud or HyLibrary). Returns a corrected copy of
     the input dataset. Note that noise can greatly effect hull corrections, so you should consider denoising first (see

@@ -260,7 +260,10 @@ class HyHeader( dict ):
         out = self[name]
         if isinstance(out, str):
             out = np.array(  out.split(',') ) # split string into array
-        return np.array(out).astype(dtype) # convert to the correct type and return
+        try:
+            return out.astype(dtype) # convert to the correct type and return
+        except:
+            return out # return as e.g. string - is better than failing.
 
     def set_camera(self, camera, n=0):
         """

@@ -3,7 +3,7 @@ import numpy as np
 import glob
 from hylite import HyLibrary
 from hylite.io import makeDirs
-
+from hylite.io.images import loadWithGDAL, saveWithGDAL, loadWithSPy, loadWithSPy
 # noinspection PyUnusedLocal
 def _read_sed_file(path):
 
@@ -193,4 +193,13 @@ def loadLibraryCSV(path):
             names.append( l[0] )
             refl.append( np.array(l[1:],dtype=np.float) )
             l = f.readline()
-    return HyLibrary( names, np.array(refl), wav=wav )
+    return HyLibrary( np.array(refl), names, wav=wav )
+
+def saveLibraryLIB(path, library):
+    path = os.path.splitext(path)[0] + ".lib" # ensure correct file format
+    from hylite import io # N.B. this import must be here to avoid circular references
+    io.save(path, library.as_image()) # default format is just as an image
+
+def loadLibraryLIB(path):
+    from hylite import io  # N.B. this import must be here to avoid circular references
+    return io.load(path) # this is handled in the io.load function directly

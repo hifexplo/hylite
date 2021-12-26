@@ -298,29 +298,6 @@ class HyData(object):
 
         return subset
 
-    def resample(self, wavelengths):
-        """
-        Returns a new image resampled to the specified list of wavelengths. Note that this
-        simply uses a nearest neighbour resampling, so chooses the closest band matching each
-        wavelength. No averaging will be performed using this method - for more advanced resampling see
-        hylite.filter.sample.
-
-        Also note that to avoid confusion, the original wavelengths will be preserved rather than
-        overwritten. Also note that bands will not be duplicated, so the number of bands returned MAY NOT equal
-        the number of wavelengths provided!
-
-        *Arguments*:
-         - wavelengths = the wavelengths (list of floats) to resample to. MUST be in ascending order.
-        *Returns*:
-         - a resampled HyData instance
-        """
-
-        out = []
-        for w in wavelengths:
-            out.append( self.get_band_index(w) )
-        out = self.export_bands(out)
-        return out
-
     def delete_nan_bands(self, inplace=True):
         """
         Remove bands in this image that contain only nans.
@@ -505,7 +482,8 @@ class HyData(object):
         """
         Return a copy of this dataset resampled onto the specified wavelength array. Note that this does not
         do any interpolation, but rather selects the nearest band(s) and averages them if need be. Hence it is useful
-        for reducing spectral resolution, but should not be used to sample bands at higher spectral resolution.
+        for reducing spectral resolution to match e.g. another dataset, but should NOT be used
+         to sample bands at higher spectral resolution.
 
         *Arguments*:
           - w = Either a 1-D numpy array containing the wavelengths to sample onto (see bw for setting the band width), or
@@ -541,7 +519,7 @@ class HyData(object):
                     idx0 = self.get_band_index(w[i,0], **kwds)
                     idx1 = self.get_band_index(w[i,1], **kwds)
                     out_wav.append( (w[i,0] + w[i,1] ) / 2 ) # use midpoint as wavelength
-                out.data[..., i] = np.nanmean(self.data[..., idx0:idx1], axis=-1)
+                out.data[..., i] = np.nanmean(self.data[..., idx0:(idx1+1)], axis=-1)
             else:
                 assert len(w.shape) == 1, "Error - if agg is False then w must be 1d, not %s" % str(w.shape)
                 idx = self.get_band_index(w[i], **kwds)

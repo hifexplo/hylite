@@ -9,7 +9,7 @@ import numpy as np
 
 from hylite.project import Camera, Pushbroom
 
-class TestHyImage(unittest.TestCase):
+class TestIO(unittest.TestCase):
     def test_load(self):
         self.img = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
         self.lib = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/library.csv"))
@@ -25,24 +25,26 @@ class TestHyImage(unittest.TestCase):
 
         # test lib and cloud
         try:
-            for data in [self.lib, self.cld]:
-                io.save(os.path.join(pth, "data.hdr"), data)
+            for data,name in zip([self.lib, self.cld],['lib','cld']):
+                io.save(os.path.join(pth, "%s.hdr" % name), data)
+                data2 = io.load(os.path.join(pth, "%s.hdr" % name))
+                self.assertAlmostEquals( np.nanmax(np.abs( data.data - data2.data)), 0, 6 ) # check values are the same
+
             # test image(s) with GDAL and SPy
             for data in [self.img]:
                     # save with default (GDAL?)
-                    #print(os.path.join(pth, "data.hdr"))
                     io.save(os.path.join(pth, "data.hdr"), data )
                     self.assertEqual( os.path.exists(os.path.join(pth, "data.hdr")), True)
                     data2 = io.load(os.path.join(pth, "data.hdr")) # reload it
+                    self.assertAlmostEquals(np.nanmax(np.abs(data.data - data2.data)), 0,
+                                            6)  # check values are the same
 
                     # save with SPy
                     io.saveWithSPy(os.path.join(pth, "data2.hdr"), data )
                     self.assertEqual(os.path.exists(os.path.join(pth, "data2.hdr")), True)
-                    data3 = io.load(os.path.join(pth, "data2.hdr")) # reload it
-
-                    # assert equal
-                    self.assertTrue(np.nanmax(np.abs(data.data - data2.data)) < 0.01)  # more or less equal datsets
-                    self.assertTrue(np.nanmax(np.abs(data.data - data3.data)) < 0.01)  # more or less equal datsets
+                    data2 = io.load(os.path.join(pth, "data2.hdr")) # reload it
+                    self.assertAlmostEquals(np.nanmax(np.abs(data.data - data2.data)), 0,
+                                            6)  # check values are the same
 
             # test saving camera objects
             cam = Camera( np.ones(3), np.ones(3), 'pano', 32.2, (100,100), step=0.1 ) # build test camera
@@ -96,14 +98,11 @@ class TestHyImage(unittest.TestCase):
 
             # save it
             io.save( os.path.join(pth, "testC.hdr"), C )
-            #print(os.listdir( os.path.join(pth, "testC.hyc/") ) )
             self.assertTrue(os.path.exists(os.path.join(pth, "testC.hyc/arr.npy")))  # check numpy array has been saved
             self.assertTrue(os.path.exists(os.path.join(pth, "testC.hyc/img.hdr")))  # check image has been saved
-            #C.print()
 
             # load it
             C2 = io.load( os.path.join(pth, "testC.hdr") )
-            #C2.print()
 
             # test it
             self.assertEqual( C2.val, C.val )
@@ -128,7 +127,7 @@ class TestHyImage(unittest.TestCase):
             self.assertFalse( os.path.exists( os.path.join(pth, "testC.hyc/img.hdr") )) # check image has been deleted
 
             # add a relative path!
-            C2.addExternal( 'relobject', os.path.join(pth, "testC.hyc/lib.csv") )
+            C2.addExternal( 'relobject', os.path.join(pth, "testC.hyc/lib.lib") )
             self.assertTrue( isinstance(C2.relobject, hylite.HyLibrary) )
 
             # test saving collection in a different location
