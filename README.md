@@ -7,6 +7,14 @@ hyperclouds.  A variety of analysis techniques are also implemented, including m
 dimensionality reduction and spectral angle mapping. Reference spectra from spectral libraries, ground or laboratory measurements
 can also be integrated and used to perform supervised classifications using machine learning techniques.
 
+--------
+
+Try *hylite* here! These example notebooks can alse be [downloaded](https://github.com/samthiele/hylite_demo2).
+
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/samthiele/hylite_demo2/HEAD)
+
+--------
+
 A key design feature of *hylite* is polymorphism between different spectral data types, such that spectral libraries,
 images and point clouds can be easily analysed and integrated. Pre-processing workflows for each of these
 data types have also been implemented.
@@ -31,13 +39,6 @@ outdoor scenes.
 and (b) a hypercloud of an open-pit mine.*
 
 ----------
-
-Examples
---------------
-
-Try the *hylite* hyperspectral toolbox using some example notebooks on Binder:
-
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/samthiele/hylite_demo/HEAD)
 
 
 Release notes
