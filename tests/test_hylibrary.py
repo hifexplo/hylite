@@ -9,7 +9,7 @@ import numpy as np
 
 class TestAlign(unittest.TestCase):
     def test_library(self):
-        image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+        image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
 
         # label some seed pixels in each sample
         image.header.set_sample_points('A', [(20, 15)])

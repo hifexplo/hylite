@@ -11,8 +11,8 @@ import numpy as np
 class MyTestCase(unittest.TestCase):
     def test_hull(self):
         from hylite.correct import get_hull_corrected
-        image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
-        cloud = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+        image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
+        cloud = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
 
         # test hull correction on numpy array
         Xhc = get_hull_corrected( image.data,vb=False )
@@ -28,9 +28,9 @@ class MyTestCase(unittest.TestCase):
             self.assertTrue(np.nanmin(Xhc.data) >= 0.0)
 
     def test_mwl(self):
-        image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+        image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
         image.data[:50,:,:] = np.nan # add some nans to make more realistic
-        cloud = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+        cloud = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
         for D in [image,cloud]:
             # test normal mwl
             mwl = minimum_wavelength(D, 2100., 2380.,
@@ -85,7 +85,7 @@ class MyTestCase(unittest.TestCase):
             fig, ax = M1.quick_plot(step=3)
 
     def testIO(self):
-        image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+        image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
         M = minimum_wavelength(image, minw=2100., maxw=2400., sym=False, method='gauss', n=2, vb=True)
 
         pth = mkdtemp()
@@ -95,8 +95,8 @@ class MyTestCase(unittest.TestCase):
         df = np.inf
         try:
             io.save(pth+'/test', M)
-            eq0 = os.path.exists(pth+'/test.mwl') # save worked?
-            M2 = io.load(pth+'/test.hdr')
+            eq0 = os.path.exists(os.path.join(pth,'test.mwl')) # save worked?
+            M2 = io.load(os.path.join(pth,'test.hdr'))
 
             # check identical
             eq1 = (M2.x == M.x).all()
@@ -112,7 +112,7 @@ class MyTestCase(unittest.TestCase):
         self.assertTrue(df < 1e-2) # difference should be very small
     def test_TPT(self):
         from hylite.filter import TPT
-        image = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+        image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
         tpt,p,d = TPT(image, sigma=10., window=7, thresh=0, vb=False)
 
 if __name__ == '__main__':

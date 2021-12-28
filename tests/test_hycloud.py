@@ -10,7 +10,7 @@ class TestHyCloud(unittest.TestCase):
 
     def test_projection(self):
         # load point cloud
-        cloud = io.load( os.path.join(str(Path(__file__).parent.parent), "test_data/hypercloud.hdr") )
+        cloud = io.load( os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"), "hypercloud.hdr") )
         cam = cloud.header.get_camera(0)
 
         # project perspective

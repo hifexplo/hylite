@@ -18,9 +18,9 @@ class TestIO(unittest.TestCase):
             test = [False] # only test SPy - no gdal
         for gdal in test:
             io.usegdal = gdal
-            self.img = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
-            self.lib = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/library.csv"))
-            self.cld = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/hypercloud.hdr"))
+            self.img = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
+            self.lib = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"library.csv"))
+            self.cld = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"hypercloud.hdr"))
 
             # test load with SPy
             img = io.loadWithSPy(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
@@ -113,8 +113,8 @@ class TestIO(unittest.TestCase):
 
             # save it
             io.save( os.path.join(pth, "testC.hdr"), C )
-            self.assertTrue(os.path.exists(os.path.join(pth, "testC.hyc/arr.npy")))  # check numpy array has been saved
-            self.assertTrue(os.path.exists(os.path.join(pth, "testC.hyc/img.hdr")))  # check image has been saved
+            self.assertTrue(os.path.exists(os.path.join(os.path.join(pth, "testC.hyc"),"arr.npy")))  # check numpy array has been saved
+            self.assertTrue(os.path.exists(os.path.join(os.path.join(pth, "testC.hyc"),"img.hdr")))  # check image has been saved
 
             # load it
             C2 = io.load( os.path.join(pth, "testC.hdr") )
@@ -138,27 +138,27 @@ class TestIO(unittest.TestCase):
 
             self.assertFalse( 'bool' in C2.header )
             self.assertFalse('val' in C2.header)
-            self.assertFalse(os.path.exists(os.path.join(pth, "testC.hyc/val.npy")))  # check numpy array has been deleted
-            self.assertFalse( os.path.exists( os.path.join(pth, "testC.hyc/img.hdr") )) # check image has been deleted
+            self.assertFalse(os.path.exists(os.path.join(os.path.join(pth, "testC.hyc"),"val.npy")))  # check numpy array has been deleted
+            self.assertFalse(os.path.exists(os.path.join(os.path.join(pth, "testC.hyc"),"img.hdr"))) # check image has been deleted
 
             # add a relative path!
-            C2.addExternal( 'relobject', os.path.join(pth, "testC.hyc/lib.lib") )
+            C2.addExternal( 'relobject', os.path.join(os.path.join(pth, "testC.hyc"),"lib.lib") )
             self.assertTrue( isinstance(C2.relobject, hylite.HyLibrary) )
 
             # test saving collection in a different location
             io.save(os.path.join(pth, "testD.hdr"), C2 )
-            self.assertTrue(os.path.exists(os.path.join(pth, "testD.hyc/cld.hdr")))  # check cloud has been copied across
+            self.assertTrue(os.path.exists(os.path.join(os.path.join(pth, "testD.hyc"),"cld.hdr")))  # check cloud has been copied across
 
             # load this collection
             C3 = io.load(os.path.join(pth, "testD.hyc"))
             C3.inner = io.load( os.path.join(pth, "testC.hdr") ) # add nested collection
             C3.inner.arr2 = np.full( 40, 3.0 ) # add new thing to nested collection
             io.save(os.path.join(pth, "testE.hyc"), C3 )
-            self.assertTrue(os.path.exists(os.path.join(pth, "testE.hyc/cld.hdr"))) # check cloud has been copied across
-            self.assertTrue(os.path.exists(os.path.join(pth,
-                                                        "testE.hyc/inner.hyc/cld.hdr"))) # check cloud has been copied across
-            self.assertTrue(os.path.exists(os.path.join(pth,
-                                                        "testE.hyc/inner.hyc/arr2.npy"))) # check cloud has been copied across
+            self.assertTrue(os.path.exists(os.path.join(os.path.join(pth, "testE.hyc"),"cld.hdr"))) # check cloud has been copied across
+            self.assertTrue(os.path.exists(os.path.join(os.path.join(os.path.join(pth,
+                                                        "testE.hyc"),"inner.hyc"),"cld.hdr"))) # check cloud has been copied across
+            self.assertTrue(os.path.exists(os.path.join(os.path.join(os.path.join(pth,
+                                                        "testE.hyc"),"inner.hyc"),"arr2.npy"))) # check cloud has been copied across
             self.assertTrue(isinstance(C3.relobject, hylite.HyLibrary)) # check relative path link can be loaded
 
             # test quicksave function
