@@ -10,7 +10,7 @@ import numpy as np
 class TestAlign(unittest.TestCase):
     def test_warp(self):
         # load test image
-        image1 = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+        image1 = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
         image1.data = np.dstack( [ image1.data, image1.data ] ) # make dataset > 512 bands
 
         # create slightly offset second image

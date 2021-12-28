@@ -23,7 +23,7 @@ class TestIO(unittest.TestCase):
             self.cld = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"hypercloud.hdr"))
 
             # test load with SPy
-            img = io.loadWithSPy(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+            img = io.loadWithSPy(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
             self.assertTrue( np.nanmax( np.abs(self.img.data - img.data ) ) < 0.01 ) # more or less equal datsets
 
     def test_save(self):
