@@ -11,74 +11,89 @@ from hylite.project import Camera, Pushbroom
 
 class TestIO(unittest.TestCase):
     def test_load(self):
-        self.img = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
-        self.lib = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/library.csv"))
-        self.cld = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/hypercloud.hdr"))
 
-        # test load with SPy
-        img = io.loadWithSPy(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
-        self.assertTrue( np.nanmax( np.abs(self.img.data - img.data ) ) < 0.01 ) # more or less equal datsets
+        if io.usegdal:
+            test = [False, True] # test both GDAL and SPy
+        else:
+            test = [False] # only test SPy - no gdal
+        for gdal in test:
+            io.usegdal = gdal
+            self.img = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+            self.lib = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/library.csv"))
+            self.cld = io.load(os.path.join(str(Path(__file__).parent.parent), "test_data/hypercloud.hdr"))
+
+            # test load with SPy
+            img = io.loadWithSPy(os.path.join(str(Path(__file__).parent.parent), "test_data/image.hdr"))
+            self.assertTrue( np.nanmax( np.abs(self.img.data - img.data ) ) < 0.01 ) # more or less equal datsets
 
     def test_save(self):
         self.test_load() # load datasets
         pth = mkdtemp()
 
-        # test lib and cloud
-        try:
-            for data,name in zip([self.lib, self.cld],['lib','cld']):
-                io.save(os.path.join(pth, "%s.hdr" % name), data)
-                data2 = io.load(os.path.join(pth, "%s.hdr" % name))
-                self.assertAlmostEquals( np.nanmax(np.abs( data.data - data2.data)), 0, 6 ) # check values are the same
+        if io.usegdal:
+            test = [False, True] # test both GDAL and SPy
+        else:
+            print("Warning - GDAL is not installed. GDAL related functions will not be tested.")
+            test = [False] # only test SPy - no gdal
 
-            # test image(s) with GDAL and SPy
-            for data in [self.img]:
-                    # save with default (GDAL?)
-                    io.save(os.path.join(pth, "data.hdr"), data )
-                    self.assertEqual( os.path.exists(os.path.join(pth, "data.hdr")), True)
-                    data2 = io.load(os.path.join(pth, "data.hdr")) # reload it
-                    self.assertAlmostEquals(np.nanmax(np.abs(data.data - data2.data)), 0,
-                                            6)  # check values are the same
+        for gdal in test:
+            io.usegdal = gdal
+            # test lib and cloud
+            try:
+                for data,name in zip([self.lib, self.cld],['lib','cld']):
+                    io.save(os.path.join(pth, "%s.hdr" % name), data)
+                    data2 = io.load(os.path.join(pth, "%s.hdr" % name))
+                    self.assertAlmostEquals( np.nanmax(np.abs( data.data - data2.data)), 0, 6 ) # check values are the same
 
-                    # save with SPy
-                    io.saveWithSPy(os.path.join(pth, "data2.hdr"), data )
-                    self.assertEqual(os.path.exists(os.path.join(pth, "data2.hdr")), True)
-                    data2 = io.load(os.path.join(pth, "data2.hdr")) # reload it
-                    self.assertAlmostEquals(np.nanmax(np.abs(data.data - data2.data)), 0,
-                                            6)  # check values are the same
+                # test image(s) with GDAL and SPy
+                for data in [self.img]:
+                        # save with default (GDAL?)
+                        io.save(os.path.join(pth, "data.hdr"), data )
+                        self.assertEqual( os.path.exists(os.path.join(pth, "data.hdr")), True)
+                        data2 = io.load(os.path.join(pth, "data.hdr")) # reload it
+                        self.assertAlmostEquals(np.nanmax(np.abs(data.data - data2.data)), 0,
+                                                6)  # check values are the same
 
-            # test saving camera objects
-            cam = Camera( np.ones(3), np.ones(3), 'pano', 32.2, (100,100), step=0.1 ) # build test camera
-            track = Pushbroom( np.ones((1000,3)), np.ones((1000,3)), 0.05, 30.04, (100,1000)) # test pushbroom camera
+                        # save with SPy
+                        io.saveWithSPy(os.path.join(pth, "data2.hdr"), data )
+                        self.assertEqual(os.path.exists(os.path.join(pth, "data2.hdr")), True)
+                        data2 = io.load(os.path.join(pth, "data2.hdr")) # reload it
+                        self.assertAlmostEquals(np.nanmax(np.abs(data.data - data2.data)), 0,
+                                                6)  # check values are the same
 
-            # test saving camera
-            data = cam
-            io.save(os.path.join(pth, "camera"), data )
-            self.assertTrue(os.path.exists(os.path.join(pth, "camera.cam")))
+                # test saving camera objects
+                cam = Camera( np.ones(3), np.ones(3), 'pano', 32.2, (100,100), step=0.1 ) # build test camera
+                track = Pushbroom( np.ones((1000,3)), np.ones((1000,3)), 0.05, 30.04, (100,1000)) # test pushbroom camera
 
-            # test saving track
-            data = track
-            io.save(os.path.join(pth, "track"), data )
-            self.assertTrue(os.path.exists(os.path.join(pth, "track.brm")))
+                # test saving camera
+                data = cam
+                io.save(os.path.join(pth, "camera"), data )
+                self.assertTrue(os.path.exists(os.path.join(pth, "camera.cam")))
 
-            # test loading camera
-            cam2 = io.load( os.path.join(pth, "camera.cam"))
-            self.assertTrue( (np.abs(cam2.pos - cam.pos) < 0.01).all() )
-            self.assertTrue((np.abs(cam2.ori - cam.ori) < 0.01).all())
-            self.assertTrue(cam2.dims[0] == cam.dims[0])
-            self.assertEqual(cam2.proj, cam.proj)
+                # test saving track
+                data = track
+                io.save(os.path.join(pth, "track"), data )
+                self.assertTrue(os.path.exists(os.path.join(pth, "track.brm")))
 
-            # test loading pushbroom
-            track2 = io.load(os.path.join(pth, "track.brm"))
-            self.assertTrue((np.abs(track2.cp - track.cp) < 0.001).all())
-            self.assertTrue((np.abs(track2.co - track.co) < 0.001).all())
-            self.assertTrue(track2.dims[0] == track.dims[0])
-            self.assertTrue( np.abs(track2.pl - track.pl) < 0.001 )
+                # test loading camera
+                cam2 = io.load( os.path.join(pth, "camera.cam"))
+                self.assertTrue( (np.abs(cam2.pos - cam.pos) < 0.01).all() )
+                self.assertTrue((np.abs(cam2.ori - cam.ori) < 0.01).all())
+                self.assertTrue(cam2.dims[0] == cam.dims[0])
+                self.assertEqual(cam2.proj, cam.proj)
 
-        except:
+                # test loading pushbroom
+                track2 = io.load(os.path.join(pth, "track.brm"))
+                self.assertTrue((np.abs(track2.cp - track.cp) < 0.001).all())
+                self.assertTrue((np.abs(track2.co - track.co) < 0.001).all())
+                self.assertTrue(track2.dims[0] == track.dims[0])
+                self.assertTrue( np.abs(track2.pl - track.pl) < 0.001 )
+
+            except:
+                shutil.rmtree(pth)  # delete temp directory
+                self.assertFalse(True, "Error - could not save data of type %s" % str(type(data)))
+
             shutil.rmtree(pth)  # delete temp directory
-            self.assertFalse(True, "Error - could not save data of type %s" % str(type(data)))
-
-        shutil.rmtree(pth)  # delete temp directory
 
     def test_hycollection(self):
 

@@ -17,7 +17,7 @@ def makeDirs(path):
         path = os.path.dirname(path)
 
     # make directory if need be
-    if not os.path.exists(path):
+    if not os.path.exists(path) and path != '':
         os.makedirs(path)
 
 def saveHeader(path, header):

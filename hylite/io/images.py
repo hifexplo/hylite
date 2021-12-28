@@ -79,12 +79,19 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
 
     # parse file format
     _, ext = os.path.splitext(path)
-    if len(ext) == 0 or 'hdr' in ext.lower() or 'dat' in ext.lower() or 'img' in ext.lower():  # load ENVI file?
+    if len(ext) == 0 or 'hdr' in ext.lower() or \
+            'dat' in ext.lower() or \
+            'img' in ext.lower() or \
+            'lib' in ext.lower():
         header, image = matchHeader(path)
 
         # load image with SPy
         assert os.path.exists(image), "Error - %s does not exist." % image
-        img = spectral.open_image(header) # load with SPy
+        try: # try loading envi file first
+            img = spectral.envi.open(header, image) # this must be an envi file
+        except:
+            img = spectral.open_image(header) # load unknown image type
+
         data = np.transpose( np.array(img.load()), (1,0,2) )
 
         # load header
@@ -96,7 +103,7 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
         data = mpimg(path)
         header = None
     else:
-        print('Warning - %s is an unknown/unsupported file format. Trying to load anyway...')
+        print('Warning - %s is an unknown/unsupported file format. Trying to load anyway...'%ext)
         #assert False, "Error - %s is an unknown/unsupported file format." % ext
 
     # create image object
@@ -200,6 +207,11 @@ def saveWithSPy( path, image, writeHeader=True, interleave='BSQ'):
 
     path, ext = os.path.splitext(path)
 
+    # make sure extension is proper
+
+    if "hdr" in str.lower(ext) or ext == '':
+        ext = ".dat"
+
     # set byte order
     if 'little' in sys.byteorder:
         image.header['byte order'] = 0
@@ -211,4 +223,4 @@ def saveWithSPy( path, image, writeHeader=True, interleave='BSQ'):
     image.push_to_header()
     spectral.envi.save_image( path + ".hdr", np.transpose(image.data,(1,0,2)),
                                 dtype=image.data.dtype, force=True,
-                                ext='dat', byteorder=byteorder, metadata=image.header)
+                                ext=ext, byteorder=byteorder, metadata=image.header)

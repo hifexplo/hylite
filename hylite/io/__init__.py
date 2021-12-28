@@ -15,6 +15,13 @@ from hylite.project import PMap, Camera, Pushbroom
 from hylite.analyse.mwl import MWL
 import shutil
 
+# check if gdal is installed
+try:
+    from osgeo import gdal
+    usegdal = True
+except ModuleNotFoundError:
+    usegdal = False
+
 def save(path, data, **kwds):
     """
     A generic function for saving HyData instances such as HyImage, HyLibrary and HyCloud. The appropriate file format
@@ -45,10 +52,10 @@ def save(path, data, **kwds):
                 imsave( path, rgb ) # save the image
                 return
         else: # save hyperspectral image
-            try:
+            if usegdal:
                 from osgeo import gdal  # is gdal installed?
                 save_func = saveWithGDAL
-            except ModuleNotFoundError:  # no gdal, use SPy
+            else:  # no gdal, use SPy
                 save_func = saveWithSPy
             if 'lib' in ext: # special case - we are actually saving a HyLibrary (as an image)
                 ext = 'lib'
@@ -146,10 +153,10 @@ def load(path):
             from matplotlib.pyplot import imread
             out = HyImage(np.transpose(imread(path), (1, 0, 2)))
         else:
-            try:
+            if usegdal:
                 from osgeo import gdal # is gdal installed?
                 out = loadWithGDAL(path)
-            except ModuleNotFoundError: # no gdal, use SPy
+            else: # no gdal, use SPy
                 out = loadWithSPy(path)
 
         # special case - loading spectral library; convert image to HyData

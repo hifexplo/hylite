@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 ##TODO - do this properly
 setuptools.setup(
     name="hylite",
-    version="1.2",
+    version="1.20",
     author="Helmholtz Institute Freiberg",
     author_email="s.thiele@hzdr.de",
     description="Open-source toolbox for hyperspectral geology.",
@@ -27,7 +27,7 @@ setuptools.setup(
     python_requires='>=3.6',
     install_requires=["scipy>=1.4", "matplotlib>=3", "numpy",
                       "imageio","opencv-python", "opencv-contrib-python",
-                      "tqdm", "roipoly", "spectral", "utm",
+                      "scikit-image", "tqdm", "roipoly", "spectral", "utm",
                       "laspy","plyfile","astral","piexif","gfit","numba"],
 
     # List additional URLs that are relevant to your project as a dict.

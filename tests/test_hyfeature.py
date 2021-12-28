@@ -16,7 +16,6 @@ class MyTestCase(unittest.TestCase):
         self.assertAlmostEquals(np.min(y), 0.5, 2)
 
         y = HyFeature.multi_gauss(x, [2200.,2340.], [200., 200.], [0.5,0.5])
-        print(np.min(y), np.max(y))
         self.assertAlmostEquals(np.max(y), 1.0, 2)
         self.assertAlmostEquals(np.min(y), 0.5, 2)
 
