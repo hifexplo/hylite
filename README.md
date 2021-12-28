@@ -3,7 +3,7 @@ hylite
 
 *hylite* is an open-source python package for preprocessing imagery from a variety of hyperspectral sensors
 and fusing the results with high-resolution point-cloud data to generate seamless and radiometrically corrected
-hyperclouds.  A variety of analysis techniques are also implemented, including minimum wavelength mapping,
+hyperclouds.  A variety of analysis techniques are also implemented, including multi-feature gaussian minimum wavelength mapping,
 dimensionality reduction and spectral angle mapping. Reference spectra from spectral libraries, ground or laboratory measurements
 can also be integrated and used to perform supervised classifications using machine learning techniques.
 
@@ -40,7 +40,29 @@ Try the *hylite* hyperspectral toolbox using some example notebooks on Binder:
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/samthiele/hylite_demo/HEAD)
 
 
-Installation (using PIP)
+Release notes
+--------------
+
+#### Version 1.2
+
+New features:
+* projection of push-broom data using `hylite.project.Pushbroom`
+* `HyCollection` class for easily loading / saving large numbers of data files 
+* Completely rewritten `HyLibrary` class for easily merging, resampling and splitting spectral libraries.
+* Added `align_to_cloud_manual` function for locating cameras with manually chosen tiepoints.
+
+Improvements:
+* Completely re-written minimum wavelength mapping code for improved performance (thanks Numba!)
+Installation (using PIP).
+* Simplified structure for topographic and atmospheric corrections for cleaner code and increased flexibility.
+* Many improvements to plotting functions.
+* Greatly simplified input output code by wrapping specific funtions in generic `io.load` and `io.save`.
+* Removed GDAL as a required dependency (SPy will be used instead if GDAl can't be found). Note that SPy can have 
+  unpredictable behaviour for non-reflectance files (outside of 0 - 1 range).
+* Increased performance of `get_hull_corrected` and `rasterize` functions using Numba.
+* Significantly expanded penetration of test functions (though more work is needed here still).
+
+Installation
 --------------
 
 1. Create and activate a new python environment (anacona users only)

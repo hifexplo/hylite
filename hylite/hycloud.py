@@ -546,7 +546,7 @@ class HyCloud( HyData ):
          - despeckle = True if a 5x5 median filter should be used to denoise rendered image before plotting. Default is False.
          - res = the resolution to plot in 'ortho' mode. Default is 0.2 (20 cm).
         *Keywords*:
-         - keywords are passed to HyImage.quick_plot( ... ).
+         - other keywords are passed to HyImage.quick_plot( ... ).
 
         *Returns*
          - fig = the plot figure

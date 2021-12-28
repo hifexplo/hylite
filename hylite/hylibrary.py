@@ -316,7 +316,7 @@ class HyLibrary(HyData):
 
     def __add__(self, other):
 
-        if (other.get_wavelengths() != self.get_wavelengths()).all():
+        if (other.band_count() != self.band_count()):
             print("Warning - wavelength arrays do not match. Resampling.")
             other = other.resample( self.get_wavelengths(), vb=False )
 
@@ -409,6 +409,7 @@ class HyLibrary(HyData):
          - hc = True if the plotted spectra should be hull corrected first. Default is False.
         *Keywords*
          - clip = a tuple with the min, med and max percentiles to plot. Default is (5,50,95).
+         - figsize = a figsize for the figure to create (if ax is None).
          - other keywords are passed to plt.plot( ... ).
         """
 
@@ -435,7 +436,7 @@ class HyLibrary(HyData):
         # create axes if need be
         if ax is None:
             height = max(min(self.data.shape[0], 100), 8)
-            fig, ax = plt.subplots(figsize=(18, height))
+            fig, ax = plt.subplots(figsize=kwds.pop('figsize', (18, height) ))
 
         # calculate pad if need be
         if pad is None:
@@ -479,7 +480,7 @@ class HyLibrary(HyData):
 
             # plot spectra
             _y = offset + y  # calculate y
-            plt.plot(wav, _y, **kwds)
+            ax.plot(wav, _y, **kwds)
             baseline = _y
             yticks.append(_y[0])
 
@@ -487,7 +488,7 @@ class HyLibrary(HyData):
             if (y0 is not None) and (y1 is not None):
                 _y = np.hstack([offset + y0, (offset + y1)[::-1]])
                 _x = np.hstack([wav, wav[::-1]])
-                plt.fill(_x, _y, color='grey', alpha=0.25)
+                ax.fill(_x, _y, color='grey', alpha=0.25)
                 baseline = offset + y1  # move baseline up to upper error bound
 
         # ax.autoscale(False)

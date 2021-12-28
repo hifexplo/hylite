@@ -500,7 +500,8 @@ class HyImage( HyData ):
          - ax = an axis object to plot to. If none, plt.imshow( ... ) is used.
          - bfac = a brightness adjustment to apply to RGB mappings (-1 to 1)
          - cfac = a contrast adjustment to apply to RGB mappings (-1 to 1)
-         - samples = True if sample points (defined in the header file) should be plotted. Default is False.
+         - samples = True if sample points (defined in the header file) should be plotted. Default is False. Otherwise, a list of
+                     [ (x,y), ... ] points can be passed.
          - tscale = True if each band (for ternary images) should be scaled independently. Default is False.
                     When using scaling, vmin and vmax can be used to set the clipping percentiles (integers) or
                     (constant) values (float).
@@ -508,11 +509,13 @@ class HyImage( HyData ):
          - flipX = if True, the x axis will be flipped before plotting (after applying rotations).
          - flipY = if True, the y axis will be flippe before plotting (after applying rotations).
         *Keywords*:
-         - keywords are passed to matplotlib.imshow( ... ).
-
-         Additional special keywords include:
          - mask = a 2D boolean mask containing true if pixels should be drawn and false otherwise.
          - path = a file path to save the image too (at matching resolution; use fig.savefig(..) if you want to save the figure).
+         - ticks = True if x- and y- ticks should be plotted. Default is False.
+         - ps, pc = the size and color of sample points to plot. Can be constant or list.
+         - figsize = a figsize for the figure to create (if ax is None).
+         - all other keywords are passed to matplotlib.imshow( ... ).
+
         *Returns*:
          - fig, ax = the figure and axes object created (or passed through the ax keyword). If a colorbar is created,
                      (band is an integer or a float), then this will be stored in ax.cbar.
@@ -520,7 +523,12 @@ class HyImage( HyData ):
 
         #create new axes?
         if ax is None:
-            fig, ax = plt.subplots(figsize=(18,18*self.ydim()/self.xdim()))
+            fig, ax = plt.subplots(figsize=kwds.pop('figsize', (18,18*self.ydim()/self.xdim()) ))
+
+        # deal with ticks
+        if not kwds.pop('ticks', False ):
+            ax.set_xticks([])
+            ax.set_yticks([])
 
         #map individual band using colourmap
         if isinstance(band, str) or isinstance(band, int) or isinstance(band, float):
@@ -606,15 +614,20 @@ class HyImage( HyData ):
                     os.makedirs(os.path.dirname(path)) # ensure output directory exists
                 imsave(path, np.transpose( np.clip( img*255, 0, 255).astype(np.uint8), (1, 0, 2)))  # save the image
 
+            # plot samples?
+            ps = kwds.pop('ps', 5)
+            pc = kwds.pop('pc', 'r')
+            if samples:
+                if isinstance(samples, list) or isinstance(samples, np.ndarray):
+                    ax.scatter([s[0] for s in samples], [s[1] for s in samples], s=ps, c=pc)
+                else:
+                    for n in self.header.get_class_names():
+                        points = np.array(self.header.get_sample_points(n))
+                        ax.scatter(points[:, 0], points[:, 1], s=ps, c=pc)
+
             #plot
             ax.imshow(np.transpose(img, (1,0,2)), **kwds)
             ax.cbar = None  # no colorbar
-
-        # plot samples?
-        if samples:
-            for n in self.header.get_class_names():
-                points = np.array(self.header.get_sample_points(n))
-                ax.scatter(points[:, 0], points[:, 1], s=4)
 
         return ax.get_figure(), ax
 

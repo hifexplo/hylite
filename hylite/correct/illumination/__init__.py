@@ -87,11 +87,11 @@ def estimate_skyview( normal ):
     below the horizon level. Useful for e.g. estimating the skyview factor for calibration panels based on their orientation.
 
     *Arguments*:
-     - normal = the panel normal orientation as a (3,) numpy array.
+     - normal = the surface or panel normal vector as a (3,) numpy array or (...,3) image or cloud.
     *Returns*:
      - the skyview factor (0 - 1).
     """
-    return ( np.pi - np.arccos( np.dot( np.array([0,0,1]), normal ) ) ) / np.pi # sky view factor for inclined plane
+    return ( np.pi - np.arccos( np.dot( normal, np.array([0,0,1]) ) ) ) / np.pi # sky view factor for inclined plane
 
 def _regress(x, y, split=True, clip=(10, 90)):
     """ Loop through all bands in specified arrays and fit a line. Used for statistical adjustments (e.g. c-factor)"""
@@ -187,15 +187,15 @@ class IlluModel(object):
         self.S = S
         self.skv = skv
         self.rf = rf
-        self.oc = oc
+
+        if oc is None or oc == 0:
+            self.oc = 0 # no occlusions
+        else:
+            self.oc = oc
 
         # initialise fitted attributes
         self.rboost = np.array(0)  # radiance boost [ c-factor adjustment in y ]
         self.iboost = np.array(0)  # illumination boost [ c-factor adjustment in x ]
-
-        # and output attributes
-        self.r = None
-        self.R = None
 
         # make all attributes numpy arrays
         for attr in ['I', 'P', 'S', 'skv', 'rf', 'oc']:
@@ -223,7 +223,11 @@ class IlluModel(object):
             R = R.data.squeeze()
         else:
             R = np.array(R).squeeze()
-        return (self.skv[..., None] * self.S + ((1 - self.oc) * self.rf)[..., None]) * R[..., None] * self.I + self.P
+        if len(R.shape) == 0 or R.shape[-1] == 1:  # R is constant in the spectral direction
+            return (self.skv[..., None] * self.S + ((1 - self.oc) * self.rf)[..., None]) * R[
+                ..., None] * self.I + self.P
+        else:
+            return (self.skv[..., None] * self.S + ((1 - self.oc) * self.rf)[..., None]) * R * self.I + self.P
 
     def getReflectance(self, r, strict=True):
         """
@@ -249,158 +253,159 @@ class IlluModel(object):
 
         return self.R
 
-    # def fit(self, radiance, shift='x'):
-    #     """
-    #     Compute c-factor offsets. This assumes a linear relationship between illumination and measured radiance, and
-    #     increases/decreases either (1) the illumination component [y-shift] or (2) the measured radiance [x-shift] to
-    #     force the regression line to pass through (0,0). Reflectance outliers are then detected and can be masked or
-    #     corrected.
-    #
-    #     *Arguments*:
-    #      - radiance = radiance data to fit to. Must have the same shape as self.data.
-    #      - shift = apply the correction in the y-direction (adjust measured radiance to simulate the influence of path
-    #                radiance) or in the x-direction (adjust modelled illumination to account for unknown light source). Default
-    #                is 'x' (this is the typical c-factor correction).
-    #     """
-    #     #assert self.data is not None, "Error - please compute reflectance model using self.compute(...) before fitting step."
-    #     if self.data is None:
-    #         self.evaluate() # evaluate if need be
-    #     self.r = radiance # store radiance
-    #
-    #     # get data
-    #     x = self.data.X()
-    #     y = radiance.X()
-    #
-    #     # remove any mischevous negative radiances... (these are noise)
-    #     x[x < 0] = np.nan
-    #
-    #     # compute slope and intercepts of regression
-    #     s, i, r = _regress(x, y)  # fit linear regressions
-    #     if 'x' in shift: # typical c-factor adjustment (add/subtract illumination)
-    #         self.cfac = np.array(i) / np.array(s)  # calculate cfacor (x-intercept)
-    #         mn = np.nanmin(x, axis=0)  # calculate floor cfactor to avoid negative values
-    #         self.cfac[self.cfac < mn] = mn[self.cfac < mn]  # apply floor and store
-    #     elif 'y' in shift: # alternative adjustment ("r-factor"); add/subtract irradiance.
-    #         self.rfac = -np.array(s)  # calculate alternative c-factor (y-intercept) and store
-    #     else:
-    #         assert False, 'Error - %s should be either "x" or "y"' % shift
-    #
-    # def plot_fit(self, bands=None, n=100, nb=5, **kwds):
-    #     """
-    #     Plot the relationship between illumination and measured radiance.
-    #
-    #     *Arguments*:
-    #      - radiance = the radiance data (HyImage or HyCloud) to compare too. Shape must match internal self.data array.
-    #      - bands = the band (integer or float), band range (tuple) or bands (list) to include on the regression plot. Default
-    #                is None (use all bands).
-    #      - n = plot every nth point (only) to speed up plotting. Default is 100. This value does not affect the regressions.
-    #      - nb = only calculate / plot every nb'th band if bands is a (min,max) tuple. Default is 5.
-    #     *Keywords*:
-    #      - keywords are passed to plt.scatter(...).
-    #     """
-    #
-    #     assert self.data is not None, "Error - please compute reflectance model using self.compute(...) before plotting."
-    #     assert self.r is not None, "Error - please fit reflectance model using self.fit(...) before plotting."
-    #
-    #     # get relevant bands
-    #     if bands is None:
-    #         bands = (0, -1)
-    #     if isinstance(bands, float) or isinstance(bands, int):
-    #         idx = self.r.get_band_index(bands)
-    #         x = self.data.X()[:, idx][:, None]
-    #         y = self.r.X()[:, idx][:, None]
-    #         w = self.r.get_wavelengths()[idx]
-    #     elif isinstance(bands, tuple) and len(bands) == 2:
-    #         mn,mx = [self.r.get_band_index(b) for b in bands]
-    #         idx = np.array(range(self.r.band_count()))[mn:mx]  # band indices
-    #         x = self.data.X()[:, idx][:, ::nb]
-    #         y = self.r.X()[:, idx][:, ::nb]
-    #         w = self.r.get_wavelengths()[idx][::nb]
-    #     elif isinstance(bands, list) or isinstance(bands, tuple):
-    #         idx = np.array([self.r.get_band_index(b) for b in bands])
-    #         nb = 1
-    #         x = self.data.X()[:, idx][::nb]
-    #         y = self.r.X()[:, idx][::nb]
-    #         w = self.r.get_wavelengths()[idx][::nb]
-    #     else:
-    #         assert False, "Error - %s is an unknown band type. Should be int, float, list or tuple." % type(bands)
-    #
-    #     # remove any mischevous negative radiances... (these are noise)
-    #     x[x < 0] = np.nan
-    #
-    #     # build plot
-    #     if self.cfac is None and self.rfac is None:  # no adjustment applied
-    #         fig, ax = plt.subplots(2, 1, figsize=(10, 10))  # only two axes needed if no shift applied
-    #         ax = [ax[0], ax[0], ax[1]]
-    #     else:
-    #         fig, ax = plt.subplots(3, 1, figsize=(10, 10))
-    #
-    #     ###################
-    #     # (a) plot points
-    #     ###################
-    #     cmap = plt.get_cmap('rainbow')
-    #     kwds['s'] = kwds.get('s', 3.0)
-    #     kwds['alpha'] = kwds.get('alpha', 0.1)
-    #     for b in range(x.shape[-1]):
-    #         kwds['color'] = cmap((w[b] - np.min(w)) / np.ptp(w))
-    #         ax[0].scatter(x[::n, b], y[::n, b], **kwds)
-    #     ax[0].set_xlabel("Modelled radiance")
-    #     ax[0].set_ylabel("Measured radiance")
-    #     ax[0].set_title("a. Radiance")
-    #
-    #     ###################
-    #     # (b) plot c-factor
-    #     ###################
-    #     if self.cfac is not None:
-    #         ax[1].plot(w, self.cfac[idx][::nb])
-    #         ax[1].axhline(0, color='k', lw=2)
-    #         ax[1].set_ylabel("Illumination boost")
-    #         ax[1].set_xlabel("Wavelength (nm)")
-    #         ax[1].set_title("b. Adjustment (c-factor adjustment)")
-    #
-    #         # apply adjustment for plotting
-    #         x += self.cfac[idx][::nb]
-    #
-    #     elif self.rfac is not None:  # n.b. cfac and rfac should never both be set
-    #         ax[1].plot(w, self.rfac[idx][::nb])
-    #         ax[1].axhline(0, color='k', lw=2)
-    #         ax[1].set_ylabel("Irradiance boost")
-    #         ax[1].set_xlabel("Wavelength (nm)")
-    #         ax[1].set_title("b. Adjustment (alternate c-factor adjustment)")
-    #
-    #         # apply adjustment for plotting
-    #         y += self.rfac[idx][::nb]
-    #
-    #     #############################################
-    #     # (b) plot reflectance vs at target radiance
-    #     #############################################
-    #     y = y / x  # convert to reflectance
-    #
-    #     cmap = plt.get_cmap('rainbow')
-    #     kwds['s'] = kwds.get('s', 3.0)
-    #     kwds['alpha'] = kwds.get('alpha', 0.1)
-    #     for b in range(x.shape[-1]):
-    #         kwds['color'] = cmap((w[b] - np.min(w)) / np.ptp(w))
-    #         ax[2].scatter(x[::n, b], y[::n, b], **kwds)
-    #
-    #     p5, p10, p50, p90, p95 = np.nanpercentile(y, (5, 10, 50, 90, 95))
-    #     ax[2].axhline(p10, color='k', ls='--')
-    #     ax[2].axhline(p90, color='k', ls='--')
-    #     ax[2].axhline(p50, color='k', lw=2)
-    #
-    #     ax[2].set_ylim(p5, p95)
-    #     ax[2].set_ylabel("Reflectance")
-    #     ax[2].set_xlabel("Modelled Radiance")
-    #     ax[2].set_title("c. Reflectance")
-    #
-    #     # add a wavelength colorbar
-    #     sc = ax[0].scatter([np.nan, np.nan], [np.nan, np.nan], c=[np.min(w), np.max(w)],
-    #                        vmin=np.min(w), vmax=np.max(w), cmap='rainbow')  # build colormap
-    #     cbar = fig.colorbar(sc, orientation='horizontal', shrink=0.5, pad=0.25)  # plot
-    #     cbar.set_label('Wavelength (nm)')
-    #
-    #     fig.tight_layout()
-    #     return fig, ax
+    def fit(self, radiance, shift='x'):
+        """
+        Compute c-factor offsets. This assumes a linear relationship between illumination and measured radiance, and
+        increases/decreases either (1) the illumination component [y-shift] or (2) the measured radiance [x-shift] to
+        force the regression line to pass through (0,0). Reflectance outliers are then detected and can be masked or
+        corrected.
+
+        *Arguments*:
+         - radiance = radiance data to fit to. Must have the same shape as self.data.
+         - shift = apply the correction in the y-direction (adjust measured radiance to simulate the influence of path
+                   radiance) or in the x-direction (adjust modelled illumination to account for unknown light source). Default
+                   is 'x' (this is the typical c-factor correction).
+        """
+
+        # compute estimated radiance
+        x = self.getRadiance()
+        x = x.reshape((-1, x.shape[-1]))
+
+        # get measured radiance
+        y = radiance.X()
+
+        # remove any mischevous negative radiances... (these are noise)
+        x[x < 0] = np.nan
+
+        # compute slope and intercepts of regression
+        s, i, r = _regress(x, y)  # fit linear regressions
+        if 'x' in shift:  # typical c-factor adjustment (add/subtract illumination)
+            self.iboost = np.array(i) / np.array(s)  # calculate cfacor (x-intercept)
+            mn = np.nanmin(x, axis=0)  # calculate floor cfactor to avoid negative values
+            self.iboost[self.iboost < mn] = mn[self.iboost < mn]  # apply floor and store
+        elif 'y' in shift:  # alternative adjustment ("r-factor"); add/subtract irradiance.
+            self.rboost = -np.array(s)  # calculate alternative c-factor (y-intercept) and store
+        else:
+            assert False, 'Error - %s should be either "x" or "y"' % shift
+
+    def plot_fit(self, radiance, bands=None, n=100, nb=5, **kwds):
+        """
+        Plot the relationship between illumination and measured radiance.
+
+        *Arguments*:
+         - radiance = the radiance data (HyImage or HyCloud) to compare too. Shape must match internal self.data array.
+         - bands = the band (integer or float), band range (tuple) or bands (list) to include on the regression plot. Default
+                   is None (use all bands).
+         - n = plot every nth point (only) to speed up plotting. Default is 100. This value does not affect the regressions.
+         - nb = only calculate / plot every nb'th band if bands is a (min,max) tuple. Default is 5.
+        *Keywords*:
+         - keywords are passed to plt.scatter(...).
+        """
+
+        # get data
+        x = self.getRadiance()
+        x = x.reshape((-1, x.shape[-1]))
+        y = radiance.X()
+
+        # get relevant bands
+        if bands is None:
+            bands = (0, -1)
+        if isinstance(bands, float) or isinstance(bands, int):
+            idx = radiance.get_band_index(bands)
+            x = x[:, idx][:, None]
+            y = y[:, idx][:, None]
+            w = radiance.get_wavelengths()[idx]
+        elif isinstance(bands, tuple) and len(bands) == 2:
+            mn, mx = [radiance.get_band_index(b) for b in bands]
+            idx = np.array(range(radiance.band_count()))[mn:mx]  # band indices
+            x = x[:, idx][:, ::nb]
+            y = y[:, idx][:, ::nb]
+            w = radiance.get_wavelengths()[idx][::nb]
+        elif isinstance(bands, list) or isinstance(bands, tuple):
+            idx = np.array([radiance.get_band_index(b) for b in bands])
+            nb = 1
+            x = x[:, idx][::nb]
+            y = y[:, idx][::nb]
+            w = radiance.get_wavelengths()[idx][::nb]
+        else:
+            assert False, "Error - %s is an unknown band type. Should be int, float, list or tuple." % type(bands)
+
+        # remove any mischevous negative radiances... (these are noise)
+        x[x < 0] = np.nan
+
+        # build plot
+        if len( self.iboost.shape ) == 0 and len( self.rboost.shape ) == 0:  # no adjustment applied
+            fig, ax = plt.subplots(2, 1, figsize=(10, 10))  # only two axes needed if no shift applied
+            ax = [ax[0], ax[0], ax[1]]
+        else:
+            fig, ax = plt.subplots(3, 1, figsize=(10, 10))
+
+        ###################
+        # (a) plot points
+        ###################
+        cmap = plt.get_cmap('rainbow')
+        kwds['s'] = kwds.get('s', 3.0)
+        kwds['alpha'] = kwds.get('alpha', 0.1)
+        for b in range(x.shape[-1]):
+            kwds['color'] = cmap((w[b] - np.min(w)) / np.ptp(w))
+            ax[0].scatter(x[::n, b], y[::n, b], **kwds)
+        ax[0].set_xlabel("Modelled radiance")
+        ax[0].set_ylabel("Measured radiance")
+        ax[0].set_title("a. Radiance")
+
+        ###################
+        # (b) plot c-factor
+        ###################
+        if len( self.iboost.shape ) != 0:
+            ax[1].plot(radiance.get_wavelengths()[idx], self.iboost[idx])
+            ax[1].axhline(0, color='k', lw=2)
+            ax[1].set_ylabel("Illumination boost")
+            ax[1].set_xlabel("Wavelength (nm)")
+            ax[1].set_title("b. Illumination boost adjustment (c-factor adjustment)")
+
+            # apply adjustment for plotting
+            x += self.iboost[idx][::nb]
+
+        elif len( self.rboost.shape ) != 0:  # n.b. cfac and rfac should never both be set
+            ax[1].plot(radiance.get_wavelengths()[idx], self.rboost[idx])
+            ax[1].axhline(0, color='k', lw=2)
+            ax[1].set_ylabel("Irradiance boost")
+            ax[1].set_xlabel("Wavelength (nm)")
+            ax[1].set_title("b. Radiance boost adjustment (alternate c-factor adjustment)")
+
+            # apply adjustment for plotting
+            y += self.rboost[idx][::nb]
+
+        #############################################
+        # (b) plot reflectance vs at target radiance
+        #############################################
+        y = y / x  # convert to reflectance
+
+        cmap = plt.get_cmap('rainbow')
+        kwds['s'] = kwds.get('s', 3.0)
+        kwds['alpha'] = kwds.get('alpha', 0.1)
+        for b in range(x.shape[-1]):
+            kwds['color'] = cmap((w[b] - np.min(w)) / np.ptp(w))
+            ax[2].scatter(x[::n, b], y[::n, b], **kwds)
+
+        p5, p10, p50, p90, p95 = np.nanpercentile(y, (5, 10, 50, 90, 95))
+        ax[2].axhline(p10, color='k', ls='--')
+        ax[2].axhline(p90, color='k', ls='--')
+        ax[2].axhline(p50, color='k', lw=2)
+
+        ax[2].set_ylim(p5, p95)
+        ax[2].set_ylabel("Reflectance")
+        ax[2].set_xlabel("Modelled Radiance")
+        ax[2].set_title("c. Reflectance")
+
+        # add a wavelength colorbar
+        sc = ax[0].scatter([np.nan, np.nan], [np.nan, np.nan], c=[np.min(w), np.max(w)],
+                           vmin=np.min(w), vmax=np.max(w), cmap='rainbow')  # build colormap
+        cbar = fig.colorbar(sc, orientation='horizontal', shrink=0.5, pad=0.25)  # plot
+        cbar.set_label('Wavelength (nm)')
+
+        fig.tight_layout()
+        return fig, ax
 
 
 class ELC(object):
@@ -492,6 +497,7 @@ class ELC(object):
         *Arguments*:
          - ax = the axes to plot on. If None (default) then a new axes is created.
         *Keywords*:
+          - figsize = a figsize for the figure to create (if ax is None).
          - thresh = the threshold to separate good vs bad correction values (see get_bad_bands(...)). Default is the
                     85th percentile of slope values.
         *Returns*:
@@ -500,7 +506,7 @@ class ELC(object):
         """
 
         if ax is None:
-            fig, ax = plt.subplots(figsize=(15, 10))
+            fig, ax = plt.subplots(figsize=kwds.pop('figsize',(15, 10)))
 
         # plot slope
         _x = self.get_wavelengths()

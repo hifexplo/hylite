@@ -259,7 +259,7 @@ class HyHeader( dict ):
             return None
         out = self[name]
         if isinstance(out, str):
-            out = np.array(  out.split(',') ) # split string into array
+            out = np.array( [v.strip() for v in out.split(',')] ) # split string into array
         try:
             return out.astype(dtype) # convert to the correct type and return
         except:
