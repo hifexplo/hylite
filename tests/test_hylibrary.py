@@ -17,6 +17,14 @@ class TestAlign(unittest.TestCase):
         image.header.set_sample_points('C', [(140, 15)])
         image.header['class names'] = ['A', 'B', 'C']
 
+        # test building library with sample positions only
+        from hylite.hylibrary import from_indices
+        lib = from_indices(image,
+                             [image.header.get_sample_points(n)[0] for n in image.header.get_class_names()],
+                             names=image.header.get_class_names(),
+                             s=5)
+        self.assertEqual( lib.data.shape[0], 3 )
+
         # expand labels using grab-cut
         from hylite.filter import label_blocks
         cls = label_blocks(image, s=5,  # number of pixels to label outside of seed point
@@ -24,6 +32,7 @@ class TestAlign(unittest.TestCase):
                            erode=1,  # apply erode filter to avoid pixels near sample edges
                            boost=10,  # boost contrast before labelling
                            bands=hylite.SWIR)
+
 
         # test building library and plotting functions
         from hylite.hylibrary import from_classification
@@ -65,6 +74,12 @@ class TestAlign(unittest.TestCase):
 
         # test fancy plotting
         lib.quick_plot( collapse=True, hc=True )
+
+    def test_construction(self):
+        image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"), "image.hdr"))
+
+
+
 
 if __name__ == '__main__':
     unittest.main()

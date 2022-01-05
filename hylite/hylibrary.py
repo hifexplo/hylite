@@ -4,10 +4,10 @@ import hylite.reference.features as ref
 import numpy as np
 import matplotlib.pyplot as plt
 
-def from_indices(data, indices, s=8, names=None, ):
+
+def from_indices(data, indices, s=4, names=None, ):
     """
     Extract a spectral library by sampling and averaging pixels within the specified distance of sample points.
-
     *Arguments*:
      - data = a HyData instance containing the spectral data.
      - indices = a list of sample indices to extract spectra from
@@ -18,14 +18,26 @@ def from_indices(data, indices, s=8, names=None, ):
     """
 
     if names is None:
-        names = np.arange(1,len(indices) + 1 )
+        names = ["Sample_%d" % i for i in np.arange(1, len(indices) + 1)]
 
     # extract spectra
     S = []
+    for idx, name in zip(indices, names):
+        if len(idx) == 2:  # image
+            X = data.data[idx[0] - s: idx[0] + s, idx[1] - s: idx[1] + s, :].reshape(-1, data.band_count())
+        elif isinstance(idx, int):
+            X = data.data[idx - s: idx + 1, :]
+        elif len(idx) == 1:
+            X = data.data[idx[0] - s: idx[0] + s, :]
+        S.append(HyLibrary(X[None, :, :], lab=[name], wav=data.get_wavelengths()))
 
+    # merge
+    out = S[0]
+    for i in range(1, len(S)):
+        out += S[i]
 
     # return
-    pass
+    return out
 
 
 def from_classification(data, labels, names=None, ignore=[0], subsample='all'):

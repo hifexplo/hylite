@@ -104,17 +104,8 @@ def loadLibrarySED(path):
             except:
                 pass  # not a float...
 
-
-    # sort out position info (convert to UTM)
-    if not len(pos) == len(data):
-        print(
-            "Warning - Positions only defined for %d of %d spectra. Positions will be ignored." % (len(pos), len(data)))
-        pos = None
-    else:
-        pos = np.array(pos)
-
     # create spectral library
-    library = HyLibrary(names, np.array(data), wav=np.array(wav), pos=pos)
+    library = HyLibrary(np.array(data), names, wav=np.array(wav))
 
     # add metadata to header
     ignore = ['comment', 'version', 'file name', 'columns [4]']
@@ -160,7 +151,7 @@ def loadLibraryTSG(path):
     names = [name +"_ " +str(x) for x in pos]
 
     # create spectral library
-    library = HyLibrary(names, np.array(refl), wav=np.array(wav))
+    library = HyLibrary(np.array(refl), names, wav=np.array(wav))
     library.header["depth"] = pos
 
     return library
