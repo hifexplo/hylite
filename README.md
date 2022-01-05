@@ -155,14 +155,17 @@ https://doi.org/10.1016/j.oregeorev.2021.104252
 
 For the illumination correction methods, please see:
 ```
-Thiele, S. T., Lorenz S., Kirsch, M., Gloaguen, R., (2021). A novel and open-source illumination correction for hyperspectral digital outcrop models. Transactions on Geoscience and Remote Sensing. DOI: 10.1109/TGRS.2021.3098725
+Thiele, S. T., Lorenz S., Kirsch, M., Gloaguen, R., (2021). A novel and open-source illumination correction 
+for hyperspectral digital outcrop models. Transactions on Geoscience and Remote Sensing. DOI: 10.1109/TGRS.2021.3098725
 ```
 https://doi.org/10.1109/TGRS.2021.3098725
 
 And for details related to projection and correction of pushbroom UAV hyperspectral data please see:
 
 ```
-Thiele, S. T., Bnoulkacem, Z., Lorenz, S., Bordenave, A., Menegoni, N., Madriz, Y., ... & Kenter, J. (2022). Mineralogical Mapping with Accurately Corrected Shortwave Infrared Hyperspectral Data Acquired Obliquely from UAVs. Remote Sensing, 14(1), 5. DOI: 10.3390/rs14010005
+Thiele, S. T., Bnoulkacem, Z., Lorenz, S., Bordenave, A., Menegoni, N., Madriz, Y., ... & Kenter, J. (2022). 
+Mineralogical Mapping with Accurately Corrected Shortwave Infrared Hyperspectral Data Acquired Obliquely from UAVs. 
+Remote Sensing, 14(1), 5. DOI: 10.3390/rs14010005
 ```
 https://doi.org/10.3390/rs14010005
 
