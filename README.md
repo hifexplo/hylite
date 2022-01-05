@@ -49,19 +49,18 @@ Release notes
 New features:
 * projection of push-broom data using `hylite.project.Pushbroom`
 * `HyCollection` class for easily loading / saving large numbers of data files 
-* Completely rewritten `HyLibrary` class for easily merging, resampling and splitting spectral libraries.
-* Added `align_to_cloud_manual` function for locating cameras with manually chosen tiepoints.
+* Completely rewritten `HyLibrary` class for easily merging, resampling and splitting spectral libraries
+* Added `align_to_cloud_manual` function for locating cameras with manually chosen tiepoints
 
 Improvements:
 * Completely re-written minimum wavelength mapping code for improved performance (thanks Numba!)
-Installation (using PIP).
-* Simplified structure for topographic and atmospheric corrections for cleaner code and increased flexibility.
-* Many improvements to plotting functions.
-* Greatly simplified input output code by wrapping specific funtions in generic `io.load` and `io.save`.
+* Simplified structure for topographic and atmospheric corrections for cleaner code and increased flexibility
+* Many improvements to plotting functions
+* Greatly simplified input output code by wrapping specific funtions in generic `io.load` and `io.save`
 * Removed GDAL as a required dependency (SPy will be used instead if GDAl can't be found). Note that SPy can have 
-  unpredictable behaviour for non-reflectance files (outside of 0 - 1 range).
-* Increased performance of `get_hull_corrected` and `rasterize` functions using Numba.
-* Significantly expanded penetration of test functions (though more work is needed here still).
+  unpredictable behaviour for non-reflectance files (outside of 0 - 1 range), so it is worth installing GDAL if you can
+* Increased performance of `get_hull_corrected` and `rasterize` functions using Numba
+* Significantly expanded penetration of test functions (though more work is needed here still)
 
 Installation
 --------------
@@ -138,8 +137,8 @@ Other test functionality is included in the _tests_ directory.
 Next steps
 -------------
 
-1. Navigate to the template_notebooks directory and launch a jupyter notebook server.
-2. Find a notebook that does what you need (or extend one to do what you want).
+1. Download and try the example notebooks / tutorials [here](https://github.com/samthiele/hylite_demo2).
+2. Find and adapt the one closest to what you need.
 3. Happy processing! :D
 
 Citing *hylite*
@@ -154,13 +153,26 @@ integration for automated 3-D geological mapping. Ore Geology Reviews. DOI: j.or
 ```
 https://doi.org/10.1016/j.oregeorev.2021.104252
 
+For the illumination correction methods, please see:
+```
+Thiele, S. T., Lorenz S., Kirsch, M., Gloaguen, R., (2021). A novel and open-source illumination correction for hyperspectral digital outcrop models. Transactions on Geoscience and Remote Sensing. DOI: 10.1109/TGRS.2021.3098725
+```
+https://doi.org/10.1109/TGRS.2021.3098725
+
+And for details related to projection and correction of pushbroom UAV hyperspectral data please see:
+
+```
+Thiele, S. T., Bnoulkacem, Z., Lorenz, S., Bordenave, A., Menegoni, N., Madriz, Y., ... & Kenter, J. (2022). Mineralogical Mapping with Accurately Corrected Shortwave Infrared Hyperspectral Data Acquired Obliquely from UAVs. Remote Sensing, 14(1), 5. DOI: 10.3390/rs14010005
+```
+https://doi.org/10.3390/rs14010005
+
 
 Contributing to  hylite
 -------------------------
 
 Cool additions are welcomed!
 Please feel free to submit pull requests through GitHub or get in touch with us directly if
-you have any questions. Bug reports are also welcomed (though please do try to be specific).
+you have any questions. Bug reports are also welcomed (though do try to be specific).
 
 Documentation
 ---------------
