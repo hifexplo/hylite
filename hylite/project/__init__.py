@@ -5,5 +5,5 @@ camera localisation.
 
 from .basic import *
 from .camera import Camera
-from .pmap import PMap, push_to_cloud, push_to_image
+from .pmap import PMap, push_to_cloud, push_to_image, blend_scenes
 from .pushbroom import Pushbroom, project_pushbroom, optimize_boresight

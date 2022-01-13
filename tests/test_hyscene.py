@@ -5,8 +5,7 @@ import shutil
 
 import hylite
 from hylite import HyScene, HyCloud, HyImage
-from hylite.project import Camera, Pushbroom
-
+from hylite.project import Camera, Pushbroom, blend_scenes
 import numpy as np
 class MyTestCase(unittest.TestCase):
     def build_dummy_data(self):
@@ -67,6 +66,11 @@ class MyTestCase(unittest.TestCase):
             # test projections using pushbroom camera
             cld = S2.push_to_cloud(hylite.RGB, method='best')
             img = S2.push_to_image('klm', method='closest')
+
+            # test blending
+            O = blend_scenes(pth + '/blendtest.hyc', dict(test=[S, S2]), method='average', hist_eq=False, trim=False,
+                         vb=True, clean=True)
+            self.assertEqual( O.test.point_count(), 2500 )
 
         except:
             shutil.rmtree(pth)  # delete temp directory

@@ -91,6 +91,99 @@ def align_to_cloud_manual( cloud, cam, points, pixels, **kwds ):
     return est, err
 
 
+def refine_alignment(image, cloud, cam, bands=hylite.RGB, s=2,
+                     maxdist=25, histeq=True, method='sift',
+                     recurse=1, feat_args={}, match_args={}, vb=True, **kwds):
+    if 'pano' in cam.proj.lower():
+        assert not cam.step is None, "Error - angluar step ('step') must be defined for panoramic cameras."
+
+    # generate rendered view to get matches from
+    if vb: print("Projecting scene... ", end='')
+    render = cloud.render(cam, fill_holes=True, s=s, bands='rgb')
+    xyz = cloud.render(cam, fill_holes=True, s=s, bands='xyz')
+    if vb: print("Done.")
+
+    # apply masking
+    image = image.export_bands(bands)
+    image.set_as_nan(0)
+    render.set_as_nan(0)
+    mask = np.logical_or(np.isnan(render.data).all(axis=-1), np.isnan(image.data).all(axis=-1))
+    mask = cv2.erode(mask.astype(np.uint8), np.ones((int(maxdist * 2) + 1, int(maxdist * 2) + 1), np.uint8))
+    mask = mask == 1
+    image.data[mask] = np.nan
+    render.data[mask] = np.nan
+
+    if histeq:
+        from hylite.correct import hist_eq
+        render.data = hist_eq(render.data, image.data)
+
+    # extract matches
+    if vb: print("Gathering matches..", end='')
+    k1, d1 = image.get_keypoints((0, 1, 2), method=method, **feat_args)
+    k2, d2 = render.get_keypoints((0, 1, 2), method=method, **feat_args)
+    src, dst = hylite.HyImage.match_keypoints(k1, k2, d1, d2, method=method, dist=match_args.pop("dist", 0.9),
+                                              **match_args)
+
+    # filter matches by distance
+    r = np.linalg.norm(src - dst, axis=-1)
+    mask = r < maxdist
+    src = src[mask][:, ::-1]  # flip from (y,x) to (x,y) notation here
+    dst = dst[mask][:, ::-1]
+    if vb: print("Found %d matches." % len(src))
+    assert len(src) != 0, "Error - no matches found."
+
+    # plot matches
+    if vb:
+        fig, ax = image.quick_plot((0, 1, 2), vmin=0, vmax=90)
+        ax.scatter(src[:, 0], src[:, 1], color='cyan', marker='+')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlim(0, image.xdim())
+        ax.set_ylim(image.ydim(), 0)
+        fig.show()
+
+    # get 3D location of tie points
+    k3d = []
+    for px, py in dst:
+        p = xyz.data[int(px), int(py), :]  # extract 3d position
+        k3d.append(p)
+    k3d = np.array(k3d)
+
+    # occasionaly keypoints have undefined positions... remove these ones.
+    mask = np.isfinite(np.sum(k3d, axis=1))
+    assert sum(mask) > 3, "Error - at least 4 keypoints with finite positions are needed...."
+    k3d = k3d[mask, :]
+    src = src[mask, :]
+
+    if 'pano' in cam.proj.lower():
+        pp = pano_to_persp(src[:, 0], src[:, 1], cam.fov, cam.step, image.data.shape)
+        p_est, r_est, inl = pnp(k3d, pp, cam.fov, image.data.shape, **kwds)
+    else:
+        p_est, r_est, inl = pnp(k3d, src, cam.fov, image.data.shape, **kwds)
+
+    # put estimate in a camera object
+    est = Camera(p_est, r_est, cam.proj, cam.fov, image.data.shape, cam.step)
+
+    if recurse > 1:
+        return refine_alignment(image, cloud, est, bands=bands, s=s,
+                                maxdist=maxdist, histeq=histeq, method=method,
+                                recurse=recurse - 1, feat_args=feat_args, match_args=match_args, vb=vb, **kwds)
+
+    # plot updated view
+    if vb:
+        print("Projecting updated preview...")
+        render = cloud.render(est, fill_holes=True, s=s, bands='rgb')
+        render.set_as_nan(0)
+        fig, ax = render.quick_plot((0, 1, 2), vmin=0, vmax=90)
+        ax.scatter(dst[:, 0], dst[:, 1], color='r', marker='+')
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlim(0, image.xdim())
+        ax.set_ylim(image.ydim(), 0)
+        fig.show()
+
+    return est, src, k3d
+
 def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
                    method='sift', recurse=2, s=2, sf=3.0, cfac=0.0, bfac=0.0,
                    vb=True, gf=True, **kwds):
@@ -212,9 +305,9 @@ def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
     try:
         if 'pano' in cam.proj.lower():
             k_hyper_pp = pano_to_persp(k_hyper[:, 0], k_hyper[:, 1], cam.fov, cam.step, image.data.shape)
-            p_est, r_est, inl = pnp(k3d, k_hyper_pp, cam.fov, image.data.shape, ransac=True, **kwds)
+            p_est, r_est, inl = pnp(k3d, k_hyper_pp, cam.fov, image.data.shape, **kwds)
         else:
-            p_est, r_est, inl = pnp(k3d, k_hyper, cam.fov, image.data.shape, ransac=True, **kwds)
+            p_est, r_est, inl = pnp(k3d, k_hyper, cam.fov, image.data.shape, **kwds)
 
     except: # pnp failed - plot keypoints before failing
         print("Error - PnP solution not found. Check sift feature matching?")

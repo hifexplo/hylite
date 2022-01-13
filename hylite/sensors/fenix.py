@@ -146,6 +146,12 @@ class Fenix(Sensor):
                           image.get_wavelengths()]]  # match image wavelengths to calibration wavelengths
             image.data[:, :, :] *= cal[:, None, :]  # apply to image
 
+            # divide by exposure (in ms)
+            exp_vnir = float(image.header.get('tint1', 1.0))
+            exp_swir = float(image.header.get('tint2', 1.0))
+            image.data[:, r] /= exp_vnir
+            image.data[:, r] /= exp_swir
+
             # apply white reference (if specified)
             if not cls.white is None:
 

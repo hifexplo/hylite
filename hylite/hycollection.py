@@ -11,6 +11,7 @@ class External(object):
         self.path = path
         self.base = base
         self.value = None
+
     def get(self):
 
         # is attr already loaded?
@@ -144,27 +145,29 @@ class HyCollection(object):
             # get value from header file
             val = self.header[attr]
 
-            # load as a list
-            if '{' in val and '}' in val:
-                val = self.header.get_list(val)
-            elif '<' in val and '>' in val: # load as an external path
-                val = self.header[val].strip()[1:-1]
-                if os.path.exists(val): # absolute path!
-                    val = External( val, None) # wrap in absolute External class
-                else:
-                    val = External( val, self.root ) # wrap in relative External class
-            else:  # is it an integer or a float?
-                try:
-                    val = int(val)
-                except:
+            # parse strings if needed
+            if isinstance(val,str):
+                # load as a list
+                if '{' in val and '}' in val:
+                    val = self.header.get_list(val)
+                elif '<' in val and '>' in val: # load as an external path
+                    val = self.header[val].strip()[1:-1]
+                    if os.path.exists(val): # absolute path!
+                        val = External( val, None) # wrap in absolute External class
+                    else:
+                        val = External( val, self.root ) # wrap in relative External class
+                else:  # is it an integer or a float?
                     try:
-                        val = float(val)
+                        val = int(val)
                     except:
-                        # finally, try converting boolean types
-                        if val.lower() == 'true':
-                            val = True
-                        elif val.lower() == 'false':
-                            val = False
+                        try:
+                            val = float(val)
+                        except:
+                            # finally, try converting boolean types
+                            if val.lower() == 'true':
+                                val = True
+                            elif val.lower() == 'false':
+                                val = False
 
             # done
             self.__setattr__(attr, val)  # easy!
@@ -251,6 +254,7 @@ class HyCollection(object):
         """
         Quick utility function for saving this in the predefined location.
         """
+        from hylite import io # occasionally io doesn't seem to get loaded unless we call this ... strange?
         hylite.io.save( os.path.splitext( self._getDirectory() )[0], self )
 
     def free(self):

@@ -6,6 +6,7 @@ data types. PMaps can be saved using io.save( ... ) to avoid expensive computati
 workflow.
 """
 
+import os
 import numpy as np
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 import hylite
@@ -633,3 +634,121 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
     out.set_band_names(nam)
 
     return out
+
+
+def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, trim=False, clean=True, vb=True, **kwds):
+    """
+    Blend together collections of scenes that reference the same underlying cloud.
+
+    *Arguments*:
+    - dest_path = path for the HyCollection instance to write results to. This is done to optimise RAM usage.
+    - scene_map = a dictionary with keys for each desired fused cloud and values containing lists of scenes that each project data onto
+                  the same cloud.
+    - method = the averaging method to use. Options are 'average' (default), 'weight' (weighted average by inverse distance) and 'closest'
+               (just use the closest pixel and ignore all others).
+    - hist_eq = Apply a histogram equalisation to images before projecting. The first scene in each list will be used as the reference. Use
+                with care - this can cause significant spectral distortions! Default is False. NOT IMPLEMENTED YET.
+    - trim = Delete points in destination cloud that did not receive any data, to save space. Default is False.
+    - clean = free memory from each scene after it is processed to save RAM. Default is True.
+    - vb = True if progress statements should be printed. Default is True.
+
+    *Keywords*:
+     - rgb = True if the data being projected has three bands (strictly), so should be mapped to each clouds point colours instead of data array.
+     - vmin, vmax = the percentile clip to use when pushing to point colours (see HyCloud.colourise(...)).
+    """
+
+    # create output collection
+    name = os.path.splitext(os.path.basename(dest_path))[0]
+    root = os.path.dirname(dest_path)
+    O = hylite.HyCollection(name, root)
+    O.meta = hylite.HyCollection('meta', os.path.join(root, name) + ".hyc")
+    O.save()
+
+    # loop through each set of scenes to blend
+    for name, scenes in scene_map.items():
+        if vb:
+            print("Blending scenes in %s" % name, end='')
+        # load cloud and reference image (if needed for colour correction)
+        cloud = scenes[0].cloud
+        ref = scenes[0].image
+
+        # create output array
+        out = np.zeros((cloud.point_count(), ref.band_count()))
+        w = np.zeros(cloud.point_count())  # divisor for averaging later
+
+        # do projections
+        for i, s in enumerate(scenes):
+            if vb:
+                print(" ..%d " % i, end='')
+
+            # get projection map
+            pmap = s.pmap
+            pmap.image = s.image
+            pmap.cloud = cloud
+
+            # todo; histogram equalisation
+
+            assert pmap.data.shape[0] == cloud.point_count(), "Error - cloud sizes do not match (%d != %d)" % (
+            pmap.data.shape[0], cloud.point_count())
+            pmap.remove_nan_pixels()
+
+            # get per pixel depths
+            d = 1. / pmap.get_point_depths()[:, 0]
+            mask = np.isfinite(d)
+            if vb:
+                print("[%d points]" % np.sum(mask), end='')
+
+            # push to cloud and do averaging
+            chunk = push_to_cloud(s.pmap, method=kwds.get('proj_method', 'best'))
+            if 'average' in method.lower():  # normal averaging
+                out[mask, :] += chunk.data[mask, :]
+                w[mask] += 1
+            elif 'weight' in method.lower():  # apply distance weighting
+                out[mask, :] += chunk.data[mask, :] * d[mask][:, None]
+                w[mask] += d[mask]
+            elif 'closest' in method.lower():  # just use closest
+                mask = mask & (d > w)  # choose only closest points
+                out[mask] = chunk.data[mask, :]
+                w[mask] = d[mask]
+            else:
+                assert False, "Error - method should be 'weighted', 'average' or 'closest', not %s" % method
+
+            if clean:
+                s.free()  # free memory and move to next scene
+
+        if vb:
+            print(". Saving ", end='')
+
+        # create and save output
+        cloud = cloud.copy(data=False)
+        if 'closest' in method.lower():
+            cloud.data = out  # we already know value
+        else:
+            cloud.data = out / w[:, None]  # do normalization
+        weights = cloud.copy(data=False)
+        weights.data = w[:, None]
+
+        # trim clouds
+        if trim:
+            mask = w == 0
+            cloud.filter_points(0, mask)
+            weights.filter_points(0, mask)
+
+        if vb:
+            print("%d points..." % cloud.point_count(), end='')
+
+        # convert to rgb?
+        if kwds.get('rgb', False) and cloud.band_count() == 3:
+            cloud.colourise((0, 1, 2), stretch=(kwds.get("vmin", 5), kwds.get("vmax", 95)))
+            cloud.data = None
+
+        O.__setattr__(name.lower(), cloud)
+        O.meta.__setattr__(name.lower() + "_weights", weights)
+
+        if clean:
+            O.save()  # save
+            O.free()  # free memory for next group of scenes
+        if vb:
+            print(" Complete.")
+
+    return O
