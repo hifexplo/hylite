@@ -89,9 +89,12 @@ class TestHyData(unittest.TestCase):
             self.assertEqual(data2.data.shape[-1], 3)  # bands should have been deleted
             self.assertEqual(len(data2.get_wavelengths()), 3) # as should associated header data
             self.assertEqual(len(data2.get_fwhm()), 3) # as should associated header data
-            data2.data[..., 2] = 0
+
+            # test set as nan
+            self.assertEqual(np.isfinite(data2.data[..., 2]).all(), True)
+            data2.data[..., :] = 0
             data2.set_as_nan(0)
-            self.assertEqual( np.isfinite( data2.data[...,2] ).any(), False )
+            self.assertEqual( np.isfinite( data2.data[...,2] ).all(), False )
 
             # get band
             self.assertEqual( np.isfinite( data2.get_band(2)).any(), False)

@@ -636,7 +636,8 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
     return out
 
 
-def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, trim=False, clean=True, vb=True, **kwds):
+def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, geom=False, trim=False, clean=True, vb=True,
+                 **kwds):
     """
     Blend together collections of scenes that reference the same underlying cloud.
 
@@ -648,6 +649,8 @@ def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, trim=Fal
                (just use the closest pixel and ignore all others).
     - hist_eq = Apply a histogram equalisation to images before projecting. The first scene in each list will be used as the reference. Use
                 with care - this can cause significant spectral distortions! Default is False. NOT IMPLEMENTED YET.
+    - geom = True if useful geometric features should also be calculated (point depth, points per pixel and obliquity). These are useful for subsequent filtering
+             of the projected cloud to remove dodgy points. Default is False.
     - trim = Delete points in destination cloud that did not receive any data, to save space. Default is False.
     - clean = free memory from each scene after it is processed to save RAM. Default is True.
     - vb = True if progress statements should be printed. Default is True.
@@ -661,8 +664,6 @@ def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, trim=Fal
     name = os.path.splitext(os.path.basename(dest_path))[0]
     root = os.path.dirname(dest_path)
     O = hylite.HyCollection(name, root)
-    O.meta = hylite.HyCollection('meta', os.path.join(root, name) + ".hyc")
-    O.save()
 
     # loop through each set of scenes to blend
     for name, scenes in scene_map.items():
@@ -675,6 +676,8 @@ def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, trim=Fal
         # create output array
         out = np.zeros((cloud.point_count(), ref.band_count()))
         w = np.zeros(cloud.point_count())  # divisor for averaging later
+        if geom:
+            f = np.zeros((cloud.point_count(), 3))  # cloud footprint, obliquity & distance from sensor
 
         # do projections
         for i, s in enumerate(scenes):
@@ -687,29 +690,49 @@ def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, trim=Fal
             pmap.cloud = cloud
 
             # todo; histogram equalisation
-
             assert pmap.data.shape[0] == cloud.point_count(), "Error - cloud sizes do not match (%d != %d)" % (
-            pmap.data.shape[0], cloud.point_count())
+                pmap.data.shape[0], cloud.point_count())
             pmap.remove_nan_pixels()
 
-            # get per pixel depths
+            # get per point depths
             d = 1. / pmap.get_point_depths()[:, 0]
             mask = np.isfinite(d)
             if vb:
                 print("[%d points]" % np.sum(mask), end='')
 
-            # push to cloud and do averaging
+            # push to cloud
             chunk = push_to_cloud(s.pmap, method=kwds.get('proj_method', 'best'))
+
+            # also compute geometric properties?
+            if geom:
+                pmap.image = pmap.points_per_pixel()
+                if hasattr(s, "normals"):
+                    oblq = np.rad2deg(np.arccos(
+                        -(s.view * s.normals).sum(-1)))  # dot product of view product and surface normal vector
+                    pmap.image.data = np.dstack([pmap.image.data, oblq[..., None]])
+                chunkf = push_to_cloud(s.pmap, method=kwds.get('proj_method', 'best'))
+
+            # do averaging
             if 'average' in method.lower():  # normal averaging
                 out[mask, :] += chunk.data[mask, :]
                 w[mask] += 1
+                if geom:
+                    f[mask, 0] += 1. / d[mask]
+                    f[mask, 1:(2 + chunkf.band_count())] += chunkf.data[mask, :]
+
             elif 'weight' in method.lower():  # apply distance weighting
                 out[mask, :] += chunk.data[mask, :] * d[mask][:, None]
                 w[mask] += d[mask]
+                if geom:
+                    f[mask, 0] += (1. / d[mask]) * d[mask][:, None]
+                    f[mask, 1:(2 + chunkf.band_count())] += chunkf.data[mask, :] * d[mask][:, None]
             elif 'closest' in method.lower():  # just use closest
                 mask = mask & (d > w)  # choose only closest points
                 out[mask] = chunk.data[mask, :]
                 w[mask] = d[mask]
+                if geom:
+                    f[mask, 0] = 1. / d[mask]
+                    f[mask, 1:(2 + chunkf.band_count())] = chunkf.data[mask, :]
             else:
                 assert False, "Error - method should be 'weighted', 'average' or 'closest', not %s" % method
 
@@ -721,18 +744,25 @@ def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, trim=Fal
 
         # create and save output
         cloud = cloud.copy(data=False)
+        if geom:
+            geomcld = cloud.copy(data=False)
         if 'closest' in method.lower():
             cloud.data = out  # we already know value
+            if geom:
+                geomcld.data = f
         else:
             cloud.data = out / w[:, None]  # do normalization
-        weights = cloud.copy(data=False)
-        weights.data = w[:, None]
+            if geom:
+                geomcld.data = f / w[:, None]
+        if geom:
+            geomcld.set_band_names(["pointDepth", "pointsPerPixel", "Obliquity"])
 
         # trim clouds
         if trim:
             mask = w == 0
             cloud.filter_points(0, mask)
-            weights.filter_points(0, mask)
+            if geom:
+                geomcld.filter_points(0, mask)
 
         if vb:
             print("%d points..." % cloud.point_count(), end='')
@@ -743,7 +773,8 @@ def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, trim=Fal
             cloud.data = None
 
         O.__setattr__(name.lower(), cloud)
-        O.meta.__setattr__(name.lower() + "_weights", weights)
+        if geom:
+            O.__setattr__(name.lower() + "_geom", geomcld)
 
         if clean:
             O.save()  # save

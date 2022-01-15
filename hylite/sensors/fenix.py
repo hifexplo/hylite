@@ -149,8 +149,8 @@ class Fenix(Sensor):
             # divide by exposure (in ms)
             exp_vnir = float(image.header.get('tint1', 1.0))
             exp_swir = float(image.header.get('tint2', 1.0))
-            image.data[:, r] /= exp_vnir
-            image.data[:, r] /= exp_swir
+            image.data[..., :r] /= exp_vnir
+            image.data[..., r:] /= exp_swir
 
             # apply white reference (if specified)
             if not cls.white is None:
@@ -170,6 +170,12 @@ class Fenix(Sensor):
                     # match bands with this image
                     idx = [np.argmin(cls.white_spectra.get_wavelengths() < w) for w in image.get_wavelengths()]
                     refl = refl[idx]
+
+                # divide by exposure (in ms)
+                exp_vnir = float(cls.white.header.get('tint1', 1.0))
+                exp_swir = float(cls.white.header.get('tint2', 1.0))
+                white[..., :r ]  /= exp_vnir
+                white[..., r: ] /= exp_swir
 
                 # apply white reference
                 cfac = refl[None, :] / white

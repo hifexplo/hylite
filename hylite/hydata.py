@@ -320,20 +320,30 @@ class HyData(object):
         else:
             return cpy
 
-    def set_as_nan(self, value):
+    def set_as_nan(self, value, strict=True):
         """
         Sets data with the specified value to NaN. Useful for handling no-data values.
 
         *Arguments*:
          - value = the value to (permanently) replace with np.nan.
+         - strict = True if all bands must have this value to set it as nan. Default is True. If False, all occurences of
+                    value will be replaced with nan.
         """
 
-        if self.is_int():
-            nan = int(self.header.get("data ignore value", 0))
-            self.data[ self.data == value ] = nan
-            self.header["data ignore value"] = str(nan)
+        if strict:
+            if self.is_int():
+                nan = int(self.header.get("data ignore value", 0))
+                self.data[ (self.data == value).all(axis=-1) ] = nan
+                self.header["data ignore value"] = str(nan)
+            else:
+                self.data[ (self.data == value).all(axis=-1) ] = np.nan
         else:
-            self.data[self.data == value] = np.nan
+            if self.is_int():
+                nan = int(self.header.get("data ignore value", 0))
+                self.data[ self.data == value ] = nan
+                self.header["data ignore value"] = str(nan)
+            else:
+                self.data[self.data == value] = np.nan
 
     def mask_bands(self, mn, mx=None, val=np.nan):
         """

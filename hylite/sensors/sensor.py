@@ -130,6 +130,7 @@ class Sensor(object):
         if isinstance(image, str):
             assert os.path.exists(image), "Error: %s is not a valid file path or hyperspectral image."
             image = io.load(image)
+
         assert isinstance(image, io.HyImage), "Error: white reference must be an image."
         Sensor.white = image # store white reference
 
