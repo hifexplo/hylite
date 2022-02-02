@@ -244,7 +244,7 @@ class HyData(object):
         *Arguments*:
          - bands = either:
                      (1) a tuple containing the (min,max) wavelength to extract. If range is a tuple, -1 can be used to specify the
-                         first or last band index.
+                         last band index.
                      (2) a list of bands or boolean mask such that image.data[:,:,range] is exported to the new image.
         """
 
@@ -606,13 +606,15 @@ class HyData(object):
         else:
             assert False, "Error: Run_median does not work on %d-d data." % len(self.data.shape)
 
-    def smooth_savgol(self, window=5, poly=2, **kwds):
+    def smooth_savgol(self, window=5, poly=2, chunk=False, **kwds):
         """
         Applies Savitzky-Golay-filter on data.
 
         *Arguments*:
          - window = size of running window, must be an odd integer.
          - poly = degree of polynom, must be int.
+         - chunk = True if the data should be split into chunks (removing e.g. nan bands) before filtering. Use with care!
+                   Default is False.
         *Keywords*: Keywords are passed to scipy.signal.savgol_filter(...).
         *Returns*: A copy of the input dataset with smoothed spectra.
         """
@@ -620,7 +622,11 @@ class HyData(object):
         assert isinstance(window, int), "Error - running window size must be integer."
 
         # extract contiguous chunks
-        C, w = self.contiguous_chunks(min_size=window)
+        if chunk:
+            C, w = self.contiguous_chunks(min_size=window)
+        else:
+            C = [self.data]
+            w = [self.get_wavelengths()]
 
         # do smoothing
         kwds['window_length'] = window

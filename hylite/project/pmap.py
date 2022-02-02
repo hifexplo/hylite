@@ -669,6 +669,7 @@ def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, geom=Fal
     for name, scenes in scene_map.items():
         if vb:
             print("Blending scenes in %s" % name, end='')
+
         # load cloud and reference image (if needed for colour correction)
         cloud = scenes[0].cloud
         ref = scenes[0].image
@@ -680,6 +681,7 @@ def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, geom=Fal
             f = np.zeros((cloud.point_count(), 3))  # cloud footprint, obliquity & distance from sensor
 
         # do projections
+        cameras = []  # store cameras
         for i, s in enumerate(scenes):
             if vb:
                 print(" ..%d " % i, end='')
@@ -687,7 +689,9 @@ def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, geom=Fal
             # get projection map
             pmap = s.pmap
             pmap.image = s.image
+            pmap.remove_nan_pixels()  # remove masked areas
             pmap.cloud = cloud
+            cameras.append(s.camera)
 
             # todo; histogram equalisation
             assert pmap.data.shape[0] == cloud.point_count(), "Error - cloud sizes do not match (%d != %d)" % (
@@ -757,6 +761,12 @@ def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, geom=Fal
         if geom:
             geomcld.set_band_names(["pointDepth", "pointsPerPixel", "Obliquity"])
 
+        # add metadata to cloud
+        cloud.set_wavelengths(ref.get_wavelengths())
+        for i, c in enumerate(cameras):
+            if isinstance(c, hylite.project.Camera): # ignore pushbroom cameras
+                cloud.header.set_camera(c, i)
+
         # trim clouds
         if trim:
             mask = w == 0
@@ -781,5 +791,8 @@ def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, geom=Fal
             O.free()  # free memory for next group of scenes
         if vb:
             print(" Complete.")
-
+    if not clean:
+        print("Saving...", end='')
+        O.save()
+        print("Complete.")
     return O

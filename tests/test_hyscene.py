@@ -68,6 +68,8 @@ class MyTestCase(unittest.TestCase):
             img = S2.push_to_image('klm', method='closest')
 
             # test blending
+            S.image = self.image
+            S2.image = self.swath
             O = blend_scenes(pth + '/blendtest.hyc', dict(test=[S, S2]), method='average', hist_eq=False, trim=False,
                          vb=True, clean=True)
             self.assertEqual( O.test.point_count(), 2500 )

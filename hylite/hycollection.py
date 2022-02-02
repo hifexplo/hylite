@@ -266,6 +266,13 @@ class HyCollection(object):
         for a in attr:
             delattr(self, a)
 
+    def free_attr(self, a):
+        """
+        Unload the specific attribute from RAM. Can be used to e.g. remove unchanged attributes before saving. Note that any unsaved
+        changes to this attribute will be lost.
+        """
+        delattr(self, a)
+
     def addExternal(self, name, path, relative=True):
         """
         Add an external link (that is saved/loaded by this HyCollection instance, but not stored in its data folder).

@@ -112,8 +112,8 @@ class TestHyData(unittest.TestCase):
             # check smoothing works with nan bands
             data.mask_bands(1, 3)
             data.mask_bands(8, -1)
-            data.smooth_median()
-            data.smooth_savgol()
+            data.smooth_median(window=3)
+            data.smooth_savgol(window=3, chunk=True)
 
             # percent clip
             data.percent_clip(5,95,per_band=False,clip=True)

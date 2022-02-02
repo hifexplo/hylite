@@ -12,7 +12,7 @@ def from_indices(data, indices, s=4, names=None, ):
      - data = a HyData instance containing the spectral data.
      - indices = a list of sample indices to extract spectra from
      - s = the number of adjacent points to include in each sample. For HyImage data this will be a square patch of sxs
-           pixels. For HyCloud data s is assumed to be a radius and all points within this radius will be included in the library.
+           pixels. For HyCloud data s is used to take adjacent points from the points list (which is assumed to be somewhat ordered).
      - names = a list containing names for each sample, or None to generate (numeric) sample ids.
     *Returns*: a HyLibrary instance
     """
@@ -23,10 +23,10 @@ def from_indices(data, indices, s=4, names=None, ):
     # extract spectra
     S = []
     for idx, name in zip(indices, names):
-        if len(idx) == 2:  # image
-            X = data.data[idx[0] - s: idx[0] + s, idx[1] - s: idx[1] + s, :].reshape(-1, data.band_count())
-        elif isinstance(idx, int):
+        if isinstance(idx, int):
             X = data.data[idx - s: idx + 1, :]
+        elif len(idx) == 2:  # image
+            X = data.data[idx[0] - s: idx[0] + s, idx[1] - s: idx[1] + s, :].reshape(-1, data.band_count())
         elif len(idx) == 1:
             X = data.data[idx[0] - s: idx[0] + s, :]
         S.append(HyLibrary(X[None, :, :], lab=[name], wav=data.get_wavelengths()))

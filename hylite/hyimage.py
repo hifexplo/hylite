@@ -552,7 +552,7 @@ class HyImage( HyData ):
             if flipY:
                 data = data[:, ::-1]
 
-            ax.cbar = ax.imshow(data.T, **kwds)
+            ax.cbar = ax.imshow(data.T, interpolation=kwds.pop('interpolation', 'none'), **kwds)
 
         #map 3 bands to RGB
         elif isinstance(band, tuple) or isinstance(band, list):
@@ -626,7 +626,7 @@ class HyImage( HyData ):
                         ax.scatter(points[:, 0], points[:, 1], s=ps, c=pc)
 
             #plot
-            ax.imshow(np.transpose(img, (1,0,2)), **kwds)
+            ax.imshow(np.transpose(img, (1,0,2)), interpolation=kwds.pop('interpolation', 'none'), **kwds)
             ax.cbar = None  # no colorbar
 
         return ax.get_figure(), ax
