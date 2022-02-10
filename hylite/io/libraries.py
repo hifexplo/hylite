@@ -3,7 +3,9 @@ import numpy as np
 import glob
 from hylite import HyLibrary
 from hylite.io import makeDirs
+from time import gmtime, strftime
 from hylite.io.images import loadWithGDAL, saveWithGDAL, loadWithSPy, loadWithSPy
+
 # noinspection PyUnusedLocal
 def _read_sed_file(path):
 
@@ -185,6 +187,93 @@ def loadLibraryCSV(path):
             refl.append( np.array(l[1:],dtype=np.float) )
             l = f.readline()
     return HyLibrary( np.array(refl), names, wav=wav )
+
+def loadLibraryTXT(path):
+    """
+    Load an ENVI text format library. This should have the following structure:
+
+    ----
+    ENVI ASCII Plot File
+    Column 1: Wavelength
+    Column 2: Sample1
+    Column 3: Sample2
+    C10 C20 C30
+    C11 C21 C31
+    C12 C22 C32
+    ... ... ..
+
+    -------
+
+    """
+
+    with open(path, 'r') as f:
+        # check header line
+        l0 = f.readline()
+        assert 'envi ascii' in l0.lower(), "Error - Provided file is not an ENVI TXT library: %s" % path
+
+        # read sample definitions
+        ll = f.readline().lower()
+        names = {}
+        wav = -1
+        while 'column' in ll:
+
+            # split and get column number
+            data = ll.strip().split(' ')
+            try:
+                i = int(data[1].replace(':', "")) - 1
+            except:
+                assert False, "Error - could not parse line %s. File is invalid?" % (ll)
+
+            # get column name
+            if 'wavelength' in data[2]:  # this column is wavelengths
+                wav = i
+            else:  # this column is a spectra
+                # names[i] = '_'.join(data[2:]) # store rest of attributes in name
+                names[i] = data[3]
+
+            # read next line
+            ll = f.readline().lower()
+
+        # read data block
+        data = []
+        while ll:
+            data.append(np.fromstring(ll, sep=' '))
+            ll = f.readline()
+        data = np.array(data).T
+        f.close()  # close file
+
+        # build hylibrary
+        if wav > -1:
+            wav = data[wav, :]
+        else:
+            wav = np.arange(data.shape[-1])
+        lib = HyLibrary(data[list(names.keys()), :], lab=list(names.values()), wav=wav)
+        return lib
+
+
+def saveLibraryTXT(path, library):
+    """
+    Save this library in envii TXT format (see loadLibraryTXT).
+    """
+
+    makeDirs(path)
+
+    with open(path, 'w') as f:
+        f.write("ENVI ASCII Plot File %s\n" % strftime("[%a %b %d %H:%M:%S %Y]", gmtime()))
+        f.write('Column 1: Wavelength\n')
+
+        # gather data and write column headers
+        data = [library.get_wavelengths()]
+        for i, n in enumerate(library.get_sample_names()):
+            f.write('Column %d: %s %s\n' % (i + 2, n, n))
+            data.append(np.nanmedian(library[n].data, axis=(0, 1)))  # we need to flatten samples to a single spectra
+
+        # write data block
+        for row in np.array(data).T:
+            for v in row:
+                f.write('  %.6f' % v)
+            f.write('\n')
+    f.close()
 
 def saveLibraryLIB(path, library):
     path = os.path.splitext(path)[0] + ".lib" # ensure correct file format

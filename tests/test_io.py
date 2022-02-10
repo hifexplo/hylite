@@ -89,6 +89,13 @@ class TestIO(unittest.TestCase):
                 self.assertTrue(track2.dims[0] == track.dims[0])
                 self.assertTrue( np.abs(track2.pl - track.pl) < 0.001 )
 
+                # test export to envi
+                from hylite.io.libraries import saveLibraryTXT, loadLibraryTXT
+                saveLibraryTXT( os.path.join(pth,"lib.txt"), self.lib )
+                lib2 = loadLibraryTXT(  os.path.join(pth,"lib.txt") )
+                self.assertTrue( (np.abs( self.lib.get_wavelengths() - lib2.get_wavelengths()) < 1e-5).all() )
+                self.assertTrue((np.abs(self.lib.data - lib2.data) < 1e-5).all())
+
             except:
                 shutil.rmtree(pth)  # delete temp directory
                 self.assertFalse(True, "Error - could not save data of type %s" % str(type(data)))
