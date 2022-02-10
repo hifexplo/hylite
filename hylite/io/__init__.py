@@ -138,6 +138,8 @@ def load(path):
         out =  loadCloudLAS(path)
     elif 'csv' in ext: # (flat) spectral library
         out = loadLibraryCSV(path)
+    elif 'txt' in ext: # (flat) spectral library
+        out = loadLibraryTXT(path)
     elif 'sed' in ext: # (flat) spectral library
         out = loadLibrarySED(path)
     elif 'tsg' in ext: # (flat) spectral library
