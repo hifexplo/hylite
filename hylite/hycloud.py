@@ -267,7 +267,7 @@ class HyCloud( HyData ):
 
             def median(radius, current_id, neighbour_ids):
                 self.data[current_id, idx] = np.nanmedian(
-                    np.vstack([self.data[neighbour_ids, idx], self.data[[current_id], idx]]), axis=0)
+                    np.hstack([self.data[neighbour_ids, idx], self.data[[current_id], idx]]), axis=0)
         elif isinstance(bands, tuple) and len(bands) == 2:  # (min,max) tuple
             idx0 = self.get_band_index(bands[0])
             idx1 = self.get_band_index(bands[1])
@@ -280,7 +280,7 @@ class HyCloud( HyData ):
             if bands.dtype == 'bool':
                 assert len(
                     bands) == self.band_count(), "Error - band mask has invalid shape (%s) for dataset with %d bands." % (
-                bands.shape, self.band_count())
+                    bands.shape, self.band_count())
             else:
                 bands = [self.get_band_index(int(b)) for b in bands]
 

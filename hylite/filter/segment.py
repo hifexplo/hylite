@@ -372,6 +372,38 @@ def unwrap_core(image, template, stack='linear', **kwds):
     else:
         assert False, "Error - %s is an unknown stacking." % stack
 
+def tray_to_stick(tray, N):
+    """
+    Break a unwrapped tray into individual sticks.
+
+    *Arguments*:
+     - tray = a HyImage instance containing a linearly unwrapped tray.
+     - N = the number of chunks of core to break it into.
+    """
+
+    # check orientation
+    if tray.ydim() > tray.xdim():
+        data = np.transpose(tray.data, (1, 0, 2))
+    else:
+        data = tray.data
+    assert data.shape[0] >= data.shape[1], "Error - invalid shape? %s" % str(tray.data.shape)
+
+    # slice
+    step = int(data.shape[0] / N)
+    slices = [data[(step * i):(step * (i + 1)), :, :] for i in range(N)]
+
+    # build images
+    start = float(tray.header['core start'])
+    end = float(tray.header['core end'])
+    zz = np.linspace(start, end, N + 1)
+    images = []
+    for i in range(N):
+        image = hylite.HyImage(slices[i], header=tray.header.copy())
+        image.header['core start'] = zz[i]
+        image.header['core end'] = zz[i + 1]
+        images.append(image)
+    return images
+
 def composite_cores(trays, pad=2):
     """
     Composites a list of uwrapped core trays (cf. unwrap_core(...)) into a single image such that each column
@@ -494,7 +526,6 @@ def plot_drillhole(composite, N=5, maxN=25, **kwds):
 
     fig.tight_layout()
     return fig, ax
-
 
 def map_depth(image):
     # check we have the necessary info

@@ -62,7 +62,7 @@ class HyHeader( dict ):
         Get list of band names from header file.
         """
         assert 'band names' in self, "Error - header file has no band names."
-        return list(self['band names'])
+        return self.get_list('band names', str)
 
     def get_wavelengths(self):
         """

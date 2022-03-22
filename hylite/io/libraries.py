@@ -169,7 +169,7 @@ def saveLibraryCSV(path, library):
     with open(path, 'w') as f:
         f.write( "name," + str(list(library.get_wavelengths()))[1:-1] +'\n' )
         for i,n in enumerate(library.get_sample_names()):
-            f.write( n + ", " + str(list( library.data[i,:] ))[1:-1] + '\n' )
+            f.write( str(n) + ", " + str(list( library.data[i,0,:] ))[1:-1] + '\n' )
     f.close()
 
 def loadLibraryCSV(path):
