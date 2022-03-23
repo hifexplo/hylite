@@ -339,6 +339,7 @@ def saveCloudPLY(path, cloud, sfmt=None):
                 n = str(cloud.get_band_names()[b])
 
             #remove spaces from n
+            n = n.strip()
             n.replace(' ', '_')
 
             #name already includes 'scalar'?
@@ -409,7 +410,7 @@ def loadCloudPLY(path):
         elif 'normal' in e.name.lower():  # normal data
             norm = np.array([e['x'], e['y'], e['z']], dtype=e['z'].dtype).T
         else:  # scalar data
-            scalar_names.append(e.properties[0].name)
+            scalar_names.append(e.properties[0].name.strip())
             scalar.append(np.array(e[e.properties[0].name], dtype=e[e.properties[0].name].dtype))
 
     if len(scalar) == 0:

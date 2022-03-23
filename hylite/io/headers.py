@@ -135,8 +135,8 @@ def loadHeader(path):
 
         header['wavelength units'] = 'nm' #update wavelength units
 
-    if "band names" in header:
-        header["band names"] = header['band names'].split(',') #split into list
+    #if "band names" in header:
+    #    header["band names"] = header['band names'].split(',') #split into list
 
     if "fwhm" in header:
         header["fwhm"] = np.fromstring(header['fwhm'], sep=',') #split into list
