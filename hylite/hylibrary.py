@@ -158,6 +158,30 @@ class HyLibrary(HyData):
         if lab is not None:
             self.set_sample_names( lab )
 
+    def copy(self,data=True):
+        """
+        Make a deep copy of this HyLibrary instance.
+        *Arguments*:
+         - data = True if a copy of the data should be made, otherwise only copy header.
+        *Returns*
+          - a new HyLibrary instance.
+        """
+        header = self.header.copy()
+        if data:
+            arr = self.data.copy()
+        else:
+            arr = self.data
+        names = None
+        wav = None
+        if self.has_sample_names():
+            names = self.get_sample_names()
+        if data==True and self.has_wavelengths():
+            wav = self.get_wavelengths()
+        out = HyLibrary(arr, lab=names, wav=wav, header=header)
+        if not data:
+            out.data = None # drop data array to protect it (we don't want shallow copies)
+        return out
+
     def as_image(self, shallow=False):
         """
         Convert this library to a HyImage dataset for e.g. visualisation using HyImage.quick_plot(...).
@@ -172,24 +196,6 @@ class HyLibrary(HyData):
             return HyImage( self.data, header=self.header )
         else:
             return HyImage( self.data.copy(), header=self.header.copy() )
-
-    def copy(self,data=True):
-        """
-        Make a deep copy of this HyLibrary instance.
-        *Arguments*:
-         - data = True if a copy of the data should be made, otherwise only copy header.
-        *Returns*
-          - a new HyLibrary instance.
-        """
-        header = self.header.copy()
-        if data:
-            arr = self.data.copy()
-        else:
-            arr = self.data
-        out = HyLibrary(arr, self.get_sample_names(), wav=self.get_wavelengths(), header=header)
-        if not data:
-            out.data = None # drop data array to protect it (we don't want shallow copies)
-        return out
 
     def merge(self, library2):
         """

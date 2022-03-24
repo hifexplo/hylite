@@ -31,7 +31,20 @@ class MyTestCase(unittest.TestCase):
         image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
         image.data[:50,:,:] = np.nan # add some nans to make more realistic
         cloud = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
-        for D in [image,cloud]:
+
+        # also create a HyLibrary instance
+        image.header.set_sample_points('A', [(20, 15)]) # label some seed pixels in each sample
+        image.header.set_sample_points('B', [(80, 15)])
+        image.header.set_sample_points('C', [(140, 15)])
+        image.header['class names'] = ['A', 'B', 'C']
+        from hylite.hylibrary import from_indices
+        lib = from_indices(image,
+                           [image.header.get_sample_points(n)[0] for n in image.header.get_class_names()],
+                           names=image.header.get_class_names(),
+                           s=5)
+
+
+        for D in [lib,image,cloud]:
             # test normal mwl
             mwl = minimum_wavelength(D, 2100., 2380.,
                                      trend='hull', method='minmax',

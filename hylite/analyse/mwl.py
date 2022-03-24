@@ -72,7 +72,7 @@ class MWL(HyCollection):
         if isinstance(n, int):
             assert n < self.n, "Error - MWL has only %d features (not %d)" % (self.n, n + 1)
             out = self.model.copy(data=False)
-            out.data = self.model[...,
+            out.data = self.model.data[...,
                        n * self.stride:(n + 1) * self.stride]  # return bands associated with the features
             return out
         else:  # return slice of MWL data as numpy array.
@@ -100,10 +100,10 @@ class MWL(HyCollection):
 
             if isinstance(n[0], slice):  # we want to slice only depth or only
                 assert not isinstance(b, slice), "Error - invalid slice key %s" % (n)
-                return self.model[..., b::self.stride]
+                return self.model.data[..., b::self.stride]
             else:
                 assert n[0] < self.n, "Error - MWL has only %d features (not %d)" % (self.n, n[0] + 1)
-                return self.model[..., n[0] * self.stride + b]
+                return self.model.data[..., n[0] * self.stride + b]
 
     def getFeature(self, n):
         """
