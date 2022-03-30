@@ -54,8 +54,9 @@ class MWL(HyCollection):
          - name = the name to use for the HyCollection in the file dictionary. If None (default) then this instance's
                   name will be used, but this can be overriden for e.g. saving in a new location.
         """
-        p = os.path.splitext( super()._getDirectory(root,name) )[0]
-        return p + ".mwl"
+        p = os.path.splitext( super()._getDirectory(root,name) )[0] + ".mwl"
+        os.makedirs(p, exist_ok=True)
+        return p
 
     def __getitem__(self, n):
         """
@@ -944,3 +945,156 @@ def colourise_mwl(mwl, mode='p-d', **kwds):
         out.rgb = (rgb * 255).astype(np.uint8)
         return out, cbar
 
+
+def plot_ternary(F1, F2, F3, bounds, weights=[1., 1., 1.], subsample=1, depth_thresh=0.01, ax=None, **kwds):
+    """
+    Plot a ternary diagram comparing the depths and positions of three minimum wavelength features.
+
+    *Arguments*:
+     - F1, F2, F3 = A HyData instance containing feature depth and position as band 0 and 1 respectively.
+     - bounds = List containing min and max position values for each feature [ (min,max), (min,max), (min,max)].
+     - weights = weights applied to each depth. Default is [1,1,1].
+     - subsample = skip entries in the data features for large datasets. Default is 1 (don't skip any).
+     - depth_thresh = the minimum depth to be considered a valid feature. Default is 0.01.
+     - ax = an axes to plot to. If None (default) then a new axes is created.
+    *Keywords*:
+     - r = the diameter of the ternary diagram (default is 0.8)
+     - figsize = the figure size as a (width,height) tuple. Default is (10,10)
+     - w = the width of edge plots. Default is 0.2.
+     - gs = the number of grid lines. Default is 5.
+     - invalid = invalid region (don't plot position if abundance < this value). Default is 0.2.
+     - title = the title of the plot.
+     - labels = the names of each of the features (F1, F2 and F3) used for labelling.
+     - label_offset = the space between each label and the relevant vertex.
+     - s = the point size. Default is 4.
+     - a = point alpha. Default is 0.1.
+    """
+    # put features in a list
+    features = [F1, F2, F3]
+
+    # get axes
+    if ax is None:
+        fig, ax = plt.subplots(figsize=kwds.get('figsize', (10, 10)))
+    else:
+        fig = ax.get_figure()
+    ax.set_aspect('equal')
+
+    # compute coordinates of border
+    r = kwds.get('r', 0.8)  # diameter of ternary diagram
+    w = kwds.get('w', 0.2)  # width of edge plots
+    gs = kwds.get('gs', 5)  # number of grid points
+    invalid = kwds.get('invalid', 0.2)  # invalid region (don't plot position if abundance < this value)
+    title = kwds.get('title', 'Absorption features')
+    label_offset = kwds.get('label_offset', 0.2)
+    labels = kwds.get('labels', ['F1', 'F2', 'F3'])
+    edge_bounds = bounds
+    colors = ['r', 'g', 'b']  # colours for the labels. These should not be changed.
+    psize = kwds.get('s', 4)
+    palpha = kwds.get('a', 0.1)
+
+    # plot triangle and outline of ternary diagram
+    X = np.array([[0, np.cos(np.deg2rad(30)), -np.cos(np.deg2rad(30))],
+                  [1, -np.sin(np.deg2rad(30)), -np.sin(np.deg2rad(30))]]).T
+    X *= r  # apply scale factor
+
+    def baryToCC(a, b, c):
+        # normalise
+        sm = a + b + c
+        for v in [a, b, c]:
+            v /= sm
+
+        # compute coordinates
+        C, A, B = X
+        x = A[0] * a + B[0] * b + C[0] * c
+        y = A[1] * a + B[1] * b + C[1] * c
+        return x, y
+
+    def edgeToCC(edge, abundance, y):
+        C, A, B = X
+        if 'a' in edge.lower():
+            xx = A - C
+            o = C  # edge a starts at C and ends at A
+        if 'b' in edge.lower():
+            xx = B - A
+            o = A  # edge b starts at A and ends at B
+        if 'c' in edge.lower():
+            xx = C - B
+            o = B  # edge c starts at B and ends at C
+
+        yy = xx[::-1] * np.array([-1, 1])  # y is perpendicular to x
+        yy = yy * np.linalg.norm(yy) * w  # normalised to correct length
+
+        x = o[0] + xx[0] * abundance + yy[0] * y
+        y = o[1] + xx[1] * abundance + yy[1] * y
+        return x, y
+
+    # plot triangle
+    ax.plot(X[[0, 1, 2, 0], 0], X[[0, 1, 2, 0], 1], color='k', lw=2, zorder=1)
+
+    # plot ternary grid
+    for e, c in zip('abc', 'gbr'):
+        V = []
+        ee = 'abc'.replace(e, '')
+        for a in np.linspace(0, 1, gs):
+            x0, y0 = edgeToCC(ee[0], a, 0)
+            x1, y1 = edgeToCC(ee[1], 1 - a, 0)
+
+            # plot edge
+            ax.plot([x0, x1], [y0, y1], color=c, zorder=0, alpha=0.4, ls=':')
+
+    # plot edges
+    for e, c in zip('abc', 'rgb'):
+        ax.plot(*edgeToCC(e, np.array([0, 0, 1, 1]), np.array([0, 1, 1, 0])), color=c, lw=2)
+
+    # plot edge grid
+    for e, c in zip('abc', 'rgb'):
+        for a in np.linspace(0, 1, gs):
+            ax.plot(*edgeToCC(e, np.array([0, 1]), np.array([a, a])), color='k', zorder=0, alpha=0.4, ls=':')
+            ax.plot(*edgeToCC(e, np.array([a, a]), np.array([0, 1])), color=c, zorder=0, alpha=0.4, ls=':')
+
+    # plot invalid areas
+    for e in 'abc':
+        ax.fill(*edgeToCC(e, np.array([0, 0, invalid, invalid]), np.array([0, 1, 1, 0])), color='k', zorder=-1, lw=0,
+                alpha=0.1)
+
+    # plot component labels
+    for i, e in enumerate('abc'):
+        co = np.array(edgeToCC(e, 1, 0))
+        a = np.zeros(3)
+        a[i] = 1 - label_offset
+        off = co - np.array(baryToCC(*a))
+        ax.text(*(co + off), labels[i], fontsize='xx-large', ha='center', va='top', color=colors[i])
+
+    # plot edge labels
+    for i, (e, a) in enumerate(zip('abc', [-60, 0, 60])):
+        mn = edgeToCC(e, 0.05, 0.15)
+        ax.text(*mn, str(edge_bounds[i][0]), ha='center', va='center', rotation=a)
+        mx = edgeToCC(e, 0.05, 0.85)
+        ax.text(*mx, str(edge_bounds[i][1]), ha='center', va='center', rotation=a)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_axis_off()
+
+    # plot data
+    depth = np.nan_to_num(np.array([D.data[..., 0].ravel() for D in features]))
+    depth *= np.array(weights)[:, None]
+    depth /= np.sum(depth, axis=0)[None, :]  # normalise to sum to one
+    pos = np.array([D.data[..., 1].ravel() for D in features])
+    mask = (depth > depth_thresh).any(axis=0)  # don't plot points with only shallow features
+    pos = pos[:, mask][:, ::subsample]
+    depth = depth[:, mask][:, ::subsample]
+
+    # compute colours
+    rgb = (depth / np.sum(depth, axis=0)).T
+    ax.scatter(*baryToCC(depth[0, :], depth[1, :], depth[2, :]),
+               color=rgb, alpha=palpha, s=psize)
+
+    for i, e in enumerate('abc'):
+        y = pos[i, :] - edge_bounds[i][0]
+        y = np.clip(y / (edge_bounds[i][1] - edge_bounds[i][0]), 0, 1)
+        mask = depth[i, :] > invalid
+        ax.scatter(*edgeToCC(e, depth[i, mask], y[mask]),
+                   color=rgb[mask], alpha=palpha, s=psize)
+
+    ax.set_title(title, size='xx-large')
+    return fig, ax

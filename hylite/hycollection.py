@@ -204,8 +204,9 @@ class HyCollection(object):
             name = self.name
         assert root is not None, "Error - root argument must be set during HyCollection initialisation or function call."
         assert name is not None, "Error - name argument must be set during HyCollection initialisation or function call."
-
-        return os.path.join(root, os.path.splitext(name)[0] + ".hyc")
+        p = os.path.join(root, os.path.splitext(name)[0] + ".hyc")
+        os.makedirs(p, exist_ok=True)  # ensure directory actually exists!
+        return p
 
     def getAttributes(self):
         """
@@ -290,6 +291,23 @@ class HyCollection(object):
             self.__setattr__(name, External(path,self.root))
         else:
             self.__setattr__(name, External(path, None))
+
+    def addSub(self, name):
+        """
+        Add a subcollection to this one (and sort out internal file paths etc.).
+
+        *Arguments*:
+         - name = the name of the subcollection to add.
+        *Returns*:
+         - a HyCollection object representing the subcollection.
+        """
+
+        if self.root is None: # no path defined
+            S = HyCollection(name,'')
+        else:
+            S = HyCollection(name, self._getDirectory() )
+        self.__setattr__(name, S)
+        return S
 
     def __getattribute__(self, name):
         """
