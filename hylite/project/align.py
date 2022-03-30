@@ -475,3 +475,79 @@ def align_images(image1, image2, warp=True, **kwds):
     return mapped
 
 
+def piecewise_align(image1, image2, source_bands, dest_bands=None, matchdist=0.6, vb=False, **kwds):
+    """
+    Coregister an image or numpy array to a target image using SIFT keypoints and the piecewise affine transform in scikit image.
+
+    *Arguments*:
+     - image1= the reference image.
+     - image2 = the image to transform.
+     - source_bands = A tuple defining the bands to use in image 1.
+     - dest_bands = A tuple defining the bands to use in image 2. Defaults to source_bands.
+     - matchdist = the SIFT matching distance threshold. Default is 0.6.
+     - vb = create graphical output figures for debugging. Default is False.
+    *Keywords*:
+     - keywords are passed to HyImage.get_keypoints( ... ).
+
+    *Returns*:
+     - a transformed image
+    """
+    assert isinstance(image1, hylite.HyImage) and isinstance(image2,
+                                                             hylite.HyImage), "Error - images myst be HyImage instances."
+
+    if dest_bands is None:
+        dest_bands = source_bands
+
+    # extract features
+    def getFeatures(I1, I2):
+        pref = []
+        ptarg = []
+        for b1, b2 in zip(source_bands, dest_bands):
+            k1, d1 = I1.get_keypoints(b1, method='sift', mask=True)
+            k2, d2 = I2.get_keypoints(b2, method='sift', mask=True)
+            kimg, ktg = I2.match_keypoints(k1, k2, d1, d2, method='sift', dist=matchdist)
+            pref.append(kimg)
+            ptarg.append(ktg)
+        return np.vstack(pref), np.vstack(ptarg)
+
+    pref, ptarg = getFeatures(image1, image2)
+
+    if vb:
+        fig, ax = image1.quick_plot((0, 1, 2))
+        ax.set_title("Initial features")
+        ax.scatter(pref[:, 0, 1], pref[:, 0, 0], s=4, color='r')
+        ax.scatter(ptarg[:, 0, 1], ptarg[:, 0, 0], s=4, color='g')
+        xx = np.array([[pref[i, 0, 1], ptarg[i, 0, 1]] for i in range(pref.shape[0])]).T
+        yy = np.array([[pref[i, 0, 0], ptarg[i, 0, 0]] for i in range(pref.shape[0])]).T
+        ax.plot(xx, yy, color='white', alpha=0.2)
+        fig.show()
+
+    # compute transform
+    try:
+        from skimage import transform as tf
+    except:
+        assert False, "Error - please install scikit image (pip install scikit-image) to use this functionality."
+    tform = tf.PiecewiseAffineTransform()
+    tform.estimate(pref[:, 0, :], ptarg[:, 0, :])
+
+    # apply transform
+    mapped = image2.copy(data=False)
+    mapped.data = tf.warp(image2.data, tform, output_shape=(image1.xdim(), image1.ydim()))
+
+    # final plot?
+    if vb:
+        # get transformed matches
+        pref, ptarg = getFeatures(image1, mapped)  # get new matches to show residuals
+        fig, ax = mapped.quick_plot((0, 1, 2))
+        ax.set_title("Residual features")
+        ax.scatter(pref[:, 0, 1], pref[:, 0, 0], s=4, color='r')
+        ax.scatter(ptarg[:, 0, 1], ptarg[:, 0, 0], s=4, color='g')
+        xx = np.array([[pref[i, 0, 1], ptarg[i, 0, 1]] for i in range(pref.shape[0])]).T
+        yy = np.array([[pref[i, 0, 0], ptarg[i, 0, 0]] for i in range(pref.shape[0])]).T
+        ax.plot(xx, yy, color='white', alpha=0.2)
+        fig.show()
+
+    return mapped
+
+
+

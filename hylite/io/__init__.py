@@ -86,9 +86,11 @@ def save(path, data, **kwds):
             ext = 'hys'
         if isinstance(data, MWL): # special type of HyCollection, should have different extension
             ext = 'mwl'
-        if os.path.splitext(path)[0]+"."+ext != data._getDirectory(): # we're moving to a new home! Copy folder
-            if os.path.exists(data._getDirectory()): # if it exists...
-                shutil.copytree( data._getDirectory(), os.path.splitext(path)[0]+"."+ext)
+        #if os.path.splitext(path)[0]+"."+ext != data._getDirectory(): # we're moving to a new home! Copy folder
+        outdir = os.path.join(data.root, os.path.splitext(data.name)[0])
+        if os.path.splitext(path)[0] != outdir:
+            if os.path.exists( outdir+"."+ext): # if it exists...
+                shutil.copytree( outdir+"."+ext, os.path.splitext(path)[0]+"."+ext, dirs_exist_ok=True)
     elif isinstance(data, np.ndarray):
         save_func = np.save
         ext = 'npy'
