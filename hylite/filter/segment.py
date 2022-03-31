@@ -12,6 +12,96 @@ from matplotlib import path
 from hylite import io
 from tqdm import tqdm
 
+
+def readAnnotations(annot, hsi, mask_patches=False, mask_panels=False, mask_points=False, mode='average', inplace=False):
+    """
+    Extract pixel positions and region spectra (e.g. calibration panels) based on an annotation image.
+    This image should have three RGB bands (0 - 255) and will be parsed as follows:
+     - [0,0,0] = white = retain data.
+     - [255,255,255] = black = mask data (replace with nan).
+     - [aaa,aaa,aaa] = grays = extract regions and add averaged spectra to header file indexed by grey value.
+     - [0,255,255],[255,0,255],[255,255,0]  = cyan, magenta, yellow = extract calibration panels A, B and C (respectively).
+     - [n,0,0] (reds), [0,n,0] (blues), [0,0,n] (greens) = extract pixel locations and add to header file as points A, B and C (respectively). These will be ordered based on the corresponding channel value.
+
+    *Arguments*:
+     - annot = the annotations image (three channels, 0-255, uint8) matching the format described above.
+     - hsi = a hyperspectral image with matching x- and y- dimensions to the annotation image.
+     - mask_patches = True if patches should be removed from output. Default is False. [ i.e. these will be retained in the image ].
+     - mask_panels = True if panels should be removed from output. Default is False. [ i.e. these will be retained in the image ].
+     - mask_points = True if points should be removed from output. Default is False. [ i.e. these will be retained in the image ].
+     - mode = function used to aggregate pixel values. Options are 'average' (default) or 'median'.
+     - inplace = True if the hsi image should be modified in-place or copied (default).
+    *Returns*:
+     - a copy of the input file (if inplace is False) with the extracted points and spectra added to the header file.
+    """
+
+    # check inputs
+    assert isinstance(annot, hylite.HyImage), 'Error - annot (%s) is not a HyImage instance' % type(annot)
+    assert isinstance(hsi, hylite.HyImage), 'Error - hsi (%s) is not a HyImage instance' % type(hsi)
+    assert annot.band_count() == 3, 'error - annot has %d bands (should = 3).' % annot.band_count()
+    assert annot.xdim() == hsi.xdim(), 'error - xdim %d != %d' % (annot.xdim(), hsi.xdim())
+    assert annot.ydim() == hsi.ydim(), 'error - xdim %d != %d' % (annot.ydim(), hsi.ydim())
+
+    if 'average' in mode.lower():
+        agg = np.nanmean
+    elif 'median' in mode.lower():
+        agg = np.nanmedian
+    else:
+        assert False, "Error - %s is an unknown mode. Should be 'average' or 'median'." % mode
+
+    # create output
+    if inplace:
+        out = hsi
+    else:
+        out = hsi.copy(data=True)
+
+    # build masks
+    diff = np.diff(annot.data, axis=-1)
+    retain_mask = (annot.data == 0).all(axis=-1)
+    remove_mask = (annot.data == 255).all(axis=-1)
+    patch_mask = (diff == 0).all(axis=-1) & np.logical_not(remove_mask) & np.logical_not(retain_mask)
+    panel_mask = np.sum(annot.data != 0, axis=-1) == 2
+    point_mask = np.sum(annot.data != 0, axis=-1) == 1
+
+    # extract patches
+    patches = np.unique(annot.data[patch_mask, 0])
+    for i, v in enumerate(patches):
+        mask = patch_mask & (annot.data[..., 0] == v)
+        if mask.any():
+            S = agg(hsi.data[mask, :], axis=0)
+            out.header['patch %d size' % int(v)] = np.sum(mask)
+            out.header['patch %d spectra' % int(v)] = S
+
+    # extract panels
+    for i, v in zip(range(3), 'abc'):
+        mask = panel_mask & (annot.data[..., i] == 0)
+        if mask.any():
+            S = agg(hsi.data[mask, :], axis=0)
+            out.header['panel %s size' % v] = np.sum(mask)
+            out.header['panel %s spectra' % v] = S
+
+    # extract points
+    for i, v in zip(range(3), 'abc'):
+        mask = point_mask & (annot.data[..., i] != 0)
+        if mask.any():
+            vals = annot.data[mask, i]
+            coords = np.argwhere(mask)
+            idx = np.argsort(vals)
+            out.header['points %s x' % v] = coords[idx, 0]
+            out.header['points %s x' % v] = coords[idx, 1]
+
+    # apply mask
+    out.data[remove_mask, :] = np.nan
+    if mask_patches:
+        out.data[patch_mask, : ] = np.nan
+    if mask_panels:
+        out.data[panel_mask, : ] = np.nan
+    if mask_points:
+        out.data[point_mask, : ] = np.nan
+
+    # return
+    return out
+
 # create foreground and background masks for grab cut algorithm
 def label_blocks(image, fg=None, s=8, epad=20, boost=3, erode=3, bands=hylite.RGB, vb=True, **kwds):
     """
