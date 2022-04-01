@@ -27,7 +27,8 @@ class TestAlign(unittest.TestCase):
                      warp=True, features='sift', method='poly')
 
         # test piecewise align
-        piecewise_align( image1, image2, source_bands=(0,1,2) )
+        for m in ['piecewise', 'affine', 'polynomial']:
+            align( image1, image2, source_bands=(0,1,2), method=m )
 
     def test_align_to_cloud(self):
 
