@@ -14,7 +14,7 @@ def boost_saturation( image, bands, flip=True, sat=0.8, val=None, clip=(2,98),pe
 
     *Arguments*:
      - the image containing the data
-     - bands = the bands to map to r, g b.
+     - bands = the bands to map to r, g, b.
      - flip = true if the image should be inverted prior to boosting saturation
               (good for interpreting absorbtion features). Default is True.
      - sat = the (constant) saturation value to use. Default is 0.8.

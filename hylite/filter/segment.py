@@ -88,7 +88,7 @@ def readAnnotations(annot, hsi, mask_patches=False, mask_panels=False, mask_poin
             coords = np.argwhere(mask)
             idx = np.argsort(vals)
             out.header['points %s x' % v] = coords[idx, 0]
-            out.header['points %s x' % v] = coords[idx, 1]
+            out.header['points %s y' % v] = coords[idx, 1]
 
     # apply mask
     out.data[remove_mask, :] = np.nan
