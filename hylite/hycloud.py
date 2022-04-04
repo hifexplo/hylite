@@ -380,7 +380,10 @@ class HyCloud( HyData ):
                 cloudymax = np.amax(self.xyz[::step, 1])
 
                 # compute sensible resolution
-                res = kwds.get("res", max( cloudxmax - cloudxmin, cloudymax - cloudymin) / 1000 )
+                res = kwds.get("res", None)
+                if res is None: # use default value
+                    res = max(cloudxmax - cloudxmin, cloudymax - cloudymin) / 1000
+
 
                 cloudxsize = int(cloudxmax - cloudxmin) / res
                 cloudysize = int(cloudymax - cloudymin) / res
@@ -533,7 +536,7 @@ class HyCloud( HyData ):
             img.despeckle(int(despeckle))
         return img
 
-    def quick_plot(self, band='rgb', cam='ortho', s=1, step=1, fill_holes=False, blur=False, despeckle=False, res=0.2, **kwds):
+    def quick_plot(self, band='rgb', cam='ortho', s=1, step=1, fill_holes=False, blur=False, despeckle=False, res=None, **kwds):
 
         """
         Renders this point cloud using the specified camera.
@@ -547,7 +550,7 @@ class HyCloud( HyData ):
          - fill_holes = True if 1-pixel holes should be filled. Default is False.
          - blur = True if a 3x3 gaussian blur kernel is used to smooth the scene. Default is False.
          - despeckle = True if a 5x5 median filter should be used to denoise rendered image before plotting. Default is False.
-         - res = the resolution to plot in 'ortho' mode. Default is 0.2 (20 cm).
+         - res = the resolution to plot in 'ortho' mode. Default is one thousandth of the maximum dimension (in x or y).
         *Keywords*:
          - other keywords are passed to HyImage.quick_plot( ... ).
 
