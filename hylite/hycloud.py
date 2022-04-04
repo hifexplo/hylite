@@ -350,7 +350,7 @@ class HyCloud( HyData ):
          - blur = Gaussian kernel size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
          - despeckle = Median kernel size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
          - res = the pixel size (in world coordinates) used to georeference the resulting raster (if creating an orthophoto).
-                 Default is 0.1 (10 cm).
+                 Default is one thousandth of the maximum dimension (in x or y).
          - epsg = an epsg code used to georeference the resulting render (if creating an orthophoto). Default is 32629.
          - depth = include the depth buffer in the output image. Default is False.
 
@@ -364,7 +364,6 @@ class HyCloud( HyData ):
         fill_holes = kwds.get("fill_holes", False)
         blur = kwds.get("blur", 0)
         despeckle = kwds.get("despeckle", 0)
-        res = kwds.get("res", 0.1)
         EPSG = kwds.get("EPSG", "EPSG:32629")
         depth = kwds.get("depth", False)
 
@@ -379,6 +378,9 @@ class HyCloud( HyData ):
                 cloudxmax = np.amax(self.xyz[::step, 0])
                 cloudymin = np.amin(self.xyz[::step, 1])
                 cloudymax = np.amax(self.xyz[::step, 1])
+
+                # compute sensible resolution
+                res = kwds.get("res", max( cloudxmax - cloudxmin, cloudymax - cloudymin) / 1000 )
 
                 cloudxsize = int(cloudxmax - cloudxmin) / res
                 cloudysize = int(cloudymax - cloudymin) / res
@@ -515,7 +517,8 @@ class HyCloud( HyData ):
                 try:
                     img.set_projection_EPSG(EPSG)
                 except:
-                    print("Warning - could not set orthoimage projection. Check GDAL installation.")
+                    #print("Warning - could not set orthoimage projection. Check GDAL installation.")
+                    pass # silently continue if no GDAL available
 
         # postprocessing
         if fill_holes:
