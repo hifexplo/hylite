@@ -751,42 +751,41 @@ class HyData(object):
 
         #no need to compress...
         if self.data.dtype == np.uint16: return
-
-        assert np.nanmin(self.data) >= 0, "Error - to compress data range must be 0 - 1 but min is %s." % np.nanmin(self.data)
-        assert np.nanmax(self.data) <= 1.0, "Error - to compress data range must be 0 - 1 but max is %s." % np.nanmax(self.data)
+        if np.nanmin(self.data) >= 0:
+            print( "Warning - negative values cannot be converted to uint and will be lost. "
+                   "Minimum value in dataset is: %s." % np.nanmin(self.data) )
 
         #map to range 1 - 65535
-        self.data = 65535 * (self.data)
+        sf = 65535 / np.nanmax(self.data)
+        self.data = np.nan_to_num( sf * np.clip( self.data, 0, np.inf ) ) # also map nans to zero
 
-        #map nans to zero
-        self.data[ np.logical_not( np.isfinite(self.data)) ] = 0
-
-        #convert data
+        #convert data to uint16
         self.data = self.data.astype(np.uint16)
 
         #store min/max in header
         self.header["data ignore value"] = str(0)
-        self.header['reflectance scale factor'] = str(65535)
+        self.header['reflectance scale factor'] = sf
 
     def decompress(self):
         """
         Expand data array to floats to get actual values
         """
-        if (np.nanmax(self.data) <= 1.0) and (np.nanmin(self.data) >= 0.0):
-            return # datset is already decompressed
+        # no need to decompress...
+        if self.data.dtype != np.uint16: return
 
         # get min/max data
         sf = float(self.header.get("reflectance scale factor", 65535))
         nan = float(self.header.get("data ignore value", -1))
 
+        # update header accordingly (to avoid save / load issues in the future!)
+        self.header["reflectance scale factor"] = 1.0
+        del self.header['data ignore value']
+
         # expand data array to float32
-        self.data = self.data.astype(np.float32)
+        self.data = self.data.astype(np.float32) / sf
 
         # set nans
-        self.data[ np.isnan(self.data) | (self.data == nan) ] = np.nan
-
-        # transform data back to original range
-        self.data = self.data / sf #scale to desired range
+        self.set_as_nan(nan)
 
     def normalise(self, minv=None, maxv=None):
         """
