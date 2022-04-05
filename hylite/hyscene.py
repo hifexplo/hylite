@@ -11,37 +11,15 @@ class HyScene( HyCollection ):
     a hyperspectral image.
     """
     def __init__(self, name, root, header=None ):
-        """
-        Create an empty HyScene instance and initialises the associated collection.
-
-        *Arguments*:
-         - name = the name of this scene instance.
-         - root = the root directory of this scene instance.
-         - header = a pre-existing header file for this HyScene (used when loading from disk). Default is None.
-        """
         super().__init__( name, root, header )
+        self.ext = '.hys'
 
     def getAttributes(self):
         """
         Return a list of available attributes in this HyScene. We must override the HyCollection implementation to remove
         functions associated with HyScene.
         """
-        return list(set(dir(self)) - set(dir(HyCollection)) - set(dir(HyScene)) - set(['header', 'root', 'name']))
-
-    def _getDirectory(self, root=None, name=None):
-        """
-        Return the directory files associated with the HyScene are stored in. We override this to change the file extension
-        associated with HyScene objects.
-
-         *Arguments*:
-         - root = the directory to store this HyCollection in. Defaults to the root directory specified when
-                  this HyCollection was initialised, but this can be overriden for e.g. saving in a new location.
-         - name = the name to use for the HyCollection in the file dictionary. If None (default) then this instance's
-                  name will be used, but this can be overriden for e.g. saving in a new location.
-        """
-        p = os.path.splitext( super()._getDirectory(root,name) )[0] + ".hsy"
-        os.makedirs(p, exist_ok=True) # ensure directory actually exists!
-        return p
+        return list(set(dir(self)) - set(dir(HyCollection)) - set(dir(HyScene)) - set(['header', 'root', 'name', 'ext']))
 
     def construct(self, image, cloud, camera, s=1, occ_tol = 10, maxf=0, bf=True, vb = True, **kwds):
         """

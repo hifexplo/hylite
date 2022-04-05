@@ -13,6 +13,10 @@ class MWL(HyCollection):
     A convenient class for manipulating and storing minimum wavelength mapping results.
     """
 
+    def __init__(self, name, root, header=None):
+        super().__init__(name, root, header)
+        self.ext = '.mwl'
+
     def bind(self, model, nfeatures, x, X, sym=False):
         """
         Band a new MWL mapping results. Essentially treat this as the constructor.
@@ -42,21 +46,6 @@ class MWL(HyCollection):
         functions associated with HyScene.
         """
         return list(set(dir(self)) - set(dir(HyCollection)) - set(dir(MWL)) - set(['header', 'root', 'name']))
-
-    def _getDirectory(self, root=None, name=None):
-        """
-        Return the directory files associated with the HyScene are stored in. We override this to change the file extension
-        associated with HyScene objects.
-
-         *Arguments*:
-         - root = the directory to store this HyCollection in. Defaults to the root directory specified when
-                  this HyCollection was initialised, but this can be overriden for e.g. saving in a new location.
-         - name = the name to use for the HyCollection in the file dictionary. If None (default) then this instance's
-                  name will be used, but this can be overriden for e.g. saving in a new location.
-        """
-        p = os.path.splitext( super()._getDirectory(root,name) )[0] + ".mwl"
-        os.makedirs(p, exist_ok=True)
-        return p
 
     def __getitem__(self, n):
         """

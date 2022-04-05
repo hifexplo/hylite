@@ -52,6 +52,7 @@ class HyCollection(object):
         self.header = header
         if 'vb' not in header:
             self.vb = vb
+        self.ext = '.hyc'
 
     def get_file_dictionary(self, root=None, name=None):
         """
@@ -79,7 +80,7 @@ class HyCollection(object):
 
         # build paths dictionary
         out = {os.path.join(root, "%s.hdr" % name): self.header}
-        path = self._getDirectory( root=root, name=name )
+        path = self.getDirectory(root=root, name=name)
         for a in attr:
             value = getattr(self, a)  # get value
             if value is None:
@@ -108,9 +109,9 @@ class HyCollection(object):
                     # remove from disk...
                     # solve path from attribute name
                     path = None
-                    for f in os.listdir(self._getDirectory()):
+                    for f in os.listdir(self.getDirectory()):
                         if os.path.splitext(f)[0] == a:  # we have found the right file
-                            path = os.path.join(self._getDirectory(), f)
+                            path = os.path.join(self.getDirectory(), f)
                             break
                     if path is not None and os.path.exists(path):
                         hdr, dat = hylite.io.matchHeader( path )
@@ -137,7 +138,7 @@ class HyCollection(object):
             return
 
         # no file associated with this HyCollection - raise attribute error.
-        if not os.path.exists( self._getDirectory() ):
+        if not os.path.exists(self.getDirectory()):
             raise AttributeError
 
         # check if attribute is in the header file
@@ -176,19 +177,19 @@ class HyCollection(object):
         else:
             # solve path from attribute name
             path = None
-            for f in os.listdir( self._getDirectory() ):
+            for f in os.listdir(self.getDirectory()):
                 if os.path.splitext(f)[0] == attr:  # we have found the right file
-                    path = os.path.join( self._getDirectory(), f)
+                    path = os.path.join(self.getDirectory(), f)
                     break
             assert path is not None and os.path.exists(path), \
-                "Error - could not load attribute %s from disk (%s)." % ( attr, self._getDirectory() )
+                "Error - could not load attribute %s from disk (%s)." % ( attr, self.getDirectory())
 
             # load attribute
             if self.vb:
                 print("Loading %s from %s" % (attr, path))
             self.__setattr__(attr, hylite.io.load(path))  # load and update HyCollection attribute
 
-    def _getDirectory(self, root=None, name=None):
+    def getDirectory(self, root=None, name=None, makedirs=True):
         """
         Return the directory files associated with the HyCollection are stored in.
 
@@ -197,6 +198,7 @@ class HyCollection(object):
                   this HyCollection was initialised, but this can be overriden for e.g. saving in a new location.
          - name = the name to use for the HyCollection in the file dictionary. If None (default) then this instance's
                   name will be used, but this can be overriden for e.g. saving in a new location.
+         - makedirs = True if this directory should be created if it doesn't exist. Default is True.
         """
         if root is None:
             root = self.root
@@ -204,8 +206,9 @@ class HyCollection(object):
             name = self.name
         assert root is not None, "Error - root argument must be set during HyCollection initialisation or function call."
         assert name is not None, "Error - name argument must be set during HyCollection initialisation or function call."
-        p = os.path.join(root, os.path.splitext(name)[0] + ".hyc")
-        os.makedirs(p, exist_ok=True)  # ensure directory actually exists!
+        p = os.path.join(root, os.path.splitext(name)[0] + self.ext)
+        if makedirs:
+            os.makedirs(p, exist_ok=True)  # ensure directory actually exists!
         return p
 
     def getAttributes(self):
@@ -213,7 +216,7 @@ class HyCollection(object):
         Return a list of available attributes in this HyCollection.
         """
         # get potential attributes
-        attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root', 'name']))
+        attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root', 'name', 'ext']))
 
         # loop through and remove all functions
         out = []
@@ -244,9 +247,9 @@ class HyCollection(object):
                     print("\t %s = %s" % (k, v)) # print value
 
         # print disk variables
-        if os.path.exists(self._getDirectory()):
+        if os.path.exists(self.getDirectory()):
             print("Attributes stored on disk:")
-            for f in os.listdir(self._getDirectory()):
+            for f in os.listdir(self.getDirectory()):
                 name, ext = os.path.splitext(f)
                 if name not in attr and ext != '.hdr':
                     print( "\t - %s" % f)
@@ -256,7 +259,7 @@ class HyCollection(object):
         Quick utility function for saving this in the predefined location.
         """
         from hylite import io # occasionally io doesn't seem to get loaded unless we call this ... strange?
-        hylite.io.save( os.path.splitext( self._getDirectory() )[0], self )
+        hylite.io.save(os.path.splitext(self.getDirectory())[0], self)
 
     def free(self):
         """
@@ -305,7 +308,7 @@ class HyCollection(object):
         if self.root is None: # no path defined
             S = HyCollection(name,'')
         else:
-            S = HyCollection(name, self._getDirectory() )
+            S = HyCollection(name, self.getDirectory())
         self.__setattr__(name, S)
         return S
 

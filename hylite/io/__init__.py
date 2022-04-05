@@ -81,11 +81,7 @@ def save(path, data, **kwds):
         ext = 'brm'
     elif isinstance(data, HyCollection):
         save_func = saveCollection
-        ext = 'hyc'
-        if isinstance(data, HyScene): # special type of HyCollection, should have different extension
-            ext = 'hys'
-        if isinstance(data, MWL): # special type of HyCollection, should have different extension
-            ext = 'mwl'
+        ext = data.ext[1:]
         #if os.path.splitext(path)[0]+"."+ext != data._getDirectory(): # we're moving to a new home! Copy folder
         outdir = os.path.join(data.root, os.path.splitext(data.name)[0])
         if os.path.splitext(path)[0] != outdir:
