@@ -198,6 +198,16 @@ class Panel( HyData ):
         self.reflectance = material.get_reflectance()[idx]
         self.material = material
 
+    def set_outline(self, coords ):
+        """
+        Define a panel outline (for e.g., estimating orientation) based on a known camera pose.
+
+        *Arguments*:
+         - coords = the coordinates of the four panel corners.
+        """
+        assert len(coords) == 4 and len(coords[0]) == 2, "Error - coords must have shape (4,2) not %s" % str( np.array(coords).shape )
+        self.outline = path.Path(coords, closed=True)
+
     def copy(self):
         """
         Make a deep copy of this panel instance.

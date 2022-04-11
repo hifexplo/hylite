@@ -110,6 +110,9 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
     assert data is not None, "Error - GDAL could not retrieve valid image data from %s" % path
     img = HyImage(data, projection=None, affine=None, header=header, dtype=dtype)
 
+    # spectral python automatically applies reflectance scale factor, so we must set this to 1.0 to avoid future nightmares...
+    img.header['reflectance scale factor'] = 1.0
+
     if mask_zero and img.dtype == np.float:
         img.data[img.data == 0] = np.nan  # note to self: np.nan is float...
 

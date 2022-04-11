@@ -13,7 +13,7 @@ from hylite.correct import Panel
 
 from .occlusion import *
 from .reflection import *
-from .transmittance import *
+from .path import *
 
 def sph2cart(az, el, r=1.0):
     """
@@ -188,7 +188,7 @@ class IlluModel(object):
         self.skv = skv
         self.rf = rf
 
-        if oc is None or oc == 0:
+        if oc is None:
             self.oc = 0 # no occlusions
         else:
             self.oc = oc
