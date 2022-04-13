@@ -74,8 +74,12 @@ def get_hull_corrected(data, band_range=None, method='div', vb=True):
         D = data.reshape((-1, shape[-1]))
         nan = np.inf
 
-    valid = (np.isfinite(D) & (D != nan)).all(axis=1)  # drop nans/no-data values
-    valid = valid & (D != D[:, 0][:, None]).any(axis=1)  # drop flat spectra (e.g. all zeros)
+    # check values are all positive - negative values break the hull correction!
+    D = np.clip(D, 0, np.inf )
+
+    #valid = (np.isfinite(D) & (D != nan)).all(axis=1)  # drop nans/no-data values
+    D = np.nan_to_num(D, nan=0, posinf=0, neginf=0) # ensure all values are finite (and do not effect hul)
+    valid = (D != D[:, 0][:, None]).any(axis=1)  # drop flat spectra (e.g. all zeros)
     if len(valid) == 0:
         return corrected  # quick exit for empty images
 

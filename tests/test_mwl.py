@@ -16,16 +16,16 @@ class MyTestCase(unittest.TestCase):
 
         # test hull correction on numpy array
         Xhc = get_hull_corrected( image.data,vb=False )
-        self.assertTrue( np.nanmax(Xhc) <= 1.0 )
-        self.assertTrue( np.nanmin(Xhc) >- 0.0)
+        self.assertGreaterEqual( np.nanmin(Xhc), 0.0 )
+        self.assertLessEqual( np.nanmax(Xhc), 1.0 )
         self.assertEqual( image.data.shape, Xhc.shape )
 
         # test hull correction on HyData instances
         for D in [image, cloud]:
             Xhc = get_hull_corrected(D,vb=False)
             self.assertEqual(image.data.shape, Xhc.data.shape)
-            self.assertTrue(np.nanmax(Xhc.data) <= 1.0)
-            self.assertTrue(np.nanmin(Xhc.data) >= 0.0)
+            self.assertGreaterEqual(np.nanmin(Xhc.data), 0.0)
+            self.assertLessEqual(np.nanmax(Xhc.data), 1.0)
 
     def test_mwl(self):
         image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))

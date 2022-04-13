@@ -3,6 +3,7 @@ import numpy as np
 import pytz
 from scipy import stats
 import datetime
+from hylite.correct import get_hull_corrected
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -133,10 +134,119 @@ def _regress(x, y, split=True, clip=(10, 90)):
         out = np.array(out)
         return out[:, 1], out[:, 0], out[:, 2]
 
-##############################
-## Define generic illumination model
-###############################
 
+#############################################################################
+## Useful functions for building / doing illumination corrections
+#############################################################################
+
+def UAC(data, band_range=(0, -1), thresh=98, vb=True):
+    """
+    Apply a universal absorption correction. This is a generalised version of the algorithm presented by
+    Lorenz et al., 2018 to identify and remove absorption features that are present in all of the spectra
+    in a dataset, as these generally relate to residual atmospheric or sensor effects.
+
+    Reference:
+    https://doi.org/10.3390/rs10020176
+
+    *Arguments*:
+     - image = a hyperspectral image to correct
+     - band_range = a range of bands to do this over. Default is (0,-1), which applies the correction to all bands.
+     - thresh = the percentile to apply when identifying the smallest absorbtion in any range based on hull corrected
+                spectra. Lower values will remove more absorption (potentially including features of interest).
+     - vb = True if a progress bar should be created during hull correction steps.
+
+    *Returns*:
+     - a HyData instance containing the corrected spectra.
+    """
+    # subset dataset
+    out = data.export_bands(band_range)
+    nanmask = np.logical_not(np.isfinite(out.data))
+    out.data[nanmask] = 0  # replace nans with 0
+
+    # do hull correction
+    hc = get_hull_corrected(out, vb=vb)
+
+    # identify maximum hull
+    mx = np.nanpercentile(hc.X(), thresh, axis=0)
+
+    # apply adjustment and return
+    if out.is_image():
+        out.data /= mx[None, None, :]
+    else:
+        out.data /= mx[None, :]
+    out.data[nanmask] = np.nan  # add nans back in
+
+    return out
+
+
+def estimate_illu(image, panel, pilf, pskv, ilf, skv=0.6, oc=None, thresh=0.01, clip=None):
+    """
+    Estimate the sky and sunlight spectra by comparing shaded vs non-shaded regions in a dataset and assuming
+    they have the same median reflectance spectra. See Thiele et al., 2021 for more details:
+    https://doi.org/10.1109/TGRS.2021.3098725.
+
+    *Arguments*:
+     - image = the hyperspectral image to extract spectra from.
+     - panel = a Panel instance containing calibration spectra from a fully illuminated calibration panel.
+     - pilf = a measured or estimated lambert illumination factor for the panel (from 0 to 1). If a value of
+              0 is used then it is assumed that the panel is completely shaded.
+     - pskv = a measured or estimated skyview factor for the panel (from 0.1 to 1).
+     - ilf = direct illumination factors representing the fraction of downwelling light reflected towards the
+             sensor, as estimated using e.g., hylite.correct.illumination.reflection.calcLambert(...) or
+             hylite.correct.illumination.reflection.calcOrenNayar(..).
+     - skv = a(width,height) array of skyview factors or a float containg the average sky view factor (0 to 1)
+         for the scene. Default is 0.6.
+     - oc = a (width, height) array of occlusion factors computed using
+        e.g., hylite.correct.illumination.occlusion.calcBandRatioOcc, or None (default; for no cast shadows).
+     - thresh = the threshold for direct illumination factor (skv * (1-oc)) at which a pixel is considered entirely
+                lit by ambient (sky) light. Default is 0.01.
+     - clip = a subset of the image to use for estimation (to ensure our assumption of equal median reflectance between
+              sun and shade pixels is met). Default is None, but a clipping rectangle can be passed as (xmin,xmax,ymin,ymax).
+    """
+
+    assert pskv > 0.1, "Error - panel skyview factor must be > 0.1, not %.2f" % (pskv)
+    assert pilf < 1 or pskv < 1, "Error - panel illumination factors must both be < 1, not %.2f, %.2f" % (pskv, pilf)
+
+    assert ilf.shape[0] == image.data.shape[0], "Error - incompatible width between image and ilf array."
+    assert ilf.shape[1] == image.data.shape[1], "Error - incompatible width between image and ilf array."
+
+    # extract radiance samples
+    if clip is None:
+        clip = (0, -1, 0, -1)
+    r = image.data[clip[0]:clip[1], clip[2]:clip[3], :].reshape(-1, image.band_count())  # radiance measurements
+    i = ilf.squeeze()[clip[0]:clip[1], clip[2]:clip[3]].ravel()  # illumination factors
+    if isinstance(skv, float):
+        a = np.full(i.shape[0], skv)
+    else:
+        assert isinstance(skv, np.ndarray), "Error - skv must be a numpy array not a %s" % type(skv)
+        assert skv.shape[0] == image.data.shape[0], "Error - incompatible width between image and skv array."
+        assert skv.shape[1] == image.data.shape[1], "Error - incompatible width between image and skv array."
+        a = skv.squeeze()[clip[0]:clip[1], clip[2]:clip[3]].ravel()
+
+    # apply occlusion mask
+    if oc is not None:
+        assert isinstance(oc, np.ndarray), "Error - oc must be a numpy array not a %s" % type(oc)
+        assert oc.shape[0] == image.data.shape[0], "Error - incompatible width between image and oc array."
+        assert oc.shape[1] == image.data.shape[1], "Error - incompatible width between image and oc array."
+        o = oc.squeeze()[clip[0]:clip[1], clip[2]:clip[3]].ravel()  # extract occlusion data
+        i = i * (1 - 0)  # apply it to our direct reflectance fractions
+
+    # extract shaded pixel mask
+    shadepix = (i <= thresh)
+
+    # compute normalised difference between sun and shade
+    delta = np.nanmedian(a[shadepix, None] / r[shadepix, :], axis=0) - np.nanmedian(a[..., None] / r[..., :], axis=0)
+    delta /= np.nanmedian(i[..., None] / r[..., :], axis=0)
+
+    # derive skylight and sunlight spectra
+    rfrac = (panel.get_mean_radiance() / panel.get_reflectance())
+    skyest = rfrac / (pskv + delta * pilf)
+    sunest = skyest * delta
+
+    return sunest, skyest
+#############################################################################
+## Define generic illumination model
+#############################################################################
 
 class IlluModel(object):
     """

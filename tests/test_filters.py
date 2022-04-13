@@ -25,5 +25,9 @@ class MyTestCase(unittest.TestCase):
             denoise, w = MNF( data, bands=10, denoise=True )
             self.assertEqual(denoise.band_count(), data.band_count())
 
+        # test hull correction
+        from hylite.correct import get_hull_corrected
+        get_hull_corrected(image) # just run ... is difficult to evaluate if results make sense
+        get_hull_corrected(cloud) # just run ... is difficult to evaluate if results make sense
 if __name__ == '__main__':
     unittest.main()

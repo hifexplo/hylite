@@ -353,6 +353,10 @@ class HyHeader( dict ):
         self['target %s radiance' % name] = panel.get_mean_radiance()
         if panel.normal is not None: # store normal vector
             self['target %s normal' % name] = panel.normal
+        if panel.skyview is not None:
+            self['target %s skyview' % name] = panel.skyview
+        if panel.alpha is not None:
+            self['target %s alpha' % name] = panel.alpha
 
     def get_panel(self, name):
         """
@@ -381,24 +385,27 @@ class HyHeader( dict ):
         reflectance = reflectance.astype(np.float32) # check type
         radiance = radiance.astype(np.float32)
 
-        # get normal vector (if defined)
-        normal = None
-        if ('target %s normal' % name) in self:
-            normal = self['target %s normal' % name]
-            if isinstance(normal, str):  # parse string
-                normal = np.fromstring(self['target %s normal' % name], sep=",")
-            elif isinstance(normal, list):
-                normal = np.array(normal)
-            else:
-                assert isinstance(normal, np.ndarray), "Error - %s is an invalid normal." % normal
-
         # create dummy Target instance
         material = Target(self.get_wavelengths(), reflectance, name=name)
 
         # create Panel instance and return
         P = Panel( material, radiance, wavelengths=self.get_wavelengths() )
-        if normal is not None:
-            P.set_normal(normal)
+
+        # get normal vector (if defined)
+        if ('target %s normal' % name) in self:
+            normal = self['target %s normal' % name]
+            if isinstance(normal, str):  # parse string
+                P.set_normal( np.fromstring(self['target %s normal' % name], sep=",") )
+            elif isinstance(normal, list):
+                P.set_normal( np.array(normal) )
+            else:
+                assert isinstance(normal, np.ndarray), "Error - %s is an invalid normal." % normal
+
+        # get illu factors if defined
+        if ('target %s alpha' % name) in self:
+            P.alpha = float(self['target %s alpha' % name])
+        if ('target %s skyview' % name) in self:
+            P.skyview = float(self['target %s skyview' % name])
         return P
 
     def remove_panel(self, name = None):

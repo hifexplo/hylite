@@ -744,7 +744,7 @@ def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, geom=Fal
                 s.free()  # free memory and move to next scene
 
         if vb:
-            print(". Saving ", end='')
+            print(". Building output... ", end='')
 
         # create and save output
         cloud = cloud.copy(data=False)

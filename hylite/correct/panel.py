@@ -46,6 +46,8 @@ class Panel( HyData ):
         self.source_image = None  # init defaults
         self.outline = None
         self.normal = None
+        self.alpha = None
+        self.skyview = None
 
         if isinstance(radiance, np.ndarray):  # radiance is a list of pixels
 
@@ -332,7 +334,8 @@ class Panel( HyData ):
         s = (np.pi - np.arccos(np.dot(up, self.normal))) / np.pi
 
         # adjust according to hori_elev [ and enforce range from 0 - 1.0
-        return min(max(0, s - (np.deg2rad(hori_elev) / np.pi)), 1.0)
+        self.skyview = min(max(0, s - (np.deg2rad(hori_elev) / np.pi)), 1.0)
+        return self.skyview
 
     def get_alpha(self, illudir):
         """
@@ -340,9 +343,11 @@ class Panel( HyData ):
         Lamberts' cosine law.
         """
         assert len(illudir) == 3, "Error - illudir must be a (3,) numpy array."
+        assert self.normal is not None, 'Error - normal vector must be defined to estimate alpha.'
         if illudir[2] > 0: # check illudir is pointing downwards
             illudir = illudir * -1
-        return max( 0, np.dot( -self.normal, illudir ) )
+        self.alpha = max( 0, np.dot( -self.normal, illudir ) )
+        return self.alpha
 
     def quick_plot(self, bands=hylite.RGB, **kwds):
 
