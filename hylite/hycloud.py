@@ -583,7 +583,7 @@ class HyCloud( HyData ):
 
         *Arguments*
          - bands = a list of 3 bands to map to r, g and b (respectively). Can be indices (integer) or wavelengths (float).
-         - stretch = a tuple containing the (min,max) percentiles (integer) to use for the colour stretch. Default is (1,99).
+         - stretch = a tuple containing the (min,max) percentiles (integer) of values (float) to use for the colour stretch. Default is (1,99).
         """
 
         # for greyscale mapping
@@ -605,8 +605,14 @@ class HyCloud( HyData ):
             if 'data ignore value' in self.header:  # deal with data ignore values for integer arrays...
                 self.rgb[self.rgb[:, i] == int(self.header['data ignore value'])] = np.nan  # make nans
 
-            # calculate values for normalisation
-            minv, maxv = np.nanpercentile(self.rgb[:, i], stretch)
+            # calculate stretch values for normalisation
+            minv, maxv = stretch
+            if isinstance(minv, int) and isinstance(maxv, int):
+                minv, maxv = np.nanpercentile(self.rgb[:, i], (minv,maxv))
+            elif isinstance(minv, int):
+                minv = np.nanpercentile(self.rgb[:, i], minv)
+            elif isinstance(maxv, int):
+                minv = np.nanpercentile(self.rgb[:, i], maxv)
 
             # normalise to range 0 - 1
             self.rgb[:, i] = (self.rgb[:, i] - minv) / (maxv - minv)

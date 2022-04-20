@@ -1,10 +1,9 @@
-import hylite
 from hylite import HyCollection
 from hylite.project import PMap, Pushbroom, Camera, proj_persp, proj_pano, project_pushbroom, push_to_cloud, push_to_image
 from tqdm import tqdm
 from scipy.ndimage import grey_dilation
 import numpy as np
-import os
+
 class HyScene( HyCollection ):
     """
     A special type of HyCollection and contains a projection map for transferring information between a point cloud and
@@ -766,3 +765,6 @@ class HyScene( HyCollection ):
     #         return cloud, footprint
     #     else:
     #         return cloud
+
+
+

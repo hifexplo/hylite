@@ -8,6 +8,10 @@ class TestHyImage(unittest.TestCase):
         # create test image
         image = genImage(dimx = 1464, dimy=401, nbands=10)
 
+        # run plotting functions
+        image.quick_plot( (0,1,2), vmin=2, vmax=98 )
+        image.quick_plot( 0 )
+
         self.assertEqual(image.xdim(), 1464)
         self.assertEqual(image.ydim(), 401)
         self.assertEqual(image.band_count(), 10)

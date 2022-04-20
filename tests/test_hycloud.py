@@ -5,6 +5,7 @@ from hylite.project import Camera
 from hylite.project.basic import proj_persp, rasterize, proj_ortho, proj_pano
 import os
 from pathlib import Path
+import hylite
 from hylite import io
 class TestHyCloud(unittest.TestCase):
 
@@ -20,11 +21,14 @@ class TestHyCloud(unittest.TestCase):
         R,zz = rasterize( pp, viz, cloud.rgb, cam.dims, s=2 )
         self.assertTrue( np.isfinite(zz).any() )
         self.assertTrue( np.isfinite(R).any() )
-        # test rendering
-        #import matplotlib.pyplot as plt
-        #plt.imshow(np.isfinite(zz), vmin=0, vmax=1)
-        #plt.savefig('/Users/thiele67/Documents/tests/proj.png')
-        #plt.show()
+
+        # test rendering [ or, at least run these functions... ]
+        cloud.quick_plot(hylite.RGB, cam )
+
+        rgb = cloud.rgb.copy()
+        cloud.colourise( hylite.RGB, stretch=(0.0,95) )
+        self.assertEqual( (rgb == cloud.rgb).all(), False ) # check that colours have changed!
+        cloud.quick_plot('rgb', cam )
 
 
     def test_cloud(self):

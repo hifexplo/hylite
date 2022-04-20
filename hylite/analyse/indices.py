@@ -73,7 +73,7 @@ def band_ratio(data, num, den):
     # calculate output
     out = data.copy(data=False)
     out.header.drop_all_bands()  # drop band specific attributes
-    out.data = (numdata / dendata)[..., None]
+    out.data = np.nan_to_num( (numdata / dendata)[..., None], posinf=0, neginf=0 ) # replace infs, nans, etc. with 0
 
     # set band name
     out.set_band_names(['(%s) / (%s)' % (names[0], names[1])])

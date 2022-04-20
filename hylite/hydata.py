@@ -757,7 +757,8 @@ class HyData(object):
 
         #map to range 1 - 65535
         sf = 65535 / np.nanmax(self.data)
-        self.data = np.nan_to_num( sf * np.clip( self.data, 0, np.inf ) ) # also map nans to zero
+        self.data *= sf
+        self.data[self.data < 0] = 0
 
         #convert data to uint16
         self.data = self.data.astype(np.uint16)
@@ -782,7 +783,8 @@ class HyData(object):
         del self.header['data ignore value']
 
         # expand data array to float32
-        self.data = self.data.astype(np.float32) / sf
+        self.data = self.data.astype(np.float32)
+        self.data /= sf
 
         # set nans
         self.set_as_nan(nan)

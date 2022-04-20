@@ -10,6 +10,9 @@ import os
 import numpy as np
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 import hylite
+from tempfile import mkdtemp
+import shutil
+from tqdm import tqdm
 
 class PMap(object):
     """
@@ -635,164 +638,191 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
 
     return out
 
+# functions for blending scenes together
 
-def blend_scenes(dest_path, scene_map, method='average', hist_eq=False, geom=False, trim=False, clean=True, vb=True,
-                 **kwds):
+def push_geomattr(scene, method='best'):
     """
-    Blend together collections of scenes that reference the same underlying cloud.
+    Return a HyCloud instance containing the geometric attributes of a given projection. This will have
+    two or three bands as follows:
+     - distance from the sensor to each point
+     - effective GSD (number of points per source pixel)
+     - obliquity (angle in degrees between surface normal and view vector), if the point cloud has normal vectors.
+
+    These are useful for QAQC of projected results or doing weighted blending.
 
     *Arguments*:
-    - dest_path = path for the HyCollection instance to write results to. This is done to optimise RAM usage.
-    - scene_map = a dictionary with keys for each desired fused cloud and values containing lists of scenes that each project data onto
-                  the same cloud.
-    - method = the averaging method to use. Options are 'average' (default), 'weight' (weighted average by inverse distance) and 'closest'
-               (just use the closest pixel and ignore all others).
-    - hist_eq = Apply a histogram equalisation to images before projecting. The first scene in each list will be used as the reference. Use
-                with care - this can cause significant spectral distortions! Default is False. NOT IMPLEMENTED YET.
-    - geom = True if useful geometric features should also be calculated (point depth, points per pixel and obliquity). These are useful for subsequent filtering
-             of the projected cloud to remove dodgy points. Default is False.
-    - trim = Delete points in destination cloud that did not receive any data, to save space. Default is False.
-    - clean = free memory from each scene after it is processed to save RAM. Default is True.
-    - vb = True if progress statements should be printed. Default is True.
+     - scene = the HyScene instance to compute geometric attributes for.
+     - method = the projection method used for handling duplicate pixels. See scene.push_to_cloud for details.
+    *Returns*:
+     - a HyCloud instance containing the three geometric attributes.
+    """
+    # get projection map and relevant attributes (in image space)
+    pmap = scene.pmap
+    attr = [scene.depth,  # point depth
+            pmap.points_per_pixel().data[..., 0]]  # gsd
+    bands = ['depth', 'gsd']
+    if hasattr(scene, "normals"):
+        # dot product of view product and surface normal vector
+        attr.append(np.rad2deg(np.arccos(
+            -(scene.view * scene.normals).sum(-1))))
+        bands.append('obliquity')
 
-    *Keywords*:
-     - rgb = True if the data being projected has three bands (strictly), so should be mapped to each clouds point colours instead of data array.
-     - vmin, vmax = the percentile clip to use when pushing to point colours (see HyCloud.colourise(...)).
+    # replace zeros with nans
+    for a in attr:
+        a[a == 0] = np.nan
+    image = hylite.HyImage(np.dstack(attr))
+    attr = scene.push_to_cloud((0, -1), method=method, image=image)
+    attr.set_band_names(bands)
+    return attr
+
+
+def get_blend_weights(scenes, method, ascloud=True):
+    """
+    Compute weights for doing scene blending based on geometric attributes computed using
+    push_geomattr( ... ).
+
+    *Arguments*:
+     - scenes = a list of scenes to compute blend weights for.
+     - method = the weighting method. Options are:
+                 - 'equal' = all values are weighted equally.
+                 - 'distance' = closer points are given higher weight.
+                 - 'gsd' = lower ground-sampling values are given higher weight.
+                 - 'obliquity' = less oblique points are given higher weight.
+     - ascloud = True if weights should be returned as a HyCloud instance. Otherwise a numpy array is returned.
+    *Returns*:
+     - a numpy array containing the normalised blending weight for each (point,scene).
     """
 
-    # create output collection
-    name = os.path.splitext(os.path.basename(dest_path))[0]
-    root = os.path.dirname(dest_path)
-    O = hylite.HyCollection(name, root)
-
-    # loop through each set of scenes to blend
-    for name, scenes in scene_map.items():
-        if vb:
-            print("Blending scenes in %s" % name, end='')
-
-        # load cloud and reference image (if needed for colour correction)
-        cloud = scenes[0].cloud
-        ref = scenes[0].image
-
-        # create output array
-        out = np.zeros((cloud.point_count(), ref.band_count()))
-        w = np.zeros(cloud.point_count())  # divisor for averaging later
-        if geom:
-            f = np.zeros((cloud.point_count(), 3))  # cloud footprint, obliquity & distance from sensor
-
-        # do projections
-        cameras = []  # store cameras
+    weights = np.ones((scenes[0].cloud.point_count(), len(scenes)))
+    if 'equal' not in method.lower():
         for i, s in enumerate(scenes):
-            if vb:
-                print(" ..%d " % i, end='')
-
-            # get projection map
-            pmap = s.pmap
-            pmap.image = s.image
-            pmap.remove_nan_pixels()  # remove masked areas
-            pmap.cloud = cloud
-            cameras.append(s.camera)
-
-            # todo; histogram equalisation
-            assert pmap.data.shape[0] == cloud.point_count(), "Error - cloud sizes do not match (%d != %d)" % (
-                pmap.data.shape[0], cloud.point_count())
-            pmap.remove_nan_pixels()
-
-            # get per point depths
-            d = 1. / pmap.get_point_depths()[:, 0]
-            mask = np.isfinite(d)
-            if vb:
-                print("[%d points]" % np.sum(mask), end='')
-
-            # push to cloud
-            chunk = push_to_cloud(s.pmap, method=kwds.get('proj_method', 'best'))
-
-            # also compute geometric properties?
-            if geom:
-                pmap.image = pmap.points_per_pixel()
-                if hasattr(s, "normals"):
-                    oblq = np.rad2deg(np.arccos(
-                        -(s.view * s.normals).sum(-1)))  # dot product of view product and surface normal vector
-                    pmap.image.data = np.dstack([pmap.image.data, oblq[..., None]])
-                chunkf = push_to_cloud(s.pmap, method=kwds.get('proj_method', 'best'))
-
-            # do averaging
-            if 'average' in method.lower():  # normal averaging
-                out[mask, :] += chunk.data[mask, :]
-                w[mask] += 1
-                if geom:
-                    f[mask, 0] += 1. / d[mask]
-                    f[mask, 1:(2 + chunkf.band_count())] += chunkf.data[mask, :]
-
-            elif 'weight' in method.lower():  # apply distance weighting
-                out[mask, :] += chunk.data[mask, :] * d[mask][:, None]
-                w[mask] += d[mask]
-                if geom:
-                    f[mask, 0] += (1. / d[mask]) * d[mask][:, None]
-                    f[mask, 1:(2 + chunkf.band_count())] += chunkf.data[mask, :] * d[mask][:, None]
-            elif 'closest' in method.lower():  # just use closest
-                mask = mask & (d > w)  # choose only closest points
-                out[mask] = chunk.data[mask, :]
-                w[mask] = d[mask]
-                if geom:
-                    f[mask, 0] = 1. / d[mask]
-                    f[mask, 1:(2 + chunkf.band_count())] = chunkf.data[mask, :]
+            # compute geometric features
+            geom = push_geomattr(s)
+            if 'dist' in method.lower():
+                weights[:, i] = geom.data[:, 0]
+            elif 'gsd' in method.lower():
+                weights[:, i] = geom.data[:, 1]
+            elif 'obl' in method.lower():
+                weights[:, i] = geom.data[:, 2]
             else:
-                assert False, "Error - method should be 'weighted', 'average' or 'closest', not %s" % method
+                assert False, "Error - %s is an unknown weighting method" % method
+        # invert and normalise
+        mn, mx = np.nanpercentile(weights, (0, 100))
+        weights = mx - weights  # lower values should get higher weight, so flip
+    weights /= np.nansum(weights, axis=-1)[..., None]  # sum to 1
 
-            if clean:
-                s.free()  # free memory and move to next scene
+    if ascloud:
+        weights = hylite.HyCloud(scenes[0].cloud.xyz, bands=np.nan_to_num(weights, nan=0, posinf=0))
+        weights.set_band_names([s.name for s in scenes])
+    return weights
 
+
+def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=True, vb=True):
+    """
+    Blend together collections of scenes that reference the same underlying cloud to create a fused
+    hypercloud.
+
+    *Arguments*:
+     - scenes = a list of scenes to fuse. Data will be extracted from scene.image and pushed to the cloud using
+                scene.pmap.
+     - weights = a numpy array or HyCloud instance containings weighting factors with shape (points,scenes). See
+                 get_blend_weights(...) for more details.
+     - bands = tuple specifying the (min,max) bands of scenes.image to export. Default is all bands (0,-1).
+     - chunksize = the number of bands to project in any given iteration. Larger numbers are faster but require
+                   more RAM.
+     - trim = True if points with no data mapped to them should be removed.
+     - ooc = True if hypercloud bands should be created out-of-core and then assembled. This is slower but less RAM
+             intensive for large hyperclouds. If this is True, scene.free() will also be called to unload hyperspectral images
+             after they have been processed; so please save HyScenes before using!
+     - vb = True if progress bars should be created.
+
+    *Returns*:
+     - a HyCloud instance contain
+    """
+
+    # check / format input
+    if isinstance(weights, hylite.HyCloud):
+        weights = weights.data
+    weights /= np.sum(weights, axis=-1)[:, None]  # normalise
+
+    assert len(scenes) == weights.shape[1], "Error: %d scenes != %d weights" % (len(scenes), weights.shape[1])
+    assert scenes[0].cloud.point_count() == weights.shape[0], "Error: scene has %d points but weights have %d" % (
+    scenes[0].cloud.point_count(), weights.shape[0])
+
+    # make a temp directory
+    tmp = mkdtemp()
+    err = None
+
+    try:  # wrap everything here in a try, so we can delete the temp folder if issues arise
+        # gather data needed for projection
+        bands = [scenes[0].image.get_band_index(b) for b in bands]  # convert bands to band indices
+        if len(bands) == 2:
+            bands = range(bands[0], bands[1] + 1)  # bands is a range of bands
+        bands = sorted(set(bands))  # remove duplicates and sort
+        wav = [scenes[0].image.get_wavelengths()[b] for b in bands]
+
+        nbands = len(bands)
+        mask = np.full(scenes[0].cloud.point_count(), False)  # these become True as valid data is added
+        out = scenes[0].cloud.copy(data=False)  # create output cloud
+
+        # loop through scenes and project bands
+        for s in scenes:
+
+            assert s.cloud.point_count() == mask.shape[0], "Error: scene %s has %d points, not %d" % (scene.name,
+                                                                                                      scene.cloud.point_count(),
+                                                                                                      mask.shape[0])
+            # make output directory
+            pth = os.path.join(tmp, s.name)
+            os.makedirs(pth, exist_ok=True)
+
+            # remove zeros
+            s.image.set_as_nan(0)
+
+            # push bands to disk
+            loop = bands
+            if vb:
+                loop = tqdm(loop, desc='Projecting scene %s' % s.name, leave=False)
+            chunk = []
+            for i, b in enumerate(loop):
+                chunk.append(b)  # append band to projection queue
+                if (len(chunk) == chunksize) or (i == (len(loop) - 1)):
+                    data = s.push_to_cloud(chunk).data  # project bands
+                    for n in range(data.shape[-1]):  # save them as individual numpy files
+                        mask = np.logical_or(mask, np.isfinite(data[:, n]))
+                        np.save(os.path.join(pth, 'b%d.npy' % chunk[n]), data[:, n])
+                    chunk = []
+            if ooc:
+                s.free()
+
+        # create output array (n.b. this can be a biiiig malloc)
+        out.data = np.zeros((out.point_count(), nbands), dtype=np.float32)
+
+        # combine data
+        loop = bands
         if vb:
-            print(". Building output... ", end='')
+            loop = tqdm(loop, desc='Blending bands', leave=False)
+        for n, b in enumerate(loop):
+            sm = np.zeros(mask.shape[0])
+            for i, s in enumerate(scenes):
+                pth = os.path.join(tmp, s.name)
+                out.data[:, n] += np.nan_to_num(np.load(os.path.join(pth, 'b%d.npy' % b)) * weights[:, i])
+    except KeyboardInterrupt as inst:
+        print("Operation cancelled: cleaning up after KeyboardInterrupt.")
+        err = inst
+    except Exception as inst:
+        print("An unexpected error occured: cleaning up before termination.")
+        err = inst  # keep the error to throw later
 
-        # create and save output
-        cloud = cloud.copy(data=False)
-        if geom:
-            geomcld = cloud.copy(data=False)
-        if 'closest' in method.lower():
-            cloud.data = out  # we already know value
-            if geom:
-                geomcld.data = f
-        else:
-            cloud.data = out / w[:, None]  # do normalization
-            if geom:
-                geomcld.data = f / w[:, None]
-        if geom:
-            geomcld.set_band_names(["pointDepth", "pointsPerPixel", "Obliquity"])
+    # delete temp directory
+    shutil.rmtree(tmp)
 
-        # add metadata to cloud
-        cloud.set_wavelengths(ref.get_wavelengths())
-        for i, c in enumerate(cameras):
-            if isinstance(c, hylite.project.Camera): # ignore pushbroom cameras
-                cloud.header.set_camera(c, i)
+    # if there was a problem, raise it now!
+    if err is not None:
+        raise err
 
-        # trim clouds
-        if trim:
-            mask = w == 0
-            cloud.filter_points(0, mask)
-            if geom:
-                geomcld.filter_points(0, mask)
+    # cleanup point cloud (trim points with no data) and add wavelengths
+    if trim:
+        out.filter_points(0, np.logical_not(mask))
+    out.set_wavelengths(wav)
 
-        if vb:
-            print("%d points..." % cloud.point_count(), end='')
-
-        # convert to rgb?
-        if kwds.get('rgb', False) and cloud.band_count() == 3:
-            cloud.colourise((0, 1, 2), stretch=(kwds.get("vmin", 5), kwds.get("vmax", 95)))
-            cloud.data = None
-
-        O.__setattr__(name.lower(), cloud)
-        if geom:
-            O.__setattr__(name.lower() + "_geom", geomcld)
-
-        if clean:
-            O.save()  # save
-            O.free()  # free memory for next group of scenes
-        if vb:
-            print(" Complete.")
-    if not clean:
-        print("Saving...", end='')
-        O.save()
-        print("Complete.")
-    return O
+    return out  # done!

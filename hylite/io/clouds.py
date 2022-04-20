@@ -340,7 +340,7 @@ def saveCloudPLY(path, cloud, sfmt=None):
 
             #remove spaces from n
             n = n.strip()
-            n.replace(' ', '_')
+            n = n.replace(' ', '_')
 
             #name already includes 'scalar'?
             if 'scalar' in n:

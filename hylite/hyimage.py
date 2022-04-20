@@ -544,6 +544,14 @@ class HyImage( HyData ):
                 del kwds['mask']
             data = np.ma.array(data, mask = mask > 0 )
 
+            # convert integer vmin and vmax values to percentiles
+            if 'vmin' in kwds:
+                if isinstance(kwds['vmin'], int):
+                    kwds['vmin'] = np.nanpercentile( data, kwds['vmin'] )
+            if 'vmax' in kwds:
+                if isinstance(kwds['vmax'], int):
+                    kwds['vmax'] = np.nanpercentile( data, kwds['vmax'] )
+
             # apply rotations and flipping
             if rot:
                 data = data.T

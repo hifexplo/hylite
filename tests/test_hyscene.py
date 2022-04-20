@@ -5,7 +5,7 @@ import shutil
 
 import hylite
 from hylite import HyScene, HyCloud, HyImage
-from hylite.project import Camera, Pushbroom, blend_scenes
+from hylite.project import Camera, Pushbroom, blend_scenes, push_geomattr, get_blend_weights
 import numpy as np
 class MyTestCase(unittest.TestCase):
     def build_dummy_data(self):
@@ -38,8 +38,6 @@ class MyTestCase(unittest.TestCase):
         cp[:, 2] = 80.
         co = np.zeros( (100,3) )
         self.track = Pushbroom( cp, co, fov / dims[0], fov / dims[0], (dims[0], cp.shape[0]) )
-        #print(self.track.R[0].as_matrix())
-        #print(self.track.R[0].as_matrix()@(self.cloud.xyz[0,:]-cp[0,:]))
 
     def test_construction(self):
         self.build_dummy_data()
@@ -70,10 +68,15 @@ class MyTestCase(unittest.TestCase):
             # test blending
             S.image = self.image
             S2.image = self.swath
-            O = blend_scenes(pth + '/blendtest.hyc', dict(test=[S, S2]), method='average', hist_eq=False, trim=False,
-                         vb=True, clean=True)
-            self.assertEqual( O.test.point_count(), 2500 )
+            for method in ['equal','gsd','obliquity','distance']:
+                w = get_blend_weights([S,S2],method=method,ascloud=True) # run different weighting methods
+            O = blend_scenes([S,S2], w, (0,-1) )
+            self.assertEqual( O.point_count(), 2500 )
+            self.assertEqual(O.band_count(), 3)
 
+            #print((O.data == 0).all() ,  np.isfinite(O.data).any() )
+            #self.assertFalse( (O.data == 0).all() ) # check some data is valid [ crude, but better than nothing ]
+            #self.assertTrue( np.isfinite(O.data).any() ) # check some data is valid [ crude, but better than nothing ]
         except:
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error - could not construct HyScene instance")
