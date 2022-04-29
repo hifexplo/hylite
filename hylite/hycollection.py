@@ -41,8 +41,7 @@ class HyCollection(object):
                   be unique to avoid conflicts.
          - root = the location of this HyCollection on disk.
          - header = a header file for this HyCollection. If None (default) a new header will be created.
-         - vb = True if print notifications should be written when data is being loaded from disk. Default is False
-                (or what is specified by a vb key in the header file).
+         - vb = True if print notifications should be written when data is being loaded from disk. Default is False.
         """
         self.name = os.path.splitext(name)[0]  # trim extension just in case
         self.root = root
@@ -50,8 +49,7 @@ class HyCollection(object):
             header = hylite.HyHeader()
         header['file type'] = 'Hylite Collection'  # ensure file type is correct (just in case someone cares)
         self.header = header
-        if 'vb' not in header:
-            self.vb = vb
+        self.vb = vb
         self.ext = '.hyc'
 
     def get_file_dictionary(self, root=None, name=None):
@@ -138,7 +136,7 @@ class HyCollection(object):
             return
 
         # no file associated with this HyCollection - raise attribute error.
-        if not os.path.exists(self.getDirectory()):
+        if not os.path.exists(self.getDirectory(makedirs=False)):
             raise AttributeError
 
         # check if attribute is in the header file
@@ -177,12 +175,12 @@ class HyCollection(object):
         else:
             # solve path from attribute name
             path = None
-            for f in os.listdir(self.getDirectory()):
+            for f in os.listdir(self.getDirectory(makedirs=False)):
                 if os.path.splitext(f)[0] == attr:  # we have found the right file
-                    path = os.path.join(self.getDirectory(), f)
+                    path = os.path.join(self.getDirectory(makedirs=False), f)
                     break
             assert path is not None and os.path.exists(path), \
-                "Error - could not load attribute %s from disk (%s)." % ( attr, self.getDirectory())
+                "Error - could not load attribute %s from disk (%s)." % ( attr, self.getDirectory(makedirs=False))
 
             # load attribute
             if self.vb:
@@ -216,7 +214,7 @@ class HyCollection(object):
         Return a list of available attributes in this HyCollection.
         """
         # get potential attributes
-        attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root', 'name', 'ext']))
+        attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root', 'name', 'ext', 'vb']))
 
         # loop through and remove all functions
         out = []
@@ -311,6 +309,19 @@ class HyCollection(object):
             S = HyCollection(name, self.getDirectory())
         self.__setattr__(name, S)
         return S
+
+    # expose getters and setters for easy access
+    def get(self, name):
+        """
+        Get an attribute in this collection.
+        """
+        return self.__getattribute__(name)
+
+    def set(self, name, value):
+        """
+        Set an attribute in this collection.
+        """
+        return self.__setattr__(name, value)
 
     def __getattribute__(self, name):
         """

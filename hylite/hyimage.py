@@ -750,6 +750,16 @@ class HyImage( HyData ):
 
         return mask
 
+    def crop_to_data(self):
+        """
+        Remove padding of nan or zero pixels from image. Note that this is performed in place.
+        """
+
+        valid = np.isfinite(self.data).any(axis=-1) & (self.data != 0).any(axis=-1)
+        ymin, ymax = np.percentile(np.argwhere(np.sum(valid, axis=0) != 0), (0, 100))
+        xmin, xmax = np.percentile(np.argwhere(np.sum(valid, axis=1) != 0), (0, 100))
+        self.data = self.data[int(xmin):int(xmax), int(ymin):int(ymax), :]  # do clipping
+
     ##################################################
     ## Interactive tools for picking regions/pixels
     ##################################################

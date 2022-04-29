@@ -37,6 +37,13 @@ class MyTestCase(unittest.TestCase):
             C.image = image
             C.cloud = cloud
             C.lib = lib
+
+            # test get and set
+            self.assertEqual( C.get('image'), image )
+            C.set('image2', image)
+            self.assertEqual(C.image2, image )
+
+            # test save
             C.save()
 
             ### Reload it

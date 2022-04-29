@@ -780,7 +780,8 @@ class HyData(object):
 
         # update header accordingly (to avoid save / load issues in the future!)
         self.header["reflectance scale factor"] = 1.0
-        del self.header['data ignore value']
+        if 'data ignore value' in self.header:
+            del self.header['data ignore value']
 
         # expand data array to float32
         self.data = self.data.astype(np.float32)
