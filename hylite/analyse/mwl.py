@@ -639,7 +639,7 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
     # get relevant bands and detrend
     hc = data.export_bands((minw, maxw))
     if not minima: # flip if need be
-        hc.data = -hc.data
+        hc.data = np.nanmax(hc.data)-hc.data
     if trend is not None:
         if 'hull' in trend:
             hc = get_hull_corrected(hc,vb=vb)

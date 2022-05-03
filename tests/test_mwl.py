@@ -97,6 +97,12 @@ class MyTestCase(unittest.TestCase):
             fig,ax = M1.quick_plot()
             fig, ax = M1.quick_plot(step=3)
 
+            # fit peaks
+            M = minimum_wavelength(D, minw=2100., maxw=2400., sym=False, method='gauss', n=3, vb=True, xtol=0.1,
+                                   ftol=0.1, minima=False)
+            M.sortByDepth()
+            self.assertGreater(np.nanmax(M[0,'depth']), 0 ) # check there are some valid features
+
     def testIO(self):
         image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
         M = minimum_wavelength(image, minw=2100., maxw=2400., sym=False, method='gauss', n=2, vb=True)
