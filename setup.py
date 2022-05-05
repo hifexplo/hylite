@@ -24,7 +24,7 @@ setuptools.setup(
         "Topic :: Scientific/Engineering"
     ],
     keywords='hyperspectral data analysis hypercloud geology mineral mapping',
-    python_requires='>=3.8',
+    python_requires='>=3.7',
     install_requires=["scipy>=1.4", "matplotlib>=3", "numpy",
                       "imageio","opencv-python>=4.5", "opencv-contrib-python>=4.5",
                       "scikit-image", "tqdm", "roipoly", "spectral", "utm",

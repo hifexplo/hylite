@@ -13,7 +13,7 @@ from .cameras import saveCameraTXT, loadCameraTXT
 from hylite import HyImage, HyCloud, HyLibrary, HyCollection, HyScene, HyData
 from hylite.project import PMap, Camera, Pushbroom
 from hylite.analyse.mwl import MWL
-import shutil
+from distutils.dir_util import copy_tree
 
 # check if gdal is installed
 try:
@@ -82,11 +82,15 @@ def save(path, data, **kwds):
     elif isinstance(data, HyCollection):
         save_func = saveCollection
         ext = data.ext[1:]
-        #if os.path.splitext(path)[0]+"."+ext != data._getDirectory(): # we're moving to a new home! Copy folder
         outdir = os.path.join(data.root, os.path.splitext(data.name)[0])
         if os.path.splitext(path)[0] != outdir:
             if os.path.exists( outdir+"."+ext): # if it exists...
-                shutil.copytree( outdir+"."+ext, os.path.splitext(path)[0]+"."+ext, dirs_exist_ok=True)
+                #if sys.version_info[1] >= 8: # python 3.8 or greater
+                #    shutil.copytree( outdir+"."+ext, os.path.splitext(path)[0]+"."+ext, dirs_exist_ok=True)
+                #else:
+                #    shutil.copytree( outdir+"."+ext, os.path.splitext(path)[0]+"."+ext ) # will fail if directory already exists unfortunately.
+                copy_tree(outdir+"."+ext, os.path.splitext(path)[0]+"."+ext)
+
     elif isinstance(data, np.ndarray):
         save_func = np.save
         ext = 'npy'
