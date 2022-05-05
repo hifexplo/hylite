@@ -50,79 +50,54 @@ def estimate_path_radiance(image, depth, thresh=1):
 
     return S, P
 
+def correct_path_absorption(data, band_range=(0, -1), thresh=99, atabs = 1126., vb=True):
+    """
+    Fit and remove a known atmospheric water feature to remove atmospheric path absorbtions from reflectance spectra.
+    See  Lorenz et al., 2018 for more details.
 
-# def correct_atmosphere(scene, ref_feature=1125., cdepth=90, indices=[], maxp=98, nthreads=1, gf=True):
-#     """
-#     Correct for atmospheric absorbtions that are not captured by the calibration panel due to e.g., large distance
-#     between sensor/calib panel and target using the method described
-#     by Lorenz et al., 2018, https://doi.org/10.3390/rs10020176
-#
-#     *Arguments*:
-#      - scene = a HyScene instance containing geometry (scene.cloud) and radiance data (scene.image).
-#      - ref_feature = The reference absorbtion feature to quantify atmospheric influence with (and hence calculate the
-#                      magnitude of the correction. Cf. Lorenz et al., 2018 for more details. Default is the water
-#                      absorbion feature at 1225 nm.
-#      - cdepth = The percentile depth cutoff used to select pixels with large atmospheric effects. Default is 90, meaning
-#                the atmospheric absorbtion spectra is characterised using the farthest 10% of pixels.
-#      - indices = individual pixel indices to include in output plots (if vb is True). See HyImage.quick_plot(...) for details.
-#      - maxp = Post-hull correction threshold used to distinguish atmospheric effects present in all pixels from mineralogical
-#               features that only exist in some pixels. Default is 98.
-#      - nthreads = number of threads used to compute the hull corrections. Default is 1.
-#      - gf = True if comparison plots should be created showing the correction spectra and adjusted spectra. Default is True.
-#     """
-#
-#     # get reference pixels with "largest" distance (and hence atmospheric effects)
-#     depth = scene.get_depth()
-#     depth[np.isinf(depth)] = np.nan
-#     refpx = np.argwhere(depth > np.nanpercentile(depth, cdepth))
-#
-#     # plot these to check that they cover most of the "geological" variation in the scene
-#     if gf:
-#         fig, ax = plt.subplots(1, 3, figsize=(25, 8))
-#         scene.image.quick_plot(hylite.RGB, ax=ax[0])
-#         ax[0].set_title("Pixels used to estimate atmospheric spectra.")
-#         ax[0].scatter(refpx[..., 0], refpx[..., 1], s=1, alpha=0.1)
-#
-#     ## extract these pixels
-#     refpx = hylite.HyData(scene.image.data[refpx[..., 0], refpx[..., 1], :],
-#                           wavelengths=scene.image.get_wavelengths())
-#
-#     ## apply hull correction and extract atmospheric signal (this will be the "max" of the hc spectra)
-#     hc = get_hull_corrected(refpx)
-#     atmos = np.nanpercentile(hc.data, maxp, axis=0)
-#
-#     # plot results before correction
-#     if gf:
-#         ax[1].set_title("Uncorrected spectra + estimated atmospheric spectra")
-#         ax[1].set_ylabel("Uncorrected pixel reflectance")
-#         scene.image.plot_spectra(indices=indices, ax=ax[1])
-#         ax2 = ax[1].twinx()
-#         ax2.plot( scene.image.get_wavelengths(), atmos, color='b', alpha=0.5)
-#         ax2.set_ylabel("Estimated atmospheric absorbtions (%)")
-#         ax2.spines['right'].set_color('blue')
-#         ax2.yaxis.label.set_color('blue')
-#         ax2.tick_params(axis='y',colors='blue')
-#         ax[1].axvline(ref_feature, color='b', lw=4, alpha=0.5) # plot reference feature
-#
-#     # calculate correction factor and scale to match depth of reference water feature
-#     if ref_feature == 1125.:
-#         refdepth = parallel_chunks(get_hull_corrected, scene.image, (1050., 1250.), nthreads=nthreads) # just hull-correct relevant part of spectra (faster)
-#     else:
-#         refdepth = parallel_chunks(get_hull_corrected, scene.image, (0, -1), nthreads=nthreads) # hull correct whole spectra....
-#
-#     r1025 = refdepth.get_band(ref_feature)  # observed reflectance at r1025 feature
-#     f = r1025 / atmos[scene.image.get_band_index(ref_feature)] # adjustment factor such that correction removes reference feature
-#     fac = atmos[None, None, :] * f[:, :, None] # resulting per-pixel atmospheric correction factor
-#
-#     return fac
-#
-#     # apply correction
-#     #out = scene.image
-#     #self.image.data /= fac
-#
-#     # plot results
-#     #if vb:
-#     #    ax[2].set_title("Corrected spectra")
-#     #    self.image.plot_spectra(indices=indices, ax=ax[2])
-#     #    ax[2].axvline(ref_feature, color='b', lw=4, alpha=0.5)
-#     #    fig.show()
+    Reference:
+    https://doi.org/10.3390/rs10020176
+
+    *Arguments*:
+     - image = a hyperspectral image to correct
+     - band_range = a range of bands to do this over. Default is (0,-1), which applies the correction to all bands.
+     - thresh = the percentile to apply when identifying the smallest absorbtion in any range based on hull corrected
+                spectra. Lower values will remove more absorption (potentially including features of interest).
+     - atabs = wavelength position at which a known control feature is situated that defines the intensity of correction
+                - for atmospheric effects, this is set to default to 1126 nm
+     - vb = True if a progress bar should be created during hull correction steps.
+
+    *Returns*:
+     - a HyData instance containing the corrected spectra.
+    """
+    assert isinstance(atabs, float), "Absorption wavelength must be float"
+    # subset dataset
+    out = data.export_bands(band_range)
+    nanmask = np.logical_not(np.isfinite(out.data))
+    out.data[nanmask] = 0  # replace nans with 0
+
+    # get depth of water feature at 1126 nm for all pixels
+    atm_depth = (out.get_band(atabs - 50.) + out.get_band(atabs + 50.)) / 2 - out.get_band(atabs)
+
+    # kick out data points with over-/undersaturated spectra
+    atm_temp = atm_depth.copy()
+    atm_temp[np.logical_or(np.nanmax(out.data, axis=-1) >= 1, np.nanmax(out.data, axis=-1) <= 0)] = 0
+    # extract pixels that are affected most by the features
+    highratio = out.data[atm_temp > np.percentile(atm_temp, 90)]
+    # hull correct those
+    hull = get_hull_corrected(hylite.HyData(highratio), vb=vb)
+    # extract the always consistent absorptions
+    hull_max = np.nanpercentile(hull.data, thresh, axis=0)
+
+    vmin = hull_max[out.get_band_index(atabs)]
+    # apply adjustment and return
+    if out.is_image():
+        nmin = -atm_depth[..., None]
+        out.data -= ((hull_max[None, None, :] - vmin) * (-nmin) / (1 - vmin) + nmin)
+    else:
+        nmin = -atm_depth[..., None]
+        out.data -= ((hull_max[None, :] - vmin) * (-nmin) / (1 - vmin) + nmin)
+    out.data[nanmask] = np.nan  # add nans back in
+    out.data = np.clip(out.data, 0, 1)
+
+    return out
