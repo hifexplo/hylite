@@ -188,6 +188,7 @@ def loadLibraryCSV(path):
             l = f.readline()
     return HyLibrary( np.array(refl), names, wav=wav )
 
+
 def loadLibraryTXT(path):
     """
     Load an ENVI text format library. This should have the following structure:
@@ -215,21 +216,18 @@ def loadLibraryTXT(path):
         ll = f.readline().lower()
         names = {}
         wav = -1
+        i = 0
         while 'column' in ll:
 
             # split and get column number
-            data = ll.strip().split(' ')
-            try:
-                i = int(data[1].replace(':', "")) - 1
-            except:
-                assert False, "Error - could not parse line %s. File is invalid?" % (ll)
+            if ':' in ll:
+                cname = ll.strip().split(':')[1]
 
-            # get column name
-            if 'wavelength' in data[2]:  # this column is wavelengths
-                wav = i
-            else:  # this column is a spectra
-                # names[i] = '_'.join(data[2:]) # store rest of attributes in name
-                names[i] = data[3]
+                if 'wav' in cname:  # this column is wavelengths
+                    wav = i
+                else:  # this column is a spectra
+                    names[i] = cname
+                i += 1
 
             # read next line
             ll = f.readline().lower()
@@ -237,7 +235,10 @@ def loadLibraryTXT(path):
         # read data block
         data = []
         while ll:
-            data.append(np.fromstring(ll, sep=' '))
+            if ',' in ll:  # comma separated
+                data.append(np.fromstring(ll, sep=','))
+            else:  # space separated
+                data.append(np.fromstring(ll, sep=' '))
             ll = f.readline()
         data = np.array(data).T
         f.close()  # close file
@@ -249,7 +250,6 @@ def loadLibraryTXT(path):
             wav = np.arange(data.shape[-1])
         lib = HyLibrary(data[list(names.keys()), :], lab=list(names.values()), wav=wav)
         return lib
-
 
 def saveLibraryTXT(path, library):
     """

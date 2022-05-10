@@ -26,6 +26,24 @@ class TestIO(unittest.TestCase):
             img = io.loadWithSPy(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
             self.assertTrue( np.nanmax( np.abs(self.img.data - img.data ) ) < 0.01 ) # more or less equal datsets
 
+    def test_loadtxt(self):
+        lib = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"), "library.csv"))
+        pth = mkdtemp()
+        try:
+            io.saveLibraryTXT(os.path.join(pth,"libtxt.txt"), lib )
+            io.saveLibraryCSV(os.path.join(pth, "libcsv.csv"), lib)
+
+            lib2 = io.loadLibraryTXT(os.path.join(pth,"libtxt.txt"))
+            lib3 = io.loadLibraryCSV(os.path.join(pth, "libcsv.csv"))
+            for l in [lib2, lib3]:
+                self.assertLess( np.max( np.abs( l.data - lib.data ) ), 1e-5 )
+                self.assertLess( np.max(np.abs(l.get_wavelengths() - lib.get_wavelengths())), 1e-5 )
+        except:
+            shutil.rmtree(pth)  # delete temp directory
+            self.assertFalse(True, "Error - could not load or save spectral library to text format.")
+
+
+
     def test_save(self):
         self.test_load() # load datasets
         pth = mkdtemp()
@@ -174,6 +192,21 @@ class TestIO(unittest.TestCase):
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error - could not create, load or save HyCollection." )
         shutil.rmtree(pth)  # delete temp directory
+
+    def test_subset(self):
+        from hylite.io.images import loadSubset
+
+        # load whole image for reference
+        path = os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"), "image.hdr")
+        image = io.load(path)
+
+        # load subset and check that dimensions and values match
+        subset = loadSubset(path, bands=hylite.SWIR )
+        self.assertEqual(subset.xdim(), image.xdim())
+        self.assertEqual(subset.ydim(), image.ydim())
+        self.assertAlmostEqual(np.nanmax( np.abs(image.export_bands(hylite.SWIR).data - subset.data ) ), 0 )
+
+        # load a pixel and check that the dimensions and values match
 
 if __name__ == '__main__':
     unittest.main()

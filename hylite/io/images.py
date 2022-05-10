@@ -100,7 +100,7 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
     elif 'tif' in ext.lower() or 'png' in ext.lower() or 'jpg' in ext.lower():  # standard image formats
         # load with matplotlib
         import matplotlib.image as mpimg
-        data = mpimg(path)
+        data = mpimg.imread(path)
         header = None
     else:
         print('Warning - %s is an unknown/unsupported file format. Trying to load anyway...'%ext)
@@ -117,6 +117,58 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
         img.data[img.data == 0] = np.nan  # note to self: np.nan is float...
 
     return img
+
+def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32, mask_zero=True):
+    """
+    Load either specific bands (bands!=None) or pixels (pixels != None) from an ENVI file using spy to facilitate e.g. out-of-core
+    processing routines.
+
+    *Arguments*:
+     - path = a path to the hyperspectral image to read.
+     - bands = a list of hyperspectral band indices or wavelengths to extract, or None.
+     - pixels = a list of [(x1,y1),(x2,y2)] pixels to extract spectra for, or None. Either bands or pixels must be defined (but not both).
+     - dtype = the output data type. Default is float32.
+     - mask_zero = True if zero values should be replaced with nans. Default is True.
+    """
+    assert os.path.exists(path), "Error - %s does not exist." % path
+    assert (pixels is not None) or (bands is not None), "Error - either pixels OR bands must be specified"
+    assert not ((pixels is not None) and (bands is not None)), "Error - pixels AND bands cannot both be specified"
+
+    # parse file format
+    _, ext = os.path.splitext(path)
+    if len(ext) == 0 or 'hdr' in ext.lower() or \
+            'dat' in ext.lower() or \
+            'img' in ext.lower() or \
+            'lib' in ext.lower():
+        header, image = matchHeader(path)
+
+        # load header and convert bands to band indices
+        imageheader = loadHeader(header)
+        if bands is not None:
+            bands = [ HyImage( np.zeros((3,3)), header=imageheader ).get_band_index(b) for b in bands ]
+
+        # load image with SPy
+        assert os.path.exists(image), "Error - %s does not exist." % image
+        try:  # try loading envi file first
+            img = spectral.envi.open(header, image)  # this must be an envi file
+        except:
+            img = spectral.open_image(header)  # load unknown image type
+
+
+        if bands is not None:  # get bands and put in HyImage
+            data = np.dstack( [ img.read_band( b ).T for b in bands ] )
+            out = HyImage( data, projection=None, affine=None, header=imageheader, dtype=dtype)
+            out.set_wavelengths( imageheader.get_wavelengths()[bands] )
+            if out.has_band_names():
+                out.set_band_names( imageheader.get_band_names()[bands])
+        if pixels is not None:  # get pixels and put in HyCloud
+
+            data = np.array( [ img.read_pixel( *p ) for p in pixels ] )
+        return out
+
+
+
+
 
 # noinspection PyUnusedLocal
 def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
