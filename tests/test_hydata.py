@@ -130,7 +130,7 @@ class TestHyData(unittest.TestCase):
             rg = [ (data.get_wavelengths()[i], data.get_wavelengths()[i+2]) for i in range(0,data.band_count()-2, 2) ]
             sub3 = data.resample(rg, agg=True, thresh=0.1)
             self.assertEqual(sub3.band_count(), len(rg))
-
+            sub4 = data.resample( np.linspace(0.,1000.), partial=True)
 
 if __name__ == '__main__':
     unittest.main()

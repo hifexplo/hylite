@@ -488,7 +488,7 @@ class HyData(object):
         else:
             assert False, "Error - %s is an unknown band descriptor type." % type(w)
 
-    def resample(self, w, agg=True, bw=None, vb=True, **kwds):
+    def resample(self, w, agg=True, bw=None, vb=True, partial=False, **kwds):
         """
         Return a copy of this dataset resampled onto the specified wavelength array. Note that this does not
         do any interpolation, but rather selects the nearest band(s) and averages them if need be. Hence it is useful
@@ -502,6 +502,8 @@ class HyData(object):
                   Default is True. If False then the closest value will be used (i.e. spectral subsampling).
           - bw = the width of each band. If None (default) then this is calculated as w[1] - w[0] (i.e. assume regular
                  spacing). This has no effect if agg is False.
+          - partial = True if partial overlap between the source and target wavelengths is allowed. Non-overlapping areas will be
+                      replaced with nan. Default is False.
           - vb = True if a progress bar should be created. Default is True.
         *Keywords*:
           - if provided, the thresh keyword will be passed to get_band_index(...) to control tolerances when selecting the
@@ -520,21 +522,46 @@ class HyData(object):
         if vb:
             loop = tqdm(loop, desc='Resampling bands', leave=False)
         for i in loop:
+            idx0 = None
+            idx1 = None
             if agg:  # binning
                 if len(w.shape) == 1: # W is 1-D
-                    idx0 = self.get_band_index(w[i] - bw * 0.5, **kwds)
-                    idx1 = self.get_band_index(w[i] + bw * 0.5, **kwds)
-                    out_wav.append(w[i]) # use specified wavelength.
+                    out_wav.append(w[i])  # use specified wavelength.
+                    try:
+                        idx0 = self.get_band_index(w[i] - bw * 0.5, **kwds)
+                        idx1 = self.get_band_index(w[i] + bw * 0.5, **kwds)
+                    except AssertionError:
+                        if partial:
+                            pass
+                        else:
+                            assert False, "Error - source wavelength array (%.1f - %.1f) does not cover target array (%.1f - %.1f)." % (
+                                self.get_wavelengths()[0], self.get_wavelengths()[-1], w[0], w[-1])
+
                 else: # W is 1-D, containing (start,end) pairs.
-                    idx0 = self.get_band_index(w[i,0], **kwds)
-                    idx1 = self.get_band_index(w[i,1], **kwds)
-                    out_wav.append( (w[i,0] + w[i,1] ) / 2 ) # use midpoint as wavelength
-                out.data[..., i] = np.nanmean(self.data[..., idx0:(idx1+1)], axis=-1)
+                    out_wav.append((w[i, 0] + w[i, 1]) / 2)  # use midpoint as wavelength
+                    try:
+                        idx0 = self.get_band_index(w[i,0], **kwds)
+                        idx1 = self.get_band_index(w[i,1], **kwds)
+                    except AssertionError:
+                        if partial:
+                            pass
+                        else:
+                            assert False, "Error - source wavelength array (%.1f - %.1f) does not cover target array (%.1f - %.1f)." % (
+                                self.get_wavelengths()[0], self.get_wavelengths()[-1], w[0], w[-1])
+                if idx0 is not None and idx1 is not None:
+                    out.data[..., i] = np.nanmean(self.data[..., idx0:(idx1 + 1)], axis=-1)
             else:
                 assert len(w.shape) == 1, "Error - if agg is False then w must be 1d, not %s" % str(w.shape)
-                idx = self.get_band_index(w[i], **kwds)
-                out_wav.append( self.get_wavelengths()[idx]) # use real wavelength
-                out.data[..., i] = self.data[..., idx]  # nearest-neighbour resampling
+                try:
+                    idx = self.get_band_index(w[i], **kwds)
+                    out_wav.append(self.get_wavelengths()[idx])  # use real wavelength
+                    out.data[..., i] = self.data[..., idx]  # nearest-neighbour resampling
+                except AssertionError:
+                    if partial:
+                        out_wav.append(w[i])  # use passed wavelength
+                    else:
+                        assert False, "Error - source wavelength array (%.1f - %.1f) does not cover target array (%.1f - %.1f)." % (
+                        self.get_wavelengths()[0], self.get_wavelengths()[-1], w[0], w[-1])
         out.set_wavelengths(out_wav)
         return out
 
