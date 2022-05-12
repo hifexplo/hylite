@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import glob
+import hylite
 from hylite import HyLibrary
 from hylite.io import makeDirs
 from time import gmtime, strftime
@@ -250,6 +251,66 @@ def loadLibraryTXT(path):
             wav = np.arange(data.shape[-1])
         lib = HyLibrary(data[list(names.keys()), :], lab=list(names.values()), wav=wav)
         return lib
+
+
+import glob
+
+
+def loadLibraryDIR(path, wav=None):
+    """
+    Load a spectral library from a directory of ENVI text files, with the following structure:
+     - path
+         - mineralA
+             - spectraA.txt
+             - spectraB.txt
+             - spectraC.txt
+         - mineralB
+             -spectraA.txt
+             -spectraB.txt
+        etc.
+
+    Data in this format can be downloaded using iSpec: https://www.samthiele.science/app/iSpec/index.html.
+
+
+    *Arguments*:
+     - path = the directory path to search for ENVI spectra.
+     - wav = an array of wavelengths to resample the spectra onto. This is required as the txt files often
+             have differing wavelength arrays. Data that does not overlap with wav will be set to nan. If None,
+             this will be set to the wavelengths of the first encounted dataset.
+    *Returns*:
+     - a HyLibrary spectral library instance.
+    """
+
+    files = glob.glob(os.path.join(path, "*/*.txt"))
+    libs = {}
+    for f in files:
+        # spectra name
+        n = os.path.splitext(os.path.basename(f))[0]
+
+        # mineral name
+        m = os.path.dirname(f).split('/')[-1].split('\\')[-1]
+
+        # load data
+        lib = loadLibraryTXT(f)
+        if wav is None:
+            wav = lib.get_wavelengths()
+
+        # check it is valid and resample to desired range
+        delta = [np.min(np.abs(lib.get_wavelengths() - w)) for w in wav]
+        if np.min(delta) < hylite.band_select_threshold:
+            lib = lib.resample(wav, vb=False, partial=True)
+            if m in libs:
+                libs[m] = libs[m] + lib  # append
+            else:
+                libs[m] = lib
+
+    # aggregate
+    data = np.full((len(libs), np.max([l.sample_count() for l in libs.values()]), len(wav)), np.nan)
+    lib = hylite.HyLibrary(data, lab=list(libs.keys()), wav=wav)
+    for i, (k, v) in enumerate(libs.items()):
+        lib.data[i, :v.data.shape[0], :] = v.data[:, 0, :]
+
+    return lib
 
 def saveLibraryTXT(path, library):
     """

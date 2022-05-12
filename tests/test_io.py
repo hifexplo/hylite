@@ -38,6 +38,14 @@ class TestIO(unittest.TestCase):
             for l in [lib2, lib3]:
                 self.assertLess( np.max( np.abs( l.data - lib.data ) ), 1e-5 )
                 self.assertLess( np.max(np.abs(l.get_wavelengths() - lib.get_wavelengths())), 1e-5 )
+
+            # test loading from directory
+            for i,mineral in enumerate(['quartz', 'biotite','phlogopite']): # build directory
+                io.saveLibraryTXT(os.path.join(pth,"library/%s/_%d.txt"%(mineral,i)), lib )
+            lib = io.loadLibraryDIR(os.path.join(pth,"library"))
+            self.assertIn('phlogopite', lib.get_sample_names())
+            self.assertEquals(lib.data.shape[0],3)
+            self.assertEquals(lib.data.shape[1],57)
         except:
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error - could not load or save spectral library to text format.")
