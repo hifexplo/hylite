@@ -50,8 +50,6 @@ class TestIO(unittest.TestCase):
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error - could not load or save spectral library to text format.")
 
-
-
     def test_save(self):
         self.test_load() # load datasets
         pth = mkdtemp()

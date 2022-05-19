@@ -75,6 +75,10 @@ class TestHyData(unittest.TestCase):
             self.assertEqual(data.is_int(), False)
             self.assertEqual(data.is_float(), True)
 
+            # check band names
+            data.set_band_names([a for a in 'abcdefghijklmnop'[:10]])
+            self.assertEqual( data.get_band_index('e'), 4 )
+
             # check export (which also checks copy etc.)
             data2 = data.export_bands( (0,5) )
             self.assertEqual(len(data2.get_wavelengths()), 5)

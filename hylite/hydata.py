@@ -479,7 +479,7 @@ class HyData(object):
                 return w
         elif isinstance(w, str): # treat w as band name
             assert w in self.get_band_names(), "Error - could not find band with name %s" % w
-            return int(self.get_band_names().index(w))
+            return int(list(self.get_band_names()).index(w))
         elif np.issubdtype( type(w), np.floating ): # otherwise treat w as wavelength
             wavelengths = self.get_wavelengths()
             diff = np.abs( wavelengths - w)

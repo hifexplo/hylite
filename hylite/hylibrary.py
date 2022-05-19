@@ -414,6 +414,18 @@ class HyLibrary(HyData):
 
         # return output
         return HyLibrary( arr, lab=groups, wav=self.get_wavelengths() )
+
+    def squash(self):
+        """
+        Returns a copy of this HyLibrary instance with multiple measurements averaged to give a single spectra per sample.
+        """
+
+        data = np.nanmedian(self.data, axis=1)
+        out = self.copy(data=False)
+        out.data = data[:, None, :]
+        return out
+
+
     def quick_plot(self, band_range=None, ax=None, labels=None, pad=None, collapse=False, hc=False, **kwds):
         """
         Plots individual spectra in this library.

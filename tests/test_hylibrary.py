@@ -72,6 +72,11 @@ class TestAlign(unittest.TestCase):
         lib3 = lib.collapse()
         self.assertEqual(lib3.data.shape[0],2) # two samples after collapsing groups
 
+        # test squash (at least, run it)
+        lib4 = lib.squash()
+        self.assertEqual( lib4.data.shape[1], 1 )
+        self.assertEqual( lib4.data.shape[0], lib.data.shape[0] )
+
         # test fancy plotting
         lib.quick_plot( collapse=True, hc=True )
 

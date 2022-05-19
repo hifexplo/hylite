@@ -162,7 +162,7 @@ def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32, mask_zero=Tr
             if out.has_band_names():
                 out.set_band_names( imageheader.get_band_names()[bands])
         if pixels is not None:  # get pixels and put in HyCloud
-
+            assert False, "Error - this has not yet been implemented."
             data = np.array( [ img.read_pixel( *p ) for p in pixels ] )
         return out
 
