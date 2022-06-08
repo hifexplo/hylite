@@ -17,8 +17,8 @@ def readAnnotations(annot, hsi, mask_patches=False, mask_panels=False, mask_poin
     """
     Extract pixel positions and region spectra (e.g. calibration panels) based on an annotation image.
     This image should have three RGB bands (0 - 255) and will be parsed as follows:
-     - [0,0,0] = white = retain data.
-     - [255,255,255] = black = mask data (replace with nan).
+     - [0,0,0] = black = retain data.
+     - [255,255,255] = white = mask data (replace with nan).
      - [aaa,aaa,aaa] = grays = extract regions and add averaged spectra to header file indexed by grey value.
      - [0,255,255],[255,0,255],[255,255,0]  = cyan, magenta, yellow = extract calibration panels A, B and C (respectively).
      - [n,0,0] (reds), [0,n,0] (blues), [0,0,n] (greens) = extract pixel locations and add to header file as points A, B and C (respectively). These will be ordered based on the corresponding channel value.

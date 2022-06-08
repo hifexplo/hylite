@@ -136,5 +136,12 @@ class TestHyData(unittest.TestCase):
             self.assertEqual(sub3.band_count(), len(rg))
             sub4 = data.resample( np.linspace(0.,1000.), partial=True)
 
+            # test fill holes
+            data.data = np.nan_to_num(data.data, posinf=0, neginf=0) # remove any stray nans
+            self.assertTrue(np.isfinite(data.data).all())
+            data.data[...,5] = np.nan # add some nans
+            data.fill_gaps() # remove them again!
+            self.assertTrue(np.isfinite(data.data).all() ) # check they were removed
+
 if __name__ == '__main__':
     unittest.main()

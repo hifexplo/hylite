@@ -673,6 +673,23 @@ class HyData(object):
             out.set_wavelengths(np.hstack(w))
         return out
 
+    def fill_gaps(self):
+        """
+        Fill spectral gaps using nearest neighbour interpolation (in the spectral direction). This operation is applied in-place.
+        """
+        from scipy import ndimage as nd
+        for i in range(self.data.shape[0]):
+            if self.is_image():
+                for j in range(self.data.shape[1]):
+                    invalid = np.logical_not(np.isfinite(self.data[i, j, :]))
+                    if invalid.any():
+                        ind = nd.distance_transform_edt(invalid, return_distances=False, return_indices=True)
+                        self.data[i, j, :] = self.data[i, j, tuple(ind)]
+            else:
+                invalid = np.logical_not(np.isfinite(self.data[i, :]))
+                if invalid.any():
+                    ind = nd.distance_transform_edt(invalid, return_distances=False, return_indices=True)
+                    self.data[i, :] = self.data[i, tuple(ind) ]
 
     ###################################
     # PLOTTING AND OTHER VISUALISATIONS
