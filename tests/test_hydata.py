@@ -81,13 +81,13 @@ class TestHyData(unittest.TestCase):
 
             # check export (which also checks copy etc.)
             data2 = data.export_bands( (0,5) )
-            self.assertEqual(len(data2.get_wavelengths()), 5)
-            self.assertEqual(len(data2.get_fwhm()), 5)
-            self.assertEqual(data2.data.shape[-1], 5)
+            self.assertEqual(len(data2.get_wavelengths()), 6)
+            self.assertEqual(len(data2.get_fwhm()), 6)
+            self.assertEqual(data2.data.shape[-1], 6 )
 
             # nans
             data2.mask_bands(3,-1) # mask bands from 3rd to last
-            self.assertEqual(data2.data.shape[-1], 5) # bands should still exist
+            self.assertEqual(data2.data.shape[-1], 6) # bands should still exist
             self.assertEqual( np.isfinite(data2.data[...,3:]).any(), False ) # all of last bands should be nan
             data2.delete_nan_bands()
             self.assertEqual(data2.data.shape[-1], 3)  # bands should have been deleted

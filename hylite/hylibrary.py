@@ -235,7 +235,9 @@ class HyLibrary(HyData):
         if self.has_sample_names():
             return self.header.get_list('sample names') # names are defined
         else:
-            return np.arange(self.sample_count()) # use integers as names by default
+            # no names defined, so make some
+            self.header['sample names'] = ['S%d' % i for i in range(self.sample_count()) ]
+            return self.get_sample_names()
 
     def set_sample_names(self, names):
         """

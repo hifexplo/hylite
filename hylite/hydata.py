@@ -265,7 +265,7 @@ class HyData(object):
             mx = self.get_band_index(bands[1])
 
             # calculate mask
-            mask[ mn:mx ] = False
+            mask[ mn:(mx+1) ] = False
         else:
             # check bands are all indices and flag these bands as False in mask.
             bands = list(bands)
