@@ -795,7 +795,7 @@ class HyData(object):
 
         #no need to compress...
         if self.data.dtype == np.uint16: return
-        if np.nanmin(self.data) >= 0:
+        if np.nanmin(self.data) < 0:
             print( "Warning - negative values cannot be converted to uint and will be lost. "
                    "Minimum value in dataset is: %s." % np.nanmin(self.data) )
 

@@ -48,18 +48,31 @@ def band_ratio(data, num, den):
                         name += " - %.1f:%.1f" % n
             else:
                 sign = 1
-                if n < 0:
+                if isinstance(n,str):
+                    if n[0] == '-':
+                        n = n[1:]
+                        sign = -1
+                elif n < 0:
                     sign = -1
                     n = abs(n)
 
                 idx = data.get_band_index(n)
                 if name is None:
-                    name = "%.1f" % n
+                    if isinstance(n,str):
+                        name = "%s" % n
+                    else:
+                        name = "%.1f" % n
                 else:
                     if sign > 0:
-                        name += " + %.1f" % n
+                        if isinstance(n, str):
+                            name = "+%s" % n
+                        else:
+                            name += "+%.1f" % n
                     else:
-                        name += " - %.1f" % n
+                        if isinstance(n, str):
+                            name = "-%s" % n
+                        else:
+                            name += "-%.1f" % n
 
             # accumulate
             slc = data.data[..., idx]
