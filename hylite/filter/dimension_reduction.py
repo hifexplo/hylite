@@ -89,7 +89,7 @@ def PCA(hydata, bands=20, band_range=None, step=5):
     outobj.data = out[..., 0:bands]
     outobj.set_wavelengths(np.cumsum(eigval[0:bands]))  # wavelengths are % of explained variance
     outobj.push_to_header()
-    return outobj, eigvec.T
+    return outobj, eigvec[:, :bands ].T
 
 def MNF(hydata, bands=20, band_range=None, denoise=False):
     """
@@ -205,3 +205,39 @@ def MNF(hydata, bands=20, band_range=None, denoise=False):
         out.header['mnf weights %d' % i] = factors[i, :]
 
     return out, factors
+
+
+def from_loadings(data, L):
+    """
+    Transform a dataset using a precomputed loading vector.  This allows PCA or MNF
+    transforms to be computed on one dataset and then applied to another.
+
+    *Arguments*:
+    - data = A dataset (HyData instance or numpy array) with b bands in the last axis.
+    - L = the loadings vector of shape (k,b), such that data is projected into a
+                 k-dimensional space.
+
+    *Returns*:
+    - a hydata instance or numpy array containing the transformed data.
+    """
+    # get relevant data
+    if isinstance(data, HyData):
+        X = data.X()
+        outshape = data.data.shape[:-1] + (L.shape[0],)
+    else:
+        X = data.reshape((-1, data.shape[-1]))
+        outshape = data.shape[:-1] + (L.shape[0],)
+
+    # project data
+    out = np.zeros((X.shape[0], L.shape[0]))
+    for b in range(L.shape[0]):
+        out[..., b] = np.dot(X, L[b, :])
+    out = out.reshape(outshape)
+
+    # return HyData or numpy array
+    if isinstance(data, HyData):
+        O = data.copy(data=False)
+        O.data = out
+        return O
+    else:
+        return out

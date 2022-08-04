@@ -2,7 +2,7 @@
 Denoising, feature-extraction and dimensionality reduction filters.
 """
 
-from .dimension_reduction import MNF, PCA
+from .dimension_reduction import MNF, PCA, from_loadings
 from .segment import *
 from .sample import *
 from .tpt import *
