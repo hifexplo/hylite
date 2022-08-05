@@ -24,7 +24,7 @@ jobs:
       # install pdoc
       - run: pip install pdoc
       # build documentation with pdoc into docs/
-      - run: pdoc --html hylite --output-dir docs --force
+      - run: pdoc -o docs/
 
       - uses: actions/upload-pages-artifact@v1
         with:
