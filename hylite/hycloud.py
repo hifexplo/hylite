@@ -1,3 +1,8 @@
+"""
+Store and manipulate point clouds and hyperclouds.
+"""
+
+
 import numpy as np
 import scipy.spatial as spatial
 from scipy.spatial import KDTree
@@ -8,6 +13,8 @@ from hylite.hydata import HyData
 from hylite.hyimage import HyImage
 from hylite.project import proj_persp, proj_pano, rasterize, Camera
 
+
+
 class HyCloud( HyData ):
     """
     A class for point cloud data, including (but not limited to) hyperclouds.
@@ -17,16 +24,19 @@ class HyCloud( HyData ):
         """
         Create a HyCloud from a data array.
 
-        *Arguments*:
-         - xyz = a numpy array such that data[i] = [ x, y, z ]
-        *Keywords*:
-         - normals = a Nx3 numpy array containing point normals. Default is None.
-         - rgb = a Nx3 numpy array containing point colors. Default is None.
-         - bands = a Nxm numpy array containing additional scalar bands (e.g. hyperspectral bands). This will become the
-                    data array of this cloud.
-         - band_names = a Nxm list of names corresponding to each scalar band.
-         - wavelengths = a Nxm list of hyperspectral wavelengths corresponding to each scalar band. Should be -1 for non
-                         hyperspectral bands.
+        Args:
+            xyz (ndarray): a numpy array such that data[i] = [ x, y, z ]
+            **keywords: Optional keywords include:
+
+                     - normals = a Nx3 numpy array containing point normals. Default is None.
+                     - rgb = a Nx3 numpy array containing point colors. Default is None.
+                     - bands = a Nxm numpy array containing additional scalar bands (e.g. hyperspectral bands). This will become the
+                                data array of this cloud.
+                     - band_names = a Nxm list of names corresponding to each scalar band.
+                     - wavelengths = a Nxm list of hyperspectral wavelengths corresponding to each scalar band. Should be -1 for non
+                                     hyperspectral bands.
+
+
         """
         assert xyz.shape[1] == 3, "Error - data array must be a list of 3D vectors."
 
@@ -48,8 +58,8 @@ class HyCloud( HyData ):
         """
         Make a (deep) copy of this point cloud.
 
-        *Arguments*:
-         - data = True if scalar bands should be copied as well (or just geometry). Default is True. If set to false then
+        Args:
+            data (bool): True if scalar bands should be copied as well (or just geometry). Default is True. If set to false then
                   points, colors and normals are copied, but not data.
         """
 
@@ -127,11 +137,11 @@ class HyCloud( HyData ):
         """
         Set the scalar bands that are associated with this point cloud. Any exisiting bands will be overwritten.
 
-        *Arguments*:
-         - data = the new scalar bands
-         - wavelengths = associated wavelength data. Default is None.
-         - band_names = associated band names. Default is None.
-         - copy = True if the data array should be copied (rather than just copying the reference). Default is False.
+        Args:
+            data (ndarray): the new scalar bands
+            wavelengths (ndarray): associated wavelength data. Default is None.
+            band_names (list): associated band names. Default is None.
+            copy (bool): True if the data array should be copied (rather than just copying the reference). Default is False.
         """
 
         assert data.shape[0] == self.point_count(), "Error - scalar bands must be defined for all points."
@@ -149,11 +159,11 @@ class HyCloud( HyData ):
         """
         Append the specified bands to any existing ones.
 
-        *Arguments*:
-         - data = the new scalar bands
-         - wavelengths = associated wavelength data. Default is None.
-         - band_names = associated band names. Default is None.
-         - copy = True if the data array should be copied (rather than just copying the reference). Default is False.
+        Args:
+            data (ndarray): the new scalar bands
+            wavelengths (ndarray): associated wavelength data. Default is None.
+            band_names (list): associated band names. Default is None.
+            copy (bool): True if the data array should be copied (rather than just copying the reference). Default is False.
         """
 
         assert data.shape[0] == self.point_count(), "Error - scalar bands must be defined for all points."
@@ -178,13 +188,15 @@ class HyCloud( HyData ):
         """
         Remove points based on their scalar field values.
 
-        *Arguments*:
-         - band = index (int), wavelength (float) or name (string) of the band to filter with.
-         - val = the filter to use. Can be of the following forms:
-            - numeric = points with this value (e.g. 0, np.nan) are deleted.
-            - tuple = all points outside (trim = True) or inside (trim=False) the range of values are deleted.
-            - boolean ndarray = all points scored as 'True' are deleted.
-         - trim = True if points outside a tuple val should be deleted. False if points falling within the range defined by val
+        Args:
+            band (int,float,str): index (int), wavelength (float) or name (string) of the band to filter with.
+            val (int,float,tuple,bool): the filter to use. Can be of the following forms:
+
+                        - numeric = points with this value (e.g. 0, np.nan) are deleted.
+                        - tuple = all points outside (trim = True) or inside (trim=False) the range of values are deleted.
+                        - boolean ndarray = all points scored as 'True' are deleted.
+
+            trim (bool): True if points outside a tuple val should be deleted. False if points falling within the range defined by val
                  should be deleted.
 
         """
@@ -218,15 +230,15 @@ class HyCloud( HyData ):
         """
         Apply the specified function to each point neighbourhood (points within the specified radius).
 
-        *Arguments*:
-         - radius = the radius around each point defining the neighbourhood.
-         - function = the operator to call. This should have the following form: function( radius, current_id, neighbour_ids, *args ).
-         - vb = True if a progress bar should be created. Default is True.
-         - args = remainin arguments are passed to function(...).
+        Args:
+            radius (float): the radius around each point defining the neighbourhood.
+            function: the operator to call. This should have the following form: function( radius, current_id, neighbour_ids, *args ).
+            vb (bool): True if a progress bar should be created. Default is True.
+            args (tuple): = remainin arguments are passed to function(...).
 
-        *Returns*:
-        - a list of values corresponding to the returned value of function for each point in this cloud (or None if the
-          function has no return value).
+        Returns:
+            a list of values corresponding to the returned value of function for each point in this cloud (or None if the
+            function has no return value).
         """
 
         tree = KDTree(self.xyz, leafsize=10)  # build kdtree
@@ -250,11 +262,11 @@ class HyCloud( HyData ):
         """
         Despeckle scalar fields or rgb bands associated with this point cloud using a median filter.
 
-        *Arguments*:
-         - radius = the radius to use to define point neighbourhoods for median calculation
-         - bands = the bands to apply the median filter to. Options are: 'rgb' to smooth colours, a list of integer
+        Args:
+            radius (float): the radius to use to define point neighbourhoods for median calculation
+            bands (str,list,float,tuple): the bands to apply the median filter to. Options are: 'rgb' to smooth colours, a list of integer
                    or float band wavelengths, or a tuple of length 2.
-         - vb = True if a progress bar should be created, as this can be a slow operation.
+            vb (bool): True if a progress bar should be created, as this can be a slow operation.
         """
 
         # build appropriate smoothing function
@@ -298,9 +310,9 @@ class HyCloud( HyData ):
         Compute surface normals by fitting a plane to points within  the specified distance of each point in the cloud.
         Note that this can be slow... (especially for large values of radius).
 
-        *Arguments*:
-         - radius = the search distance for points to use in the plane fitting.
-         - vb = True if a progress bar should be created. Default is true.
+        Args:
+            radius (float): the search distance for points to use in the plane fitting.
+            vb (bool): True if a progress bar should be created. Default is true.
         """
 
         # reset normals
@@ -330,10 +342,11 @@ class HyCloud( HyData ):
         """
         Renders this point cloud to a HyImage using the specified camera.
 
-        *Arguments*:
-         - cam = the camera to render with. Either a Camera instance or 'ortho' to render an orthographic top-down view (default).
-         - step = the image pixel angular step (in x) for panoramic images. Default is None == square pixels.
-         - bands = List defining the bands to include in the output image. Elements should be one of:
+        Args:
+            cam (hylite.project.Camera, str): the camera to render with. Either a Camera instance or 'ortho' to render an orthographic top-down view (default).
+            step (int): the image pixel angular step (in x) for panoramic images. Default is None == square pixels.
+            bands (list,str, tuple): List defining the bands to include in the output image. Elements should be one of:
+
                     - 'rgb' = rgb
                     - 'xyz' = point position
                     - 'klm' = normal vectors
@@ -341,21 +354,22 @@ class HyCloud( HyData ):
                     - tuple of length 2 = slice of scalar fields (e.g. (0,-1) would return all bands).
                     - tuple of length > 2 or list: list of band indices (int) or wavelengths (float).
 
-              Default is ['rgb'].
+                    Default is ['rgb'].
 
-        *Keywords*:
-         - s = the point size (in pixels). Must be an integer. Default is 1.
-         - step = skip through n points for quicker plotting (default is 1 = draw all points).
-         - fill_holes = True if 1-pixel holes should be filled. Default is False.
-         - blur = Gaussian kernel size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
-         - despeckle = Median kernel size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
-         - res = the pixel size (in world coordinates) used to georeference the resulting raster (if creating an orthophoto).
-                 Default is one thousandth of the maximum dimension (in x or y).
-         - epsg = an epsg code used to georeference the resulting render (if creating an orthophoto). Default is 32629.
-         - depth = include the depth buffer in the output image. Default is False.
+            **kwds: Keyword arguments can be any of:
 
-        *Returns*
-         - a HyImage object.
+                     - s = the point size (in pixels). Must be an integer. Default is 1.
+                     - step = skip through n points for quicker plotting (default is 1 = draw all points).
+                     - fill_holes = True if 1-pixel holes should be filled. Default is False.
+                     - blur = Gaussian kernel size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
+                     - despeckle = Median kernel size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
+                     - res = the pixel size (in world coordinates) used to georeference the resulting raster (if creating an orthophoto).
+                             Default is one thousandth of the maximum dimension (in x or y).
+                     - epsg = an epsg code used to georeference the resulting render (if creating an orthophoto). Default is 32629.
+                     - depth = include the depth buffer in the output image. Default is False.
+
+        Returns:
+            a HyImage object.
         """
 
         # get keywords
@@ -541,22 +555,23 @@ class HyCloud( HyData ):
         """
         Renders this point cloud using the specified camera.
 
-        *Arguments*:
-         - band = the bands to plot. 'rgb' will plot colour, 'norm' will plot normals, 'xyz' will plot
+        Args:
+            band (str,float,int,tuple): the bands to plot. 'rgb' will plot colour, 'norm' will plot normals, 'xyz' will plot
                    coordinates. Or an index or tuple of 3-indices (mapped to rgb) can be passed to plot scalar fields.
-         - cam = the camera to render with. Default is 'ortho' (top down).
-         - s = point size (in pixels; must be an integer).
-         - step = skip through n points for quicker plotting (default is 1 = draw all points).
-         - fill_holes = True if 1-pixel holes should be filled. Default is False.
-         - blur = True if a 3x3 gaussian blur kernel is used to smooth the scene. Default is False.
-         - despeckle = True if a 5x5 median filter should be used to denoise rendered image before plotting. Default is False.
-         - res = the resolution to plot in 'ortho' mode. Default is one thousandth of the maximum dimension (in x or y).
-        *Keywords*:
-         - other keywords are passed to HyImage.quick_plot( ... ).
+            cam (hylite.project.Camera, str): the camera to render with. Default is 'ortho' (top down).
+            s (int): point size (in pixels; must be an integer).
+            step (int): skip through n points for quicker plotting (default is 1 = draw all points).
+            fill_holes (bool): True if 1-pixel holes should be filled. Default is False.
+            blur (bool): True if a 3x3 gaussian blur kernel is used to smooth the scene. Default is False.
+            despeckle (bool): True if a 5x5 median filter should be used to denoise rendered image before plotting. Default is False.
+            res (float): the resolution to plot in 'ortho' mode. Default is one thousandth of the maximum dimension (in x or y).
+            **kwds: other keywords are passed to HyImage.quick_plot( ... ).
 
-        *Returns*
-         - fig = the plot figure
-         - ax = the plot axis
+        Returns:
+            Tuple containing
+
+            - fig: the plot figure
+            - ax: the plot axis
         """
 
         # render image
@@ -581,9 +596,9 @@ class HyCloud( HyData ):
         """
         Map the specified bands to this clouds RGB using the specified percentile stretch.
 
-        *Arguments*
-         - bands = a list of 3 bands to map to r, g and b (respectively). Can be indices (integer) or wavelengths (float).
-         - stretch = a tuple containing the (min,max) percentiles (integer) of values (float) to use for the colour stretch. Default is (1,99).
+        Args:
+            bands (list, tuple): a list of 3 bands to map to r, g and b (respectively). Can be indices (integer) or wavelengths (float).
+            stretch (tuple): a tuple containing the (min,max) percentiles (integer) of values (float) to use for the colour stretch. Default is (1,99).
         """
 
         # for greyscale mapping
@@ -626,17 +641,17 @@ class HyCloud( HyData ):
         """
         Projects an image into this point cloud such that each a new scalar field is defined for each point.
 
-        *Arguments*:
-         - image = the image to project (as a HyImage object) or list of images.
-         - cam = the camera to project through, or a list of cameras (of the same length as image).
-         - bands = the bands to project (a scalar field is created for each band). Default (None) projects
+        Args:
+            image (hylite.HyImage): the image to project (as a HyImage object) or list of images.
+            cam (hylite.project.Camera): the camera to project through, or a list of cameras (of the same length as image).
+            bands (list,float): the bands to project (a scalar field is created for each band). Default (None) projects
                    all bands.
-         - band_names = names of the bands. Default is None (bands are given integer names).
-         - occ_tol = the occlusion tolerance (in m). Points within this distance of the z-buffer will be attributed with
+            band_names (list): names of the bands. Default is None (bands are given integer names).
+            occ_tol (float): the occlusion tolerance (in point cloud coordinate system). Points within this distance of the z-buffer will be attributed with
                      projected data. Set to 0 to do no occlusion (i.e. all points along each camera ray will be attributed).
-         - vb = True if progress bar should be created when projecting multiple images. Default is True.
-         - ignore_zeros = True if zero data is not projected (but instead treated as "transparent"). Default is True.
-         - trim = True if points that did not get any data projected onto them should be deleted from the cloud. Default is True.
+            vb (bool): True if progress bar should be created when projecting multiple images. Default is True.
+            ignore_zeros (bool): True if zero data is not projected (but instead treated as "transparent"). Default is True.
+            trim (bool) True if points that did not get any data projected onto them should be deleted from the cloud. Default is True.
         """
 
         # wrap in lists

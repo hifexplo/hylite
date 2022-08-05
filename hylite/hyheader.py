@@ -1,6 +1,9 @@
+"""
+Manage metadata and other header file information.
+"""
+
 import copy
 import numpy as np
-
 
 class HyHeader( dict ):
     """
@@ -8,12 +11,6 @@ class HyHeader( dict ):
     libraries as well as images.
     """
     def __init__(self):
-        """
-        Load a header file.
-
-        *Arguments*:
-        - file = a file path to a .hdr file. Set to None to create new/empty header.
-        """
         super().__init__()
 
         #default values
@@ -90,8 +87,8 @@ class HyHeader( dict ):
         """
         Set list of band names from header file.
 
-        *Arguments*:
-         - band_names = a list of band names.
+        Args:
+            band_names (list): a list of band names.
         """
         if band_names is None:
             if 'band names' in self:
@@ -104,8 +101,8 @@ class HyHeader( dict ):
         """
         Set list of band wavelengths from header file.
 
-        *Arguments*:
-         - wavelengths = a list or numpy array of wavelengths.
+        Args:
+            wavelengths (list, ndarray): a list or numpy array of wavelengths.
         """
         if wavelengths is None:
             if 'wavelength' in self:
@@ -118,8 +115,8 @@ class HyHeader( dict ):
         """
         Set list of band wavelengths from header file.
 
-        *Arguments*:
-         - wavelengths = a list or numpy array of wavelengths.
+        Args:
+            fwhm (list, ndarray): a list or numpy array of band widths.
         """
         if fwhm is None:
             if 'fwhm' in self:
@@ -132,8 +129,8 @@ class HyHeader( dict ):
         """
         Set list of bad bands.
 
-        *Arguments*:
-         - bbl = a list or numpy array scored True for good bads and False for bad ones, or None to remove bbl.
+        Args:
+            bbl (list, ndarray): a list or numpy array scored True for good bads and False for bad ones, or None to remove bbl.
         """
         if bbl is None:
             if 'bbl' in self:
@@ -147,8 +144,8 @@ class HyHeader( dict ):
         Remove all header data (e.g. band names, wavelengths) associated with the specified bands. Used when removing or
         deleting bands from an image.
 
-        *Arguments*:
-         - mask = either a list of band indices to remove or a boolean numpy array with True for bands that should remove.
+        Args:
+            mask (list, ndarray): either a list of band indices to remove or a boolean numpy array with True for bands that should remove.
         """
         # how many bands are there?
         nbands = self.band_count()
@@ -226,8 +223,8 @@ class HyHeader( dict ):
         """
         Make a deep copy of this header class.
 
-        *Returns*
-         - a new header instance.
+        Returns:
+            a new header instance.
         """
 
         return copy.deepcopy(self)
@@ -248,11 +245,12 @@ class HyHeader( dict ):
         """
         Get generic list data from the header as a numpy array.
 
-        *Arguments*:
-         - name = the header key used to access the list.
-         - dtype = the numpy data type that should be returned.
-        *Returns*:
-         - a numpy array containing the header data, or None if the key does not exist.
+        Args:
+            name (str): the header key used to access the list.
+            dtype (str): the numpy data type that should be returned. Default is float.
+
+        Returns:
+            a numpy array containing the header data, or None if the key does not exist.
         """
 
         if not name in self:
@@ -269,8 +267,9 @@ class HyHeader( dict ):
         """
         Store information on the position and orientation of this image to the image header.
 
-        *Arguments*:
-         - n = the camera id (integer), if multiple cameras are stored (e.g. for hyperclouds). Default is 0.
+        Args:
+            camera (hylite.project.Camera): the camera instance to store.
+            n (int): the camera id (integer), if multiple cameras are stored (e.g. for hyperclouds). Default is 0.
         """
 
         # pose = cx cy cz rx ry rz projection
@@ -288,8 +287,8 @@ class HyHeader( dict ):
         """
         Extract a camera object containing the internal and external camera properties (or None if they don't exist).
 
-        *Arguments*:
-         - n = the camera id (integer), if multiple cameras are stored (e.g. for hyperclouds). Default is 0.
+        Args:
+            n (int): the camera id (integer), if multiple cameras are stored (e.g. for hyperclouds). Default is 0.
         """
         from hylite.project.camera import Camera #n.b. do import here to avoid circular dependencies
 
@@ -341,9 +340,9 @@ class HyHeader( dict ):
         """
         Add the specified panel to  the header file
 
-        *Arguments*:
-         - panel = a hylite.correct.Panel instance containing the panel reflectance and measured radiance spectra.
-         - name = the name of this panel. If None (default) then the name of the panel material will be used (e.g., 'R90').
+        Args:
+            panel (hylite.correct.Panel): the panel reflectance and measured radiance spectra.
+            name (str): the name of this panel. If None (default) then the name of the panel material will be used (e.g., 'R90').
         """
         assert (panel.get_wavelengths() == self.get_wavelengths()).all(), "Error - target wavelengths and header wavelengths do not match."
         if name is None:
@@ -362,10 +361,11 @@ class HyHeader( dict ):
         """
         Get the specified panel from this header
 
-        *Arguments*:
-         - name = the name of the target to return.
+        Args:
+            name (str): the name of the target to return.
 
-        *Returns*: a Panel instance containing the reflectance and radiance data, or None if it does not exist.
+        Returns:
+             a Panel instance containing the reflectance and radiance data, or None if it does not exist.
         """
 
         from hylite.reference.spectra import Target # n.b. do import here to avoid circular dependencies
@@ -412,8 +412,8 @@ class HyHeader( dict ):
         """
         Removes the specified calibration panel from this header.
 
-        *Arguments*:
-         - name = the name of the panel to remove. If None (default) then all panels will be removed.
+        Args:
+            name (str): the name of the panel to remove. If None (default) then all panels will be removed.
         """
         if name is not None:
             name = name.lower()  # use lower case
@@ -479,9 +479,9 @@ class HyHeader( dict ):
         """
         Set points that are associated with the specified sample name.
 
-        *Arguments*:
-        - name = the name of the sample points to set
-        - points = a list of points: [(x1,y1), (x2,y2) ... ] or [id1,id2,id3, ...]
+        Args:
+            name (str): the name of the sample points to set
+            points (list): a list of points: [(x1,y1), (x2,y2) ... ] or [id1,id2,id3, ...]
         """
         key = 'sample %s' % name
         self[key] = points

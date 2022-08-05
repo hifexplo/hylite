@@ -1,3 +1,8 @@
+"""
+Combine 2D image data and 3D point cloud information in one data structure that facilitates transfer of information
+between images and point clouds.
+"""
+
 from hylite import HyCollection
 from hylite.project import PMap, Pushbroom, Camera, proj_persp, proj_pano, project_pushbroom, push_to_cloud, push_to_image
 from tqdm import tqdm
@@ -10,6 +15,13 @@ class HyScene( HyCollection ):
     a hyperspectral image.
     """
     def __init__(self, name, root, header=None ):
+        """
+        Args:
+            name (str): unique name for this scene
+            root (str): path to folder where scene will be saved to disk
+            header (str): header information for this scene, or None.
+        """
+
         super().__init__( name, root, header )
         self.ext = '.hys'
 
@@ -24,20 +36,19 @@ class HyScene( HyCollection ):
         """
         Construct a mapping between the specified image and cloud based on the camera position / orientation / track.
 
-        *Arguments*:
-          - image = a HyImage instance containing data map onto the point cloud.
-          - cloud = a HyCloud instance containing data/geometry to map onto the image.
-          - camera = hylite.project.Camera or hylite.project.Pushbroom object describing the projection geometry.
-          - s = a dilation to apply when mapping point data to the image (to fill gaps/holes). Default is 1 (do not
-                apply a dilation). If s is an integer then an (s,s) dilation filter is applied. Alternatively, s
-                can be a tuple such that s=(n,m) defining the 2-D dimensions of the dilation (useful for e.g. pushbroom
-                data).
-         - occ_tol = the distance between a point and the z-buffer before it becomes occluded. Default is 10. Set to 0 to
+        Args:
+            image (HyImage): data to map onto the point cloud.
+            cloud (HyCloud): data/geometry to map onto the image.
+            camera (hylite.project.Camera or hylite.project.Pushbroom):  Object describing the projection geometry.
+            s (int): a dilation to apply when mapping point data to the image (to fill gaps/holes). Default is 1 (do not apply a dilation).
+                If s is an integer then an (s,s) dilation filter is applied. Alternatively, s can be a tuple such that s=(n,m)
+                defining the 2-D dimensions of the dilation (useful for e.g. pushbroom data).
+            occ_tol (float): the distance between a point and the z-buffer before it becomes occluded. Default is 10. Set to 0 to
                     disable occlusion.
-         - maxf = the maximum acceptible pixel footprint. Pixels containing > than this number of points will be excluded
+            maxf (int): the maximum acceptible pixel footprint. Pixels containing > than this number of points will be excluded
                    from the dataset. Set as 0 to disable (default).
-         - bf = True if backface culling (using cloud normal vectors) should be applied during projection. Default is True.
-        *Keywords*: Keywords are passed to project_pushbroom for pushbroom type cameras.
+            bf (bool): True if backface culling (using cloud normal vectors) should be applied during projection. Default is True.
+            **kwds: Keywords are passed to project_pushbroom for pushbroom type cameras.
         """
 
         # check dimensions match
@@ -181,8 +192,8 @@ class HyScene( HyCollection ):
         """
         Get per-pixel ground sampling distance (pixel size). Assumes square pixels.
 
-        *Return*:
-         - gsd = numpy array containing the sampling distance in x
+        Returns:
+            gsd (numpy array): sampling distance (GSD) in meters.
         """
         # calculate pixel pitch in degrees
         if isinstance(self.camera, Camera): # normal camera
@@ -214,24 +225,27 @@ class HyScene( HyCollection ):
 
     def push_to_cloud(self, bands, method='best', image=None, cloud=None):
         """
-        Push attributes from this scenes image to this scenes cloud. Is a wrapper around hylite.project.push_to_cloud(...).
+        Push attributes from this scenes image to this scene's cloud. Is a wrapper around hylite.project.push_to_cloud(...).
 
-        *Arguments*:
-        - bands = either:
+        Args:
+            bands (int, float, tuple, list): either:
                      (1) a index (int), wavelength (float) of a (single) image band to export.
                      (2) a tuple containing the (min,max) wavelength to extract. If range is a tuple, -1 can be used to specify the
                          first or last band index.
                      (3) a list of bands or boolean mask such that image.data[:,:,range] is exported.
-        - method = The method used to condense data from multiple pixels onto each point. Options are:
-                     - 'closest': use the closest pixel to each point.
-                     - 'distance': average with inverse distance weighting.
-                     - 'count' : average weighted inverse to the number of points in each pixel.
-                     - 'best' : use the pixel that is mapped to the fewest points (only). Default.
-                     - 'average' : average with all pixels weighted equally.
-         - image = an alternative image to use (defaults to self.image) Shapes must match self.pmap.
-         - cloud = an alternative cloud to use (defaults to self.cloud). Shapes must match self.pmap.
-        *Returns*:
-         - A HyCloud instance containing the back-projected data.
+            method (string): The method used to condense data from multiple pixels onto each point. Options are:
+
+                             - 'closest': use the closest pixel to each point.
+                             - 'distance': average with inverse distance weighting.
+                             - 'count' : average weighted inverse to the number of points in each pixel.
+                             - 'best' : use the pixel that is mapped to the fewest points (only). Default.
+                             - 'average' : average with all pixels weighted equally.
+
+            image (hylite.HyImage): an alternative image to use (defaults to self.image) Shapes must match self.pmap.
+            cloud (hylite.HyCloud): an alternative cloud to use (defaults to self.cloud). Shapes must match self.pmap.
+
+        Returns:
+            A HyCloud instance containing the back-projected data.
         """
         if cloud is None:
             cloud = self.cloud
@@ -244,22 +258,27 @@ class HyScene( HyCollection ):
         """
         Push attributes from this scenes cloud to this scenes image. Is a wrapper around hylite.project.push_to_image(...).
 
-        *Arguments*:
-        - bands = List defining the bands to include in the output dataset. Elements should be one of:
-              - numeric = index (int), wavelength (float) of an image band
-              - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
-                   can also be expected by passing any combination of the following:
-                    - 'rgb' = red, green and blue per-point colour values
-                    - 'klm' = point normals
-                    - 'xyz' = point coordinates
-              - iterable of length > 2: list of bands (float or integer) to export.
-         - method = The method used to condense data from multiple points onto each pixel. Options are:
-                     - 'closest': use the closest point to each pixel (default is this is fastest).
-                     - 'average' : average with all pixels weighted equally. Slow.
-         - image = an alternative image to use (defaults to self.image) Shapes must match self.pmap.
-         - cloud = an alternative cloud to use (defaults to self.cloud). Shapes must match self.pmap.
-        *Returns*:
-         - A HyImage instance containing the projected data.
+        Args:
+            bands (int,float,str,tuple,list): List defining the bands to include in the output dataset. Elements should be one of:
+                  - numeric = index (int), wavelength (float) of an image band
+                  - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
+                       can also be expected by passing any combination of the following:
+
+                        - 'rgb' = red, green and blue per-point colour values
+                        - 'klm' = point normals
+                        - 'xyz' = point coordinates
+
+                  - iterable of length > 2: list of bands (float or integer) to export.
+            method (str): The method used to condense data from multiple points onto each pixel. Options are:
+
+                         - 'closest': use the closest point to each pixel (default is this is fastest).
+                         - 'average' : average with all pixels weighted equally. Slow.
+
+            image (hylite.HyImage): an alternative image to use (defaults to self.image) Shapes must match self.pmap.
+            cloud (hylite.HyCloud): an alternative cloud to use (defaults to self.cloud). Shapes must match self.pmap.
+
+        Returns:
+            A HyImage instance containing the projected data.
         """
         if cloud is None:
             cloud = self.cloud

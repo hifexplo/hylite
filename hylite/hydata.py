@@ -1,3 +1,7 @@
+"""
+A base class for all types of hyperspectral data. Inherited by HyCloud, HyImage and HyLibrary.
+"""
+
 import numpy as np
 import numpy.ma as ma
 import matplotlib.pyplot as plt
@@ -31,16 +35,13 @@ class HyData(object):
     #####################################
     ##  Instance methods
     #####################################
-    def __init__(self, data, **kwds):
+    def __init__(self, data, header=None):
         """
         Create an image object from a data array.
 
-        *Arguments*:
-         - data = a numpy array such that the last dimension
-                corresponds to individual bands (e.g. data[pointID, band] or data[px,py,band])
-
-        *Keywords*:
-         - header = associated header file. Default is None (create a new header).
+        Args:
+            data (ndarray): array such that the last dimension corresponds to individual bands (e.g. data[pointID, band] or data[px,py,band])
+            header (hylite.HyHeader): associated header file. Default is None (create a new header).
         """
 
         #copy reference to data. Note that this can be None!
@@ -51,7 +52,7 @@ class HyData(object):
             self.dtype = None
 
         # header data
-        self.set_header(kwds.get('header', None))
+        self.set_header(header)
 
     def __getitem__(self, key):
         """
@@ -68,10 +69,11 @@ class HyData(object):
     def copy(self, data=True):
         """
         Make a deep copy of this image instance.
-        *Arguments*:
-         - data = True if a copy of the data should be made, otherwise only copy header.
-        *Returns*
-          - a new HyData instance.
+        Args:
+            data (bool): True if a copy of the data should be made, otherwise only copy header.
+
+        Returns:
+            a new HyData instance.
         """
 
         if not data or self.data is None:
@@ -83,8 +85,8 @@ class HyData(object):
         """
         Loads associated header data into self.header.
 
-        Arguments:
-         - header = a HyHeader object or None.
+        Args:
+            header (hylite.HyHeader): a HyHeader object or None.
         """
 
         #no header - create one
@@ -241,8 +243,8 @@ class HyData(object):
         """
         Export a specified band range to a new HyData instance.
 
-        *Arguments*:
-         - bands = either:
+        Args:
+            bands (tuple, list): either:
                      (1) a tuple containing the (min,max) wavelength to extract. If range is a tuple, -1 can be used to specify the
                          last band index.
                      (2) a list of bands or boolean mask such that image.data[:,:,range] is exported to the new image.
@@ -302,11 +304,11 @@ class HyData(object):
         """
         Remove bands in this image that contain only nans.
 
-        *Arguments*:
-         - inplace = True if this operation should be applied to the data in situ. Default is True.
+        Args:
+            inplace (bool): True if this operation should be applied to the data in situ. Default is True.
 
-        *Returns*:
-         - an image copy with the nan bands removed IF inplaces is False. Otherwise the image is modified inplace.
+        Returns:
+            an image copy with the nan bands removed IF inplaces is False. Otherwise the image is modified inplace.
         """
 
         if len(self.data.shape) == 3: #hyImage
@@ -324,9 +326,9 @@ class HyData(object):
         """
         Sets data with the specified value to NaN. Useful for handling no-data values.
 
-        *Arguments*:
-         - value = the value to (permanently) replace with np.nan.
-         - strict = True if all bands must have this value to set it as nan. Default is True. If False, all occurences of
+        Args:
+            value (float, int): the value to (permanently) replace with np.nan.
+            strict (bool): True if all bands must have this value to set it as nan. Default is True. If False, all occurences of
                     value will be replaced with nan.
         """
 
@@ -349,11 +351,11 @@ class HyData(object):
         """
         Masks a specified range of bands, useful for removing water features etc.
 
-        *Arguments*:
-         - min = the start of the band mask (as per get_band_index(...)).
-         - max = the end of the band mask (as per get_band_index( ... )). Can be None to mask individual bands. Default is
+        Args:
+            min (float): the start of the band mask (as per get_band_index(...)).
+            max (float): the end of the band mask (as per get_band_index( ... )). Can be None to mask individual bands. Default is
                  None.
-         - val = the value to set masked bands to. Default is np.nan. Set to None to keep values but flag bands in band band list.
+            val (float, int): the value to set masked bands to. Default is np.nan. Set to None to keep values but flag bands in band band list.
         """
 
         if mx is None:
@@ -372,9 +374,10 @@ class HyData(object):
         if not val is None:
             self.data[..., self.get_band_index(mn): self.get_band_index(mx)] = val
 
-    def mask_water_features(self, **kwds):
+    def mask_water_features(self, mask=None):
         """
         Removes typical water features. By default this removes bands between:
+
           - 960 - 990 nm
           - 1320 - 1500 nm
           - 1780 - 2050 nm
@@ -382,22 +385,21 @@ class HyData(object):
 
         Custom wavelengths can be set using the mask keyword.
 
-        *Keywords*:
-         - mask = mask custom bands. This should be a list of tuple band indices or wavelengths containing the
-           minimum and maximum wavelenght/index of each region to mask.
+        Args:
+            mask (list,tuple): mask custom bands. This should be a list of tuple band indices or wavelengths containing the
+                    minimum and maximum wavelenght/index of each region to mask.
         """
 
         default = [(960.0, 990.0), (1320.0, 1500.0), (1780.0, 2050.0), (2400.0, 2502.0)]
-        bands = kwds.get("mask", default)
+        if mask is None:
+            mask = default
 
         # mask bands
-        for mn, mx in bands:
+        for mn, mx in mask:
             try:
                 self.mask_bands(mn, mx)
             except:
                 pass  # ignore errors associated with out of range etc.
-
-        # delete/export
 
     #########################
     ## band getters/setters
@@ -407,10 +409,11 @@ class HyData(object):
         Gets an individual band from this dataset. If an integer is passed it is treated as a band index. If a string is passed it is
         treated as a band name. If a float is passed then the closest band to this wavelength is retrieved.
 
-        *Arguments*:
-         - b = the band to get. Integers are treated as indices, strings as band names and floats as wavelengths.
-        *Returns*:
-         - a sliced np.array exposing the band. Note that this is NOT a copy.
+        Args:
+            b (int,float,str): the band to get. Integers are treated as indices, strings as band names and floats as wavelengths.
+
+        Returns:
+            a sliced np.array exposing the band. Note that this is NOT a copy.
         """
 
         return self.data[...,self.get_band_index(b)]
@@ -427,8 +430,8 @@ class HyData(object):
         Get the data array as a 2D array of points/pixels. NOTE: this is just a view of the original data array, so any
         operations changes made to it will affect the original image. Useful for fast transformations!
 
-        *Returns*
-         - pixels = a list such that pixel[n][band] gives the spectra of the nth pixel.
+        Returns:
+            pixels (ndarray): an array such that pixel[n][band] gives the spectra of the nth pixel.
         """
 
         return self.data.reshape(-1, self.data.shape[-1])
@@ -444,9 +447,9 @@ class HyData(object):
         Fills the image/dataset from a list of pixels of the format returned by get_pixel_list(...). Note that this does not
         copy the list, but simply stores a view of it in this image.
 
-        *Arguments*:
-         - pix = a list such that pixel[n][band] gives the spectra of the nth pixel.
-         - shape = the reshaped data dimensions. Defaults to the shape of the current dataset, except with auto-shape for the last dimension.
+        Args:
+            pix (list, ndarray): a list such that pixel[n][band] gives the spectra of the nth pixel.
+            shape (tuple): the reshaped data dimensions. Defaults to the shape of the current dataset, except with auto-shape for the last dimension.
         """
         if shape is None:
             shape = list( self.data.shape )
@@ -457,16 +460,18 @@ class HyData(object):
         """
         Get the band index that corresponds with the given wavelength or band name.
 
-        *Arguments*:
-         - w = the wavelength, index or band name search for. Note that if w is an integer it is treated
+        Args:
+            w (float, int, str): the wavelength, index or band name search for. Note that if w is an integer it is treated
                as a band index and simply returned. If it is a string then the index of the matching band name
                is returned. If it is a wavelength then the closest band to this wavelength is returned.
-        *Keywords*:
-         - thresh = the threshold (in nanometers) within which a band must fall to be valid. Default is
-                    hylite.band_select_threshold (which defaults to 10 nm). If a wavelength is passed and a
-                    band exists within this distance, then it is returned. Otherwise an error is thrown).
-        *Returns*:
-         - the matching band index.
+            **kwds: This function takes one keyword:
+
+                     - thresh = the threshold (in nanometers) within which a band must fall to be valid. Default is
+                                hylite.band_select_threshold (which defaults to 10 nm). If a wavelength is passed and a
+                                band exists within this distance, then it is returned. Otherwise an error is thrown).
+
+        Returns:
+            the matching band index.
         """
 
         thresh = kwds.get("thresh", hylite.band_select_threshold)
@@ -495,21 +500,21 @@ class HyData(object):
         for reducing spectral resolution to match e.g. another dataset, but should NOT be used
          to sample bands at higher spectral resolution.
 
-        *Arguments*:
-          - w = Either a 1-D numpy array containing the wavelengths to sample onto (see bw for setting the band width), or
+        Args:
+            w (ndarray): Either a 1-D numpy array containing the wavelengths to sample onto (see bw for setting the band width), or
                a (n,2) array containing (start, end) wavelength ranges for each band (in this case bw will be ignored).
-          - agg = True if bands between each entry in w (i.e. w - bw -> w + bw) should be averaged (i.e. spectral binning).
+            agg (bool): True if bands between each entry in w (i.e. w - bw -> w + bw) should be averaged (i.e. spectral binning).
                   Default is True. If False then the closest value will be used (i.e. spectral subsampling).
-          - bw = the width of each band. If None (default) then this is calculated as w[1] - w[0] (i.e. assume regular
+            bw (float): the width of each band. If None (default) then this is calculated as w[1] - w[0] (i.e. assume regular
                  spacing). This has no effect if agg is False.
-          - partial = True if partial overlap between the source and target wavelengths is allowed. Non-overlapping areas will be
+            partial (bool): True if partial overlap between the source and target wavelengths is allowed. Non-overlapping areas will be
                       replaced with nan. Default is False.
-          - vb = True if a progress bar should be created. Default is True.
-        *Keywords*:
-          - if provided, the thresh keyword will be passed to get_band_index(...) to control tolerances when selecting the
-            closest bands. See documentation for get_band_index(...) for more details.
-        *Returns*:
-         - a copy of this HyData instance resampled onto the new wavelength array.
+            vb (bool): True if a progress bar should be created. Default is True.
+            **kwds: if provided, the thresh keyword will be passed to get_band_index(...) to control tolerances when selecting the
+                closest bands. See documentation for get_band_index(...) for more details.
+
+        Returns:
+            a copy of this HyData instance resampled onto the new wavelength array.
         """
 
         out = self.copy(data=False)  # create output array
@@ -569,14 +574,17 @@ class HyData(object):
         """
         Extract contiguous chunks of spectra, splitting a (1) completely nan bands or (2) large steps in wavelength.
 
-        *Arguments*:
-         - p = the percentile used to define a large change in wavelength. Default is 90. A "gap" is considered to be
+        Args:
+            p (int): the percentile used to define a large change in wavelength. Default is 90. A "gap" is considered to be
                a change in wavelength greater than double this percentile.
-         - min_size = the minimum number of bands required to consider a chunk valid. Default is 0 (return all chunks).
-        *Returns*:
-         - chunks = copies of the orignal data array that contain continuous spectra. At least one pixel/point
+            min_size (int): the minimum number of bands required to consider a chunk valid. Default is 0 (return all chunks).
+
+        Returns:
+            Tuple containing
+
+            chunks (ndarray): copies of the orignal data array that contain continuous spectra. At least one pixel/point
                     in each slice of these bans is guaranteed to be finite.
-         - wav = array containing the wavelengths corresponding to each band of each chunk.
+            wav (ndarray): array containing the wavelengths corresponding to each band of each chunk.
         """
 
         # find gaps in wavelength and/or completely nan bands and/or data ignore values
@@ -619,10 +627,11 @@ class HyData(object):
         """
         Applies running median filter on data.
 
-        *Arguments*:
-         - window = size of running window, must be int.
+        Args:
+            window (int): size of running window, must be int.
 
-        *Returns*: Nothing - overwrites data with smoothed result.
+        Returns:
+            Nothing - overwrites data with smoothed result.
         """
 
         assert isinstance(window, int), "Error - running window size must be integer."
@@ -637,13 +646,15 @@ class HyData(object):
         """
         Applies Savitzky-Golay-filter on data.
 
-        *Arguments*:
-         - window = size of running window, must be an odd integer.
-         - poly = degree of polynom, must be int.
-         - chunk = True if the data should be split into chunks (removing e.g. nan bands) before filtering. Use with care!
+        Args:
+            window (int): size of running window, must be an odd integer.
+            poly (int): degree of polynom, must be int.
+            chunk (bool): True if the data should be split into chunks (removing e.g. nan bands) before filtering. Use with care!
                    Default is False.
-        *Keywords*: Keywords are passed to scipy.signal.savgol_filter(...).
-        *Returns*: A copy of the input dataset with smoothed spectra.
+            **kwds: Keywords are passed to scipy.signal.savgol_filter(...).
+
+        Returns:
+            A copy of the input dataset with smoothed spectra.
         """
 
         assert isinstance(window, int), "Error - running window size must be integer."
@@ -699,18 +710,19 @@ class HyData(object):
         """
         Plots a summary of all the spectra in this dataset.
 
-        *Arguments*:
-         - ax = an axis to plot to. If None (default), a new axis is created.
-         - band_range = tuple containing the (min,max) band index (int) or wavelength (float) to plot.
-         - labels = Labels for spectral features such that labels[0] = [feat1,feat2,..] and labels[1] = [name1,name2,...]
+        Args:
+            ax: an axis to plot to. If None (default), a new axis is created.
+            band_range (tuple): tuple containing the (min,max) band index (int) or wavelength (float) to plot.
+            labels (list): Labels for spectral features such that labels[0] = [feat1,feat2,..] and labels[1] = [name1,name2,...]
                     can be passed. Pass None (default) to disable labels.
-         - indices = specific data point to plot. Should be a list containing index tuples, or an empty list if no pixels
+            indices (list): specific data point to plot. Should be a list containing index tuples, or an empty list if no pixels
                     should be plotted (Default).
-         - colours = a matplotlib colour string or list of colours corresponding to each index spectra. Default is 'blue'.
-        *Keywords*
-         - quantiles = True if summary quantiles of all pixels should be plotted. Default is True.
-         - median = True if the median spectra of all pixels should be plotted. Default is True.
-         - other keywords are passed to plt.plot( ... ).
+            colours (list,str): a matplotlib colour string or list of colours corresponding to each index spectra. Default is 'blue'.
+            **kwds: keywords are passed to plt.plot( ... ), except the following options:
+
+             - quantiles = True if summary quantiles of all pixels should be plotted. Default is True.
+             - median = True if the median spectra of all pixels should be plotted. Default is True.
+
         """
 
         if ax is None:
@@ -840,8 +852,8 @@ class HyData(object):
         in two ways: if minv and maxv are both none, each pixel vector will be normalized to length 1. Otherwise, if minv
         and maxv are specified, every data point is normalised to the average of the bands between minv and maxv.
 
-        *Returns*:
-         - the normalising factor used for each data point.
+        Returns:
+            the normalising factor used for each data point.
         """
 
         # convert to float
@@ -888,14 +900,14 @@ class HyData(object):
         Scale self.data such that the specified percentiles become 0 and 1 respectively. Note that this
         normalisation is applied in situ.
 
-        *Arguments*:
-         - minv = the lower percentile. Default is 2.
-         - maxv = the upper percentile. Default is 98.
-         - per_band = apply scaling to bands independently. Default is False.
-         - clip = True if values < minv or > maxv should be clipped to 0 or 1. Default is True.
+        Args:
+            minv (int): the lower percentile. Default is 2.
+            maxv (int): the upper percentile. Default is 98.
+            per_band (bool): apply scaling to bands independently. Default is False.
+            clip (bool): True if values < minv or > maxv should be clipped to 0 or 1. Default is True.
 
-        *Returns*:
-         - vmin, vmax = the percentile clip thresholds used for the normalisation
+        Returns:
+            vmin, vmax (float): the percentile clip thresholds used for the normalisation
         """
 
         # calculate percentile thresholds
@@ -916,9 +928,13 @@ class HyData(object):
 
     def correct_spectral_shift(self, position):
         """
-        Corrects potential spectral sensor shifts by shifting the offset (right) part of the spectrum
-        :param position: Wavelength or band position of the first offset value - e.g. FENIX: band 714 or wavelength 976., respectively.
-        :return: None - changes data in place
+        Corrects potential spectral sensor shifts by shifting the offset (right) part of the spectrum.
+
+        Args:
+            position (float,int): Wavelength or band position of the first offset value - e.g. FENIX: band 714 or wavelength 976., respectively.
+
+        Returns:
+            None - changes data in place
         """
         assert isinstance(position, int) or isinstance(position, float), "Error - shift position must be int (band number) or float (wavelength)."
         if isinstance(position, float):

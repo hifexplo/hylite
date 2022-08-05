@@ -1,3 +1,7 @@
+"""
+Fit and visualise individual hyperspectral features.
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import least_squares
@@ -13,13 +17,11 @@ class HyFeature(object):
 
     def __init__(self, name, pos, width, depth=1, data=None, color='g'):
         """
-        Create a new feature:
-
-        *Arguments*:
-         - name = a name for this feature.
-         - pos = the position of this feature (in nm).
-         - width = the width of this feature (in nm).
-         - data = a real spectra associated with this feature (e.g. for feature fitting or from reference libraries).
+        Args:
+            name (str) a name for this feature.
+            pos (float): the position of this feature (in nm).
+            width (float): the width of this feature (in nm).
+            data (ndarray): a real spectra associated with this feature (e.g. for feature fitting or from reference libraries).
                   Should be a numpy array such that data[0,:] gives wavelength and data[1,:] gives reflectance.
         """
 
@@ -38,8 +40,8 @@ class HyFeature(object):
         """
         Get start of feature.
 
-        Return:
-         returns feature position - 0.5 * feature width.
+        Returns:
+            the feature position - 0.5 * feature width.
         """
 
         return self.pos - self.width * 0.5
@@ -48,7 +50,7 @@ class HyFeature(object):
         """
         Get approximate end of feature
 
-        Return:
+        Returns:
         returns feature position - 0.5 * feature width.
         """
 
@@ -63,12 +65,12 @@ class HyFeature(object):
         """
         Static function for evaluating a gaussian feature model
 
-        *Arguments*:
-         - x = wavelengths (nanometres) to evaluate the feature over
-         - pos = a list of positions for each individual gaussian function (nanometres)
-         - width = a list of widths for each individual gaussian function.
-         - depth = a list of depths for each individual gaussian function (max to min)
-         - offset = the vertical offset of the functions. Default is 1.0.
+        Args:
+            x (ndarray): wavelengths (nanometres) to evaluate the feature over
+            pos (float): position for the gaussian function (nanometres)
+            width (float): width for the gaussian function.
+            depth (float): depth for the gaussian function (max to min)
+            offset (float): the vertical offset of the functions. Default is 1.0.
         """
         return 1 - depth * np.exp( -(_x - pos)**2 / width )
 
@@ -77,12 +79,12 @@ class HyFeature(object):
         """
         Static function for evaluating a multi-gaussian feature model
 
-        *Arguments*:
-         - x = wavelengths (nanometres) to evaluate the feature over
-         - pos = a list of positions for each individual gaussian function (nanometres)
-         - width = a list of widths for each individual gaussian function.
-         - depth = a list of depths for each individual gaussian function (max to min)
-         - asym = a list of feature asymmetries. The right-hand width will be calculated as:
+        Args:
+            x (ndarray): wavelengths (nanometres) to evaluate the feature over
+            pos (list): a list of positions for each individual gaussian function (nanometres)
+            width (list): a list of widths for each individual gaussian function.
+            depth (list): a list of depths for each individual gaussian function (max to min)
+            asym (list): a list of feature asymmetries. The right-hand width will be calculated as:
                          w2 = asym * width. Default is 1.0.
         """
         if asym is None:
@@ -96,23 +98,26 @@ class HyFeature(object):
         """
         Quickly plot this feature.
 
-        *Arguments*:
-         - method = the method used to represent this feature. Options are:
+        Args:
+            method (str): the method used to represent this feature. Options are:
+
                         - 'gauss' = represent using a gaussian function
                         - 'range' = draw vertical lines at pos - width / 2 and pos + width / 2.
                         - 'fill' = fill a rectangle in the region dominated by the feature with 'color' specifed in kwds.
                         - 'line' = plot a (vertical) line at the position of this feature.
                         - 'all' = plot with all of the above methods.
-         - ax = an axis to add the plot to. If None (default) a new axis is created.
-         - label = Label this feature (using it's name?). Options are None (no label), 'top', 'middle' or 'lower'. Or,
+
+            ax: an axis to add the plot to. If None (default) a new axis is created.
+            label (float): Label this feature (using it's name?). Options are None (no label), 'top', 'middle' or 'lower'. Or,
                    if an integer is passed, odd integers will be plotted as 'top' and even integers as 'lower'.
-         - lab_kwds = Dictionary of keywords to pass to plt.text( ... ) for controlling labels.
+            lab_kwds (dict): Dictionary of keywords to pass to plt.text( ... ) for controlling labels.
+            **kwds: Keywords are passed to ax.axvline(...) if method=='range' or ax.plot(...) otherwise.
 
-        *Keywords*: Keywords are passed to ax.axvline(...) if method=='range' or ax.plot(...) otherwise.
+        Returns:
+            Tuple containing
 
-        *Returns*:
-         - fig = the figure that was plotted to
-         - ax = the axis that was plotted to
+            - fig: the figure that was plotted to.
+            - ax: the axis that was plotted to.
         """
 
         if ax is None:
@@ -192,10 +197,8 @@ class MultiFeature(HyFeature):
 
     def __init__(self, name, endmembers):
         """
-        Create this multifeature from known end-members.
-
-        *Arguments*:
-         - endmembers = a list of HyFeature objects representing each end-member.
+        Args:
+            endmembers (list): a list of HyFeature objects representing each end-member.
         """
 
         # init this feature so that it ~ covers all of its 'sub-features'
@@ -214,27 +217,27 @@ class MultiFeature(HyFeature):
         """
          Quickly plot this feature.
 
-         *Arguments*:
-          - method = the method used to represent this feature. Options are:
+         Args:
+            method (str): the method used to represent this feature. Default is 'fill+line'. Options are:
+
                          - 'gauss' = represent using a gaussian function at each endmember.
                          - 'range' = draw vertical lines at pos - width / 2 and pos + width / 2.
                          - 'fill' = fill a rectangle in the region dominated by the feature with 'color' specifed in kwds.
                          - 'line' = plot a (vertical) line at the position of each feature.
                          - 'all' = plot with all of the above methods.
 
-                      default is 'fill+line'.
-
-          - ax = an axis to add the plot to. If None (default) a new axis is created.
-          - suplabel = Label positions for this feature. Default is None (no labels). Options are 'top', 'middle' or 'lower'.
-          - sublabel = Label positions for endmembers. Options are None (no labels), 'top', 'middle', 'lower' or 'alternate'. Or, if an integer
+            ax: an axis to add the plot to. If None (default) a new axis is created.
+            suplabel (str): Label positions for this feature. Default is None (no labels). Options are 'top', 'middle' or 'lower'.
+            sublabel (str): Label positions for endmembers. Options are None (no labels), 'top', 'middle', 'lower' or 'alternate'. Or, if an integer
                     is passed then it will be used to initialise an alternating pattern (even = top, odd = lower).
-          - lab_kwds = Dictionary of keywords to pass to plt.text( ... ) for controlling labels.
+            lab_kwds (dict): Dictionary of keywords to pass to plt.text( ... ) for controlling labels.
+            **kwds: Keywords are passed to ax.axvline(...) if method=='range' or ax.plot(...) otherwise.
 
-         *Keywords*: Keywords are passed to ax.axvline(...) if method=='range' or ax.plot(...) otherwise.
+         Returns:
+            Tuple containing
 
-         *Returns*:
-          - fig = the figure that was plotted to
-          - ax = the axis that was plotted to
+            - fig: the figure that was plotted to
+            - ax: the axis that was plotted to
          """
 
         if ax is None:
@@ -273,12 +276,9 @@ class MixedFeature(HyFeature):
 
     def __init__(self, name, components, **kwds):
         """
-        Create this mixed features from known components.
-
-        *Arguments*:
-         - components = a list of HyFeature objects representing each end-member.
-        *Keywords*:
-         - keywords are passed to HyFeature.init()
+        Args:
+            components: a list of HyFeature objects representing each end-member.
+            **kwds: keywords are passed to HyFeature.init()
         """
 
         # init this feature so that it ~ covers all of its 'sub-features'

@@ -11,6 +11,7 @@ import multiprocessing as mp
 from hylite import HyCloud, HyImage
 from hylite import io
 
+
 def _split(data, nchunks):
     """
     Split the specified HyCloud instance into a number of chunks.
@@ -127,16 +128,16 @@ def parallel_chunks(function, data, *args, **kwds):
     in parallel. Only use for expensive operations as otherwise overheads (writing files to cache, spawning threads,
     loading files from cache) are too costly.
 
-    *Arguments*:
-     - function = the function to run on each chunk of the dataset. Must take a HyCloud or HyImage dataset as it's first
+    Args:
+        function: the function to run on each chunk of the dataset. Must take a HyCloud or HyImage dataset as it's first
                   argument and also return a HyCloud or HyImage dataset (cf., mwl(...), get_hull_corrected(...)).
-     - data = the HyCloud or HyImage instance to run the function on.
-     - args = tuple of arguments to pass to the function.
-
-     **Keywords**:
-      - nthreads = the number of threads to spawn. Default is the number of cores - 2. Negative numbers will be subtracted
+        data (HyCloud or HyImage): data to run the function on.
+        args (tuple): tuple of arguments to pass to the function.
+        nthreads (int): the number of threads to spawn. Default is the number of cores - 2. Negative numbers will be subtracted
                    from the number of cores.
-      - any other keywords are passed to the function
+        **kwds: any other keywords are passed to the function
+    Returns:
+        Nothing
     """
     assert isinstance(data, HyCloud) or isinstance(data, HyImage)
 
@@ -224,17 +225,16 @@ def parallel_datasets(function, in_paths, out_paths=None, nthreads=-2, **kwds):
     """
     Parallelise a single function across many HyData datasets.
 
-    *Arguments*:
-      - function = the function to run on each dataset. This should take an input path (string) as its first input
-      and output path (also string) as its second output. Anything returned by the function will be ignored.
-     - in_paths = a list of input paths, each of which will be passed to function in each thread.
-     - out_paths = a list of corresponding output paths that each function should write to. Defaults to in_paths.
-     - nthreads = the number of threads to spawn. Default is the number of cores - 2. Negative numbers are subtracted
+    Args:
+        function: the function to run on each dataset. This should take an input path (string) as its first input and
+                  output path (also string) as its second output. Anything returned by the function will be ignored.
+        in_paths (list): a list of input paths, each of which will be passed to function in each thread.
+        out_paths(list): a list of corresponding output paths that each function should write to. Defaults to in_paths.
+        nthreads (int): the number of threads to spawn. Default is the number of cores - 2. Negative numbers are subtracted
                   from the total number of cores.
-    *Keywords*:
-     - any keywords are passed directly to function in each thread.
-
-    *Returns*: Nothing.
+        **kwds: any keywords are passed directly to function in each thread.
+    Returns:
+        Nothing
     """
 
     assert isinstance(in_paths, list), "Error - in_paths must be a list of file paths (string)."

@@ -1,3 +1,58 @@
+"""
+An open-source python toolbox for hyperspectral data preprocessing, correction, projection and analysis.
+
+-----------
+
+### Tutorials
+
+A variety of interactive notebook tutorials are available for *hylite*:
+
+Basic:
+- Introduction tutorial: https://github.com/samthiele/hylite_demo2
+- Another introduction: https://tinyurl.com/drt2022
+
+Advanced:
+- Building corrected hyperclouds: https://tinyurl.com/Maamorilik01
+- Minimum wavelength mapping: https://tinyurl.com/Maamorilik02
+- Visualising hyperclouds: https://tinyurl.com/Maamorilik03
+
+----------
+
+### Publications
+
+If you use hylite for your work then please cite:
+
+* Thiele, S. T., Lorenz, S., et al., (2021). Multi-scale, multi-sensor data integration for automated 3-D geological
+mapping using hylite. *Ore Geology Reviews*. https://doi.org/10.1016/j.oregeorev.2021.104252
+
+Other relevant papers include
+
+* Thiele, S. T., Lorenz, S., Kirsch, M., & Gloaguen, R. (2021).
+A Novel and Open-Source Illumination Correction for Hyperspectral Digital Outcrop Models. *IEEE Transactions on
+Geoscience and Remote Sensing*. https://doi.org/10.1109/TGRS.2021.3098725
+
+* Lorenz, S., Thiele, S.T., Kirsch, M., Unger, G., Zimmermann, R., Guarnieri, P., Baker, N.,
+Sørensen, E.V., Rosa, D. and Gloaguen, R., 2022. Three-Dimensional, Km-Scale Hyperspectral Data of Well-Exposed Zn–Pb
+Mineralization at Black Angel Mountain, Greenland. *Data*, 7(8), p.104. https://doi.org/10.3390/data7080104
+
+* Guarnieri, P., Thiele, S.T., Baker, N., Sørensen, E.V., Kirsch, M., Lorenz, S., Rosa, D., Unger, G. and Zimmermann, R., 2022.
+Unravelling the Deformation of Paleoproterozoic Marbles and Zn-Pb Ore Bodies by Combining 3D-Photogeology and
+Hyperspectral Data (Black Angel Mine, Central West Greenland). *Minerals*, 12(7), p.800. https://doi.org/10.3390/min12070800
+
+* Thiele, S.T., Bnoulkacem, Z., Lorenz, S., Bordenave, A., Menegoni, N., Madriz, Y., Dujoncquoy, E., Gloaguen, R. and Kenter, J., 2021.
+Mineralogical Mapping with Accurately Corrected Shortwave Infrared Hyperspectral Data Acquired Obliquely from UAVs.
+*Remote Sensing*, 14(1), p.5. https://doi.org/10.3390/rs14010005
+
+-------
+
+# Documentation
+
+Almost all of the modules, classes and functions in *hylite* have docstrings. These can be viewed in a notebook or
+python console using the help(...) function or by typing "?" after a class or function name. Searchable documentation
+is also available online.
+"""
+
+# to generate docs with pdoc run:  pdoc --html hylite --output-dir docs --force
 
 # disable numpy multithreading
 import os
@@ -13,11 +68,10 @@ import warnings
 #disable annoying warnings
 np.warnings.filterwarnings('ignore')
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-
 # ignore all warnings
-def warn(*args, **kwargs):
+def _warn(*args, **kwargs):
     pass
-warnings.warn = warn
+warnings.warn = _warn
 
 ###########################################
 ## Define useful preset band combinations

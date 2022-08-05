@@ -1,3 +1,7 @@
+"""
+Store and manipulate hyperspectral image data.
+"""
+
 import os
 import numpy as np
 import matplotlib
@@ -12,6 +16,7 @@ import hylite
 from hylite.hydata import HyData
 from hylite.hylibrary import HyLibrary
 
+
 class HyImage( HyData ):
     """
     A class for hyperspectral image data. These can be individual scenes or hyperspectral orthoimages.
@@ -19,15 +24,15 @@ class HyImage( HyData ):
 
     def __init__(self, data, **kwds):
         """
-        Create an image object from a data array.
+        Args:
+            data (ndarray): a numpy array such that data[x][y][band] gives each pixel value.
+            **kwds:
 
-        *Arguments*:
-         - data = a numpy array such that data[x][y][band] gives each pixel value.
-        *Keywords*:
-         - affine = an affine transform of the format returned by GDAL.GetGeoTransform().
-         - project = string defining the project. Default is None.
-         - sensor = sensor name. Default is "unknown".
-         - header = path to associated header file. Default is None.
+                 - affine = an affine transform of the format returned by GDAL.GetGeoTransform().
+                 - project = string defining the project. Default is None.
+                 - sensor = sensor name. Default is "unknown".
+                 - header = path to associated header file. Default is None.
+
         """
 
         #call constructor for HyData
@@ -49,10 +54,12 @@ class HyImage( HyData ):
     def copy(self,data=True):
         """
         Make a deep copy of this image instance.
-        *Arguments*:
-         - data = True if a copy of the data should be made, otherwise only copy header.
-        *Returns*
-          - a new HyImage instance.
+
+        Args:
+            data (bool): True if a copy of the data should be made, otherwise only copy header.
+
+        Returns:
+            a new HyImage instance.
         """
         if not data:
             return HyImage(None, header=self.header.copy(), projection=self.projection, affine=self.affine)
@@ -81,8 +88,8 @@ class HyImage( HyData ):
         """
         Returns the width and height of this image in world coordinates.
 
-        *Returns*
-         - tuple with (width, height).
+        Returns:
+            tuple with (width, height).
         """
         return self.xdim * self.pixel_size[0], self.ydim * self.pixel_size[1]
 
@@ -90,8 +97,8 @@ class HyImage( HyData ):
         """
         Set this project to an existing osgeo.osr.SpatialReference or GDAL georeference string.
 
-        *Arguments*:
-         - proj = the project to use as osgeo.osr.SpatialReference or GDAL georeference string.
+        Args:
+            proj (str, osgeo.osr.SpatialReference): the project to use as osgeo.osr.SpatialReference or GDAL georeference string.
         """
         if proj is None:
             self.projection = None
@@ -112,8 +119,8 @@ class HyImage( HyData ):
         """
         Sets this image project using an EPSG code.
 
-        *Arguments*:
-         - EPSG = string EPSG code that can be passed to SpatialReference.SetFromUserInput(...).
+        Args:
+            EPSG (str): string EPSG code that can be passed to SpatialReference.SetFromUserInput(...).
         """
 
         try:
@@ -128,8 +135,8 @@ class HyImage( HyData ):
         """
         Gets a string describing this projections EPSG code (if it is an EPSG project).
 
-        *Returns*:
-         - an EPSG code string of the format "EPSG:XXXX".
+        Returns:
+            an EPSG code string of the format "EPSG:XXXX".
         """
         if self.projection is None:
             return None
@@ -140,13 +147,13 @@ class HyImage( HyData ):
         """
         Take pixel coordinates and return world coordinates
 
-        *Arguments*:
-         - px = the pixel x-coord.
-         - py = the pixel y-coord.
-         - proj = the coordinate system to use. Default (None) uses the same system as this image. Otherwise
+        Args:
+            px (int): the pixel x-coord.
+            py (int): the pixel y-coord.
+            proj (str, osr.SpatialReference): the coordinate system to use. Default (None) uses the same system as this image. Otherwise
                    an osr.SpatialReference can be passed (HyImage.project), or an EPSG string (e.g. get_projection_EPSG(...)).
-        *Returns*:
-         - the world coordinates in the coordinate system defined by get_projection_EPSG(...).
+        Returns:
+            the world coordinates in the coordinate system defined by get_projection_EPSG(...).
         """
 
         try:
@@ -197,14 +204,14 @@ class HyImage( HyData ):
         """
         Take world coordinates and return pixel coordinates
 
-        *Arguments*:
-         - x = the world x-coord.
-         - y = the world y-coord.
-         - proj = the coordinate system of the input coordinates. Default (None) uses the same system as this image. Otherwise
+        Args:
+            x (float): the world x-coord.
+            y (float): the world y-coord.
+            proj (str, osr.SpatialReference): the coordinate system of the input coordinates. Default (None) uses the same system as this image. Otherwise
                    an osr.SpatialReference can be passed (HyImage.project), or an EPSG string (e.g. get_projection_EPSG(...)).
 
-        *Returns*:
-         - the pixel coordinates based on the affine transform stored in self.affine.
+        Returns:
+            the pixel coordinates based on the affine transform stored in self.affine.
         """
 
         try:
@@ -256,8 +263,8 @@ class HyImage( HyData ):
         """
         Flip the image on the x or y axis.
 
-        *Arguments*:
-        - axis = 'x' or 'y' or both 'xy'.
+        Args:
+            axis (str): 'x' or 'y' or both 'xy'.
         """
 
         if 'x' in axis.lower():
@@ -297,8 +304,8 @@ class HyImage( HyData ):
         """
         Applies a gaussian kernel of size n to the image using OpenCV.
 
-        *Arguments*:
-         - n = the dimensions of the gaussian kernel to convolve. Default is 3. Increase for more blurry results.
+        Args:
+            n (int): the dimensions of the gaussian kernel to convolve. Default is 3. Increase for more blurry results.
         """
 
         nanmask = np.isnan(self.data)
@@ -312,9 +319,9 @@ class HyImage( HyData ):
         Apply an erode filter to this image to expand background (nan) pixels. Refer to open-cv's erode
         function for more details.
 
-        *Arguments*:
-         - size = the size of the erode filter. Default is a 3x3 kernel.
-         - iterations = the number of erode iterations. Default is 1.
+        Args:
+            size (int): the size of the erode filter. Default is a 3x3 kernel.
+            iterations (int): the number of erode iterations. Default is 1.
         """
 
         # erode
@@ -332,8 +339,9 @@ class HyImage( HyData ):
         """
         Resize this image with opencv.
 
-        *Arguments*:
-         - newdims = the new image dimensions.
+        Args:
+            newdims (tuple): the new image dimensions.
+            interpolation (int): opencv interpolation method. Default is cv2.INTER_LINEAR.
         """
 
         self.data = cv2.resize(self.data, (newdims[1],newdims[0]), interpolation=interpolation)
@@ -342,8 +350,8 @@ class HyImage( HyData ):
         """
         Despeckle each band of this image (independently) using a median filter.
 
-        *Arguments*:
-         - size = the size of the median filter kernel. Default is 5. Must be an odd number.
+        Args:
+            size (int): the size of the median filter kernel. Default is 5. Must be an odd number.
         """
 
         assert (size % 2) == 1, "Error - size must be an odd integer"
@@ -358,28 +366,31 @@ class HyImage( HyData ):
     ######################################
     def get_keypoints(self, band, eq=False, mask=True, method='sift', cfac=0.0,bfac=0.0, **kwds):
         """
-         Get feature descriptors from the specified band.
+        Get feature descriptors from the specified band.
 
-         *Arguments*:
-          - band = the band index (int) or wavelength (float) to extract features from. Alternatively, a tuple can be passed
+        Args:
+            band (int,float,str,tuple): the band index (int) or wavelength (float) to extract features from. Alternatively, a tuple can be passed
                     containing a range of bands (min : max) to average before feature matching.
-          - eq = True if the image should be histogram equalized first. Default is False.
-          - mask = True if 0 value pixels should be masked. Default is True.
-          - method = the feature detector to use. Options are 'SIFT' and 'ORB' (faster but less accurate). Default is 'SIFT'.
-          - cfac = contrast adjustment to apply to hyperspectral bands before matching. Default is 0.0.
-          - bfac = brightness adjustment to apply to hyperspectral bands before matching. Default is 0.0.
+            eq (bool): True if the image should be histogram equalized first. Default is False.
+            mask (bool): True if 0 value pixels should be masked. Default is True.
+            method (str): the feature detector to use. Options are 'SIFT' and 'ORB' (faster but less accurate). Default is 'SIFT'.
+            cfac (float): contrast adjustment to apply to hyperspectral bands before matching. Default is 0.0.
+            bfac (float): brightness adjustment to apply to hyperspectral bands before matching. Default is 0.0.
+            **kwds: keyword arguments are passed to the opencv feature detector. For SIFT these are:
 
-         *Keywords*:
-          - keyword arguments are passed to the opencv feature detector. For SIFT these are:
-                - contrastThreshold: default is 0.01.
-                - edgeThreshold: default is 10.
-                - sigma: default is 1.0
+                    - contrastThreshold: default is 0.01.
+                    - edgeThreshold: default is 10.
+                    - sigma: default is 1.0
 
-            For ORB these are:
-                - nfeatures = the number of features to detect. Default is 5000.
+                For ORB these are:
 
-         *Returns*:
-          - k, d = the keypoints detected and corresponding feature descriptors
+                    - nfeatures = the number of features to detect. Default is 5000.
+
+            Returns:
+                Tuple containing
+
+                    - k (ndarray): the keypoints detected
+                    - d (ndarray): corresponding feature descriptors
          """
 
         # get image
@@ -447,16 +458,16 @@ class HyImage( HyData ):
         """
         Compares keypoint feature vectors from two images and returns matching pairs.
 
-        *Arguments*:
-         - kp1 = keypoints from the first image
-         - kp2 = keypoints from the second image
-         - d1 = descriptors for the keypoints from the first image
-         - d2 = descriptors for the keypoints from the second image
-         - method = the method used to calculate the feature descriptors. Should be 'sift' or 'orb'. Default is 'sift'.
-         - dist = minimum match distance (0 to 1), default is 0.7
-         - tree  = ??
-         - check = 100 ?? Default is 100.
-         - min_count = the minimum number of matches to consider a valid matching operation. If fewer matches are found,
+        Args:
+            kp1 (ndarray): keypoints from the first image
+            kp2 (ndarray): keypoints from the second image
+            d1 (ndarray): descriptors for the keypoints from the first image
+            d2 (ndarray): descriptors for the keypoints from the second image
+            method (str): the method used to calculate the feature descriptors. Should be 'sift' or 'orb'. Default is 'sift'.
+            dist (float): minimum match distance (0 to 1), default is 0.7
+            tree (int): not sure what this does? Default is 5. See open-cv docs.
+            check (int): ditto. Default is 100.
+            min_count (int): the minimum number of matches to consider a valid matching operation. If fewer matches are found,
                        then the function returns None, None. Default is 5.
         """
 
@@ -494,31 +505,33 @@ class HyImage( HyData ):
         """
         Plot a band using matplotlib.imshow(...).
 
-        *Arguments*:
-         - band = the band name (string), index (integer) or wavelength (float) to plot. Default is 0. If a tuple is passed then
+        Args:
+            band (str,int,float,tuple): the band name (string), index (integer) or wavelength (float) to plot. Default is 0. If a tuple is passed then
                   each band in the tuple (string or index) will be mapped to rgb.
-         - ax = an axis object to plot to. If none, plt.imshow( ... ) is used.
-         - bfac = a brightness adjustment to apply to RGB mappings (-1 to 1)
-         - cfac = a contrast adjustment to apply to RGB mappings (-1 to 1)
-         - samples = True if sample points (defined in the header file) should be plotted. Default is False. Otherwise, a list of
+            ax: an axis object to plot to. If none, plt.imshow( ... ) is used.
+            bfac (float): a brightness adjustment to apply to RGB mappings (-1 to 1)
+            cfac (float): a contrast adjustment to apply to RGB mappings (-1 to 1)
+            samples (bool): True if sample points (defined in the header file) should be plotted. Default is False. Otherwise, a list of
                      [ (x,y), ... ] points can be passed.
-         - tscale = True if each band (for ternary images) should be scaled independently. Default is False.
+            tscale (bool): True if each band (for ternary images) should be scaled independently. Default is False.
                     When using scaling, vmin and vmax can be used to set the clipping percentiles (integers) or
                     (constant) values (float).
-         - rot = if True, the x and y axis will be flipped (90 degree rotation) before plotting. Default is False.
-         - flipX = if True, the x axis will be flipped before plotting (after applying rotations).
-         - flipY = if True, the y axis will be flippe before plotting (after applying rotations).
-        *Keywords*:
-         - mask = a 2D boolean mask containing true if pixels should be drawn and false otherwise.
-         - path = a file path to save the image too (at matching resolution; use fig.savefig(..) if you want to save the figure).
-         - ticks = True if x- and y- ticks should be plotted. Default is False.
-         - ps, pc = the size and color of sample points to plot. Can be constant or list.
-         - figsize = a figsize for the figure to create (if ax is None).
-         - all other keywords are passed to matplotlib.imshow( ... ).
+            rot (bool): if True, the x and y axis will be flipped (90 degree rotation) before plotting. Default is False.
+            flipX (bool): if True, the x axis will be flipped before plotting (after applying rotations).
+            flipY (bool): if True, the y axis will be flippe before plotting (after applying rotations).
+            **kwds: keywords are passed to matplotlib.imshow( ... ), except for the following:
 
-        *Returns*:
-         - fig, ax = the figure and axes object created (or passed through the ax keyword). If a colorbar is created,
-                     (band is an integer or a float), then this will be stored in ax.cbar.
+                 - mask = a 2D boolean mask containing true if pixels should be drawn and false otherwise.
+                 - path = a file path to save the image too (at matching resolution; use fig.savefig(..) if you want to save the figure).
+                 - ticks = True if x- and y- ticks should be plotted. Default is False.
+                 - ps, pc = the size and color of sample points to plot. Can be constant or list.
+                 - figsize = a figsize for the figure to create (if ax is None).
+
+        Returns:
+            Tuple containing
+
+            - fig: matplotlib figure object
+            - ax:  matplotlib axes object. If a colorbar is created, (band is an integer or a float), then this will be stored in ax.cbar.
         """
 
         #create new axes?
@@ -643,13 +656,12 @@ class HyImage( HyData ):
         """
         Create and save an animated gif that loops through the bands of the image.
 
-        *Arguments*:
-         - path = the path to save the .gif
-         - bands = Tuple containing the range of band indices to draw. Default is the whole range.
-         - figsize = the size of the image to draw. Default is (10,10).
-         - fps = the framerate (frames per second) of the gif. Default is 10.
-        *Keywords*:
-         - keywords are passed directly to matplotlib.imshow. Use this to specify cmap etc.
+        Args:
+            path (str): the path to save the .gif
+            bands (tuple): Tuple containing the range of band indices to draw. Default is the whole range.
+            figsize (tuple): the size of the image to draw. Default is (10,10).
+            fps (int): the framerate (frames per second) of the gif. Default is 10.
+            **kwds: keywords are passed directly to matplotlib.imshow. Use this to specify cmap etc.
         """
 
         frames = []
@@ -678,19 +690,21 @@ class HyImage( HyData ):
          Apply a mask to an image, flagging masked pixels with the specified value. Note that this applies the mask to the
          image in-situ.
 
-         *Arguments*:
-          - flag = the value to use for masked pixels. Default is np.nan
-          - mask = a numpy array defining the mask polygon of the format [[x1,y1],[x2,y2],...]. If None is passed then
+         Args:
+            flag (float): the value to use for masked pixels. Default is np.nan
+            mask (ndarray): a numpy array defining the mask polygon of the format [[x1,y1],[x2,y2],...]. If None is passed then
                     pickPolygon( ... ) is used to interactively define a polygon. If a file path is passed then the polygon
                     will be loaded using np.load( ... ). Alternatively if mask.shape == image.shape[0,1] then it is treated as a
                     binary image mask (must be boolean) and True values will be masked across all bands. Default is None.
-          - invert = if True, pixels within the polygon will be masked. If False, pixels outside the polygon are masked. Default is False.
-          - crop = True if rows/columns containing only zeros should be removed. Default is False.
-          - bands = the bands of the image to plot if no mask is specified. If None, the middle band is used.
+            invert (bool): if True, pixels within the polygon will be masked. If False, pixels outside the polygon are masked. Default is False.
+            crop (bool): True if rows/columns containing only zeros should be removed. Default is False.
+            bands (tuple): the bands of the image to plot if no mask is specified. If None, the middle band is used.
 
          *Returns*:
-          - mask = a boolean array with True where pixels are masked and False elsewhere.
-          - poly = the mask polygon array in the format described above. Useful if the polygon was interactively defined.
+            Tuple containing
+
+            - mask (ndarray): a boolean array with True where pixels are masked and False elsewhere.
+            - poly (ndarray): the mask polygon array in the format described above. Useful if the polygon was interactively defined.
          """
 
         if mask is None:  # pick mask interactively
@@ -767,10 +781,9 @@ class HyImage( HyData ):
         """
         Creates a matplotlib gui for selecting polygon regions in an image.
 
-        *Arguments*:
-         - image = the image to pick on
-         - names = a list containing the names of the regions to pick. If a string is passed only one name is used.
-         - bands = the bands of the image to plot.
+        Args:
+            names (list, str): a list containing the names of the regions to pick. If a string is passed only one name is used.
+            bands (tuple): the bands of the image to plot.
         """
 
         if isinstance(region_names, str):
@@ -808,13 +821,15 @@ class HyImage( HyData ):
         """
         Creates a matplotlib gui for picking pixels from an image.
 
-        *Arguments*:
-         - n = the number of pixels to pick, or -1 if the user can select as many as they wish. Default is -1.
-         - bands = the bands of the image to plot. Default is HyImage.RGB
-         - integer = True if points coordinates should be cast to integers (for use as indices). Default is True.
-         - title = The title of the point picking window.
-        *Keywords*: Keywords are passed to HyImage.quick_plot( ... )
-        *Returns*: A list containing the picked point coordinates [ (x1,y1), (x2,y2), ... ].
+        Args:
+            n (int): the number of pixels to pick, or -1 if the user can select as many as they wish. Default is -1.
+            bands (tuple): the bands of the image to plot. Default is HyImage.RGB
+            integer (bool): True if points coordinates should be cast to integers (for use as indices). Default is True.
+            title (str): The title of the point picking window.
+            **kwds: Keywords are passed to HyImage.quick_plot( ... ).
+
+        Returns:
+            A list containing the picked point coordinates [ (x1,y1), (x2,y2), ... ].
         """
 
         # set matplotlib backend
@@ -844,11 +859,13 @@ class HyImage( HyData ):
         """
         Pick sample probe points and store these in the image header file.
 
-        *Arguments*:
-         - names = the name of the sample to pick, or a list of names to pick multiple.
-         - store = True if sample should be stored in the image header file (for later access). Default is True.
-        *Keywords*: Keywords are passed to HyImage.quick_plot( ... )
-        *Returns*:  a list containing a list of points for each sample.
+        Args:
+            names (str, list): the name of the sample to pick, or a list of names to pick multiple.
+            store (bool): True if sample should be stored in the image header file (for later access). Default is True.
+            **kwds: Keywords are passed to HyImage.quick_plot( ... )
+
+        Returns:
+            a list containing a list of points for each sample.
         """
 
         if isinstance(names, str):

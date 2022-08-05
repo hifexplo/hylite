@@ -1,20 +1,25 @@
+"""
+Create, store and manipulate spectral libraries.
+"""
+
 from hylite.hydata import HyData
 from hylite.hyfeature import HyFeature, MultiFeature, MixedFeature
 import hylite.reference.features as ref
 import numpy as np
 import matplotlib.pyplot as plt
 
-
 def from_indices(data, indices, s=4, names=None, ):
     """
     Extract a spectral library by sampling and averaging pixels within the specified distance of sample points.
-    *Arguments*:
-     - data = a HyData instance containing the spectral data.
-     - indices = a list of sample indices to extract spectra from
-     - s = the number of adjacent points to include in each sample. For HyImage data this will be a square patch of sxs
+    Args:
+        data (HyData): a HyData instance containing the spectral data.
+        indices (list): a list of sample indices to extract spectra from
+        s (int): the number of adjacent points to include in each sample. For HyImage data this will be a square patch of sxs
            pixels. For HyCloud data s is used to take adjacent points from the points list (which is assumed to be somewhat ordered).
-     - names = a list containing names for each sample, or None to generate (numeric) sample ids.
-    *Returns*: a HyLibrary instance
+        names (list): a list containing names for each sample, or None to generate (numeric) sample ids.
+
+    Returns:
+        a HyLibrary instance
     """
 
     if names is None:
@@ -39,23 +44,24 @@ def from_indices(data, indices, s=4, names=None, ):
     # return
     return out
 
-
 def from_classification(data, labels, names=None, ignore=[0], subsample='all'):
     """
     Extract a spectral library from a labelled dataset.
 
-    *Arguments*:
-     - data = a HyData instance containing the hyperspectral data.
-     - labels = a HyData instance or numpy array containing class labels.
-     - names = a dictionary with numerical labels (integers) in labels.data as keys and corresponding string names
+    Args:
+        data (HyData): a HyData instance containing the hyperspectral data.
+        labels (HyData): a HyData instance or numpy array containing class labels.
+        names (dict): a dictionary with numerical labels (integers) in labels.data as keys and corresponding string names
                as values. If None, class names will be pulled from the header, and if these don't exist then integer
                names will be used.
-     - ignore = a list of class IDs (integer values) to ignore. By default all nans and 0's will be ignored.
-     - method = method used for reducing the number of spectra in this library. Options are 'all' (retain all
+        ignore (list): a list of class IDs (integer values) to ignore. By default all nans and 0's will be ignored.
+        method (str): method used for reducing the number of spectra in this library. Options are 'all' (retain all
                 measurements), an integer of the number of points to (randomly) sample, or a list containing
                 percentiles to sample. Using the percentile method, samples will be ranked by median brightness
                 (albedo) and the spectra corresponding to the desired percentiles kept in the library. Default is 'all'.
-    *Returns*: a HyLibrary instance.
+
+    Returns:
+        a HyLibrary instance.
     """
 
     X = data.X()
@@ -123,17 +129,14 @@ class HyLibrary(HyData):
     """
 
     def __init__(self, data, lab=None, wav=None, header=None):
-
         """
-        Create a hyperspectral library.
-
-        *Arguments*:
-         - data = a numpy array containing spectral measurements and indexed as [sample, measurement, band]. If different
+        Args:
+            data (ndarray): a numpy array containing spectral measurements and indexed as [sample, measurement, band]. If different
                   numbers of measurements are available per sample then some of the measurement axes can be set as nan. If
                   a 2D array is passed (sample, band) then it will be expanded to (sample, 1, band).
-         - lab = list of sample labels (one label per sample). Default is None (labels will be integers from 0 - n).
-         - wav = list of wavelengths in the spectra for each sample. If None this must be defined in the header file passed.
-         - header = a io.HyHeader instance containing additional metadata to associate with this library.
+            lab (list): list of sample labels (one label per sample). Default is None (labels will be integers from 0 - n).
+            wav (list, ndarray): list of wavelengths in the spectra for each sample. If None this must be defined in the header file passed.
+            header (hylite.HyHeader): a HyHeader instance containing additional metadata to associate with this library.
         """
 
         # checks
@@ -161,10 +164,12 @@ class HyLibrary(HyData):
     def copy(self,data=True):
         """
         Make a deep copy of this HyLibrary instance.
-        *Arguments*:
-         - data = True if a copy of the data should be made, otherwise only copy header.
-        *Returns*
-          - a new HyLibrary instance.
+
+        Args:
+            data (bool): True if a copy of the data should be made, otherwise only copy header.
+
+        Returns:
+            a new HyLibrary instance.
         """
         header = self.header.copy()
         if data:
@@ -186,10 +191,11 @@ class HyLibrary(HyData):
         """
         Convert this library to a HyImage dataset for e.g. visualisation using HyImage.quick_plot(...).
 
-        *Arguments*:
-         - shallow = True if the underlying data array should be shared. Default is False as copies are dangerous.
-        *Returns*:
-         - a HyImage instance of this dataset.
+        Args:
+            shallow (bool): True if the underlying data array should be shared. Default is False as copies are dangerous.
+
+        Returns:
+            a HyImage instance of this dataset.
         """
         from hylite.hyimage import HyImage # N.B. this import must be here to avoid circular import
         if shallow:
@@ -269,10 +275,11 @@ class HyLibrary(HyData):
         Return a list containing the indices of spectra associated with the specified group.  This can be useful for
         slicing the self.data matrix.
 
-        *Arguments*:
-         - name = a string containing the name of the group.
-        *Returns*:
-         - a list containing integer indices of the spectra in this group.
+        Args:
+            name (str): a string containing the name of the group.
+
+        Returns:
+            a list containing integer indices of the spectra in this group.
         """
         assert 'group %s'%name in self.header, "Error - no group named %s exists." % name
         return self.header.get_list('group %s'%name)
@@ -281,13 +288,13 @@ class HyLibrary(HyData):
         """
         Return a HyLibrary instance containing only the spectra associated with the specified group.
 
-        *Arguments*:
-         - name = a string containing the name of the group.
-         - shallow = True if the returned HyLibrary instance should be a shallow copy (share the same underlying data
+        Args:
+            name (str): the name of the group.
+            shallow (bool): True if the returned HyLibrary instance should be a shallow copy (share the same underlying data
                       array and header file) as this instance so changes propagate. Default is False - shallow copies
                       are powerful but dangerous!.
-        *Returns*:
-         - a HyLibrary instance containing the requested group of spectra.
+        Returns:
+            a HyLibrary instance containing the requested group of spectra.
         """
         ids = self.get_group_ids(name)
         ids = [ self.get_sample_index(i) for i in ids ]
@@ -301,9 +308,9 @@ class HyLibrary(HyData):
         Associate the specified spectra with some arbitrary grouping key for easy subsequent access. Note that if
         a group of this name already exists then it will be overwritten / updated.
 
-        *Arguments*:
-         - name = the name of this group.
-         - indices = a list containing the indices (integer) or sample names (string) associated with each of the
+        Args:
+            name (str): the name of this group.
+            indices (list, ndarray): the indices (integer) or sample names (string) associated with each of the
                      spectra in this group.
         """
         name = name.strip()
@@ -314,6 +321,9 @@ class HyLibrary(HyData):
         """
         Slice this library to extract groups or label names. Keys can be either string defining sample or group names,
         integers (treated as indices of the sample array) or lists/arrays of the above.
+
+        Args:
+            n (str): the group or label name to extract.
         """
         if isinstance(n, list) or isinstance(n, tuple) or isinstance(n, np.ndarray):
             if len(n) == 0:
@@ -374,8 +384,11 @@ class HyLibrary(HyData):
         """
         Get the index associated with a sample name.
 
-        *Arguments*:
-         - the desired sample name (string). If an integer passed it is returned (assumed to be an index).
+        Args:
+            name (str, int): the desired sample name. If an integer passed it is returned (assumed to be an index).
+
+        Returns:
+            the sample index (int).
         """
         if np.issubdtype( type(name), np.integer):  # already an int - easy!
             idx = name
@@ -390,8 +403,11 @@ class HyLibrary(HyData):
         """
         Get the reflectance spectra of the specified sample.
 
-        *Arguments*:
-         - sample = the sample index or name to extract.
+        Args:
+            sample (str, int): the sample name or index to extract.
+
+        Returns:
+            a numpy array containing the specified spectra.
         """
 
         idx = self.get_sample_index(sample)
@@ -432,17 +448,23 @@ class HyLibrary(HyData):
         """
         Plots individual spectra in this library.
 
-        *Arguments*:
-         - ax = an axis to plot to. If None (default), a new axis is created.
-         - band_range = tuple containing the (min,max) band index (int) or wavelength (float) to plot.
-         - labels = list of HyFeature instances to plot on spectra. Default is reference.features.DIAGNOSTIC
-         - pad = the spacing to add between individual spectra. Default is 5% of the range of reflectance values.
-         - collapse = True if groups should be plotted rather than individual samples. Default is False.
-         - hc = True if the plotted spectra should be hull corrected first. Default is False.
-        *Keywords*
-         - clip = a tuple with the min, med and max percentiles to plot. Default is (5,50,95).
-         - figsize = a figsize for the figure to create (if ax is None).
-         - other keywords are passed to plt.plot( ... ).
+        Args:
+            ax: an axis to plot to. If None (default), a new axis is created.
+            band_range (tuple): the (min,max) band index (int) or wavelength (float) to plot.
+            labels (list): list of HyFeature instances to plot on spectra. Default is reference.features.DIAGNOSTIC
+            pad (float): the spacing to add between individual spectra. Default is 5% of the range of reflectance values.
+            collapse (bool): True if groups should be plotted rather than individual samples. Default is False.
+            hc (bool): True if the plotted spectra should be hull corrected first. Default is False.
+            **kwds: Keywords are passed to plt.plot( ... ), except the following:
+
+                     - clip = a tuple with the min, med and max percentiles to plot. Default is (5,50,95).
+                     - figsize = a figsize for the figure to create (if ax is None).
+
+        Returns:
+            Tuple containing
+
+            - fig: a matplotlib figure instance.
+            - ax: a matplotlib axes.
         """
 
         if collapse:
