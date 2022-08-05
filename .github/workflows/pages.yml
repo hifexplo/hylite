@@ -23,6 +23,7 @@ jobs:
 
       # install pdoc
       - run: pip install pdoc
+      - run: pip install .
       # build documentation with pdoc into docs/
       - run: pdoc hylite -o docs/
 
