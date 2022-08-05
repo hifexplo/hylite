@@ -11,13 +11,13 @@ can also be integrated and used to perform supervised classifications using mach
 
 #### Tutorial:
 
-Try *hylite* here! These example notebooks can alse be [downloaded](https://github.com/samthiele/hylite_demo2).
+Try *hylite* [here](https://mybinder.org/v2/gh/samthiele/hylite_demo2/HEAD)! These example notebooks can alse be [downloaded](https://github.com/samthiele/hylite_demo2).
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/samthiele/hylite_demo2/HEAD)
 
 #### Documentation:
 
-Detailed documentation for *hylite* can be found here: https://hifexplo.github.io/hylite/hylite.html
+Detailed documentation for *hylite* can be found at: https://hifexplo.github.io/hylite/hylite.html
 
 --------
 
@@ -182,10 +182,5 @@ Contributing to  hylite
 Cool additions are welcomed!
 Please feel free to submit pull requests through GitHub or get in touch with us directly if
 you have any questions. Bug reports are also welcomed (though do try to be specific).
-
-Documentation
----------------
-
-For more information on how to use *hylite*, please refer to https://hylite.readthedocs.io/en/latest/index.html.
 
 ---------------
