@@ -1,8 +1,10 @@
-import numbers
+"""
+Utility functions for combining / averaging multiple Datasets together.
+"""
 
+import numbers
 import cv2
 import numpy as np
-
 from hylite import io as io
 
 
@@ -10,15 +12,17 @@ def combine(image_list, method="median", warp=False):
     """
     Combines a list of images to improve the signal to noise ratio/remove issues associated with dead pixels etc.
 
-    *Arguments*:
-     - image_list = a list of hyImage objects for which data will be averaged. These must be identical sizes.
-     - method = The method used to combine the images. Can be "mean", "median", "min", "max" or a
+    Args:
+        image_list: a list of hyImage objects for which data will be averaged. These must be identical sizes.
+        method: The method used to combine the images. Can be "mean", "median", "min", "max" or a
                 percentile between 0 and 100. Default is "median"
-     - warp = should the images be warped to optimise coregistration using optical flow? Slow... default is False. Always
+        warp: should the images be warped to optimise coregistration using optical flow? Slow... default is False. Always
               matches images to the first one in image_list. The middle band is used for matching.
-    *Returns*:
-     - average = a numpy array containing the averaged image data
-     - std = a numpy array containing the standard deviation of the image data.
+    Returns:
+        A tuple containing:
+
+         - average = a numpy array containing the averaged image data
+         - std = a numpy array containing the standard deviation of the image data.
     """
 
     # resize to fit (sometimes some images are 1-2 pixels too long for line-scanners on a tripod)

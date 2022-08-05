@@ -46,7 +46,7 @@ class HyCollection(object):
         Args:
             name (str): a name for this HyCollection. Names of HyCollections stored in any given directory must be
                   be unique to avoid conflicts.
-            root (str) the location of this HyCollection on disk.
+            root (str): the location of this HyCollection on disk.
             header (hylite.HyHeader): a header file for this HyCollection. If None (default) a new header will be created.
             vb (bool): True if print notifications should be written when data is being loaded from disk. Default is False.
         """
@@ -286,10 +286,10 @@ class HyCollection(object):
         """
         Add an external link (that is saved/loaded by this HyCollection instance, but not stored in its data folder).
 
-        *Arguments*:
-         - name = the name of the attribute to add.
-         - path = the path to the object to add.
-         - relative = True if the path should be converted to a relative one. Default is True.
+        Args:
+         - name: the name of the attribute to add.
+         - path: the path to the object to add.
+         - relative: True if the path should be converted to a relative one. Default is True.
         """
 
         assert os.path.exists(path), "Error - %s is not a valid file or folder." % path

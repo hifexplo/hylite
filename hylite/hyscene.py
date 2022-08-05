@@ -295,7 +295,7 @@ class HyScene( HyCollection ):
     #     to match the brightness/contrast of the reference scene). WARNING: by default this modifies this scene's
     #     image IN PLACE.
     #
-    #     *Arguments*:
+    #     Args:
     #     - reference = the scene to match colours to.
     #     - uniform = True if a single brightness contrast adjustment is applied to all bands (avoids introducing spectral
     #              artefacts). If False, different corrections area applied to each band - use with CARE! Default is True.
@@ -305,7 +305,7 @@ class HyScene( HyCollection ):
     #                Default is 'norm'.
     #     - inplace = True if the correction should be applied to self.image in-place. If False, no correction is
     #               applied, and the correction weights (cfac and mfac) returned for future use. Default is True.
-    #     *Returns*:
+    #     Returns:
     #     - The corrected image as a HyImage object. If inplace=True (default) then this will be the same as self.image.
     #     """
     #
@@ -422,7 +422,7 @@ class HyScene( HyCollection ):
     #     """
     #     Export data from associated cloud and image to a (new) HyImage object.
     #
-    #     *Arguments*:
+    #     Args:
     #      - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
     #                can also be expected by passing any of the following:
     #                 - 'rgb' = red, green and blue per-point colour values
@@ -430,7 +430,7 @@ class HyScene( HyCollection ):
     #                 - 'xyz' = point coordinates
     #      - fill_holes = post-processing option to fill single-pixel holes with maximum value from adjacent pixels. Default is False.
     #      - blur = size of gaussian kernel to apply to image in post-processing. Default is 0 (no blur).
-    #     *Returns*:
+    #     Returns:
     #      - a HyImage object containing the requested data.
     #     """
     #
@@ -509,13 +509,13 @@ class HyScene( HyCollection ):
     #     """
     #     Export data from associated image and cloud to a (new) HyCloud object.
     #
-    #     *Arguments*:
+    #     Args:
     #      - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
     #                can also be expected by passing any of the following:
     #                 - 'rgb' = red, green and blue per-point colour values
     #                 - 'klm' = point normals
     #                 - 'xyz' = point coordinates
-    #     *Returns*:
+    #     Returns:
     #      - a HyImage object containing the requested data.
     #     """
     #
@@ -596,7 +596,7 @@ class HyScene( HyCollection ):
     #     """
     #     Plot a projected data using matplotlib.imshow(...).
     #
-    #     *Arguments*:
+    #     Args:
     #      - band = the band name (string), index (integer) or wavelength (float) to plot. Default is 0. If a tuple is passed then
     #               each band in the tuple (string or index) will be mapped to rgb.
     #      - bands = List defining the bands to include in the output image. Elements should be one of:
@@ -638,7 +638,7 @@ class HyScene( HyCollection ):
     #     Combine multiple HyScene objects into a hypercloud. Warning - this modifies the cloud associated with the HyScenes in-place.
     #     Returns processed cloud and (optional) footprint map indicating the number of involved scenes per pixel.
     #
-    #     *Arguments*:
+    #     Args:
     #      - scenes = a list of scenes to combine. These scenes must all reference the same point cloud!
     #      - bands = either:
     #              (1) a tuple containing the (min,max) wavelength to map. If range is a tuple, -1 can be used to specify the

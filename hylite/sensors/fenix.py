@@ -55,17 +55,19 @@ class Fenix(Sensor):
         """
         Apply sensor corrections to an image.
 
-        *Arguments*:
-         - image = a hyImage instance of an image captured using this sensor.
-         - verbose = true if updates/progress should be printed to the console. Default is False.
-        *Keywords*:
-         - rad = true if image should be converted to radiance by applying dark reference. Default is True.
-         - bpr = replace bad pixels (only for raw data). Default is True.
-         - shift = shift bands to account for time-delay between their acquisitions.
-                   Only use for near-field sensing (e.g. drill-core scans). Default is False.
-         - flip = true if image should be flipped before applying lens correction (if camera mounted backwards in core
-                  scanner). Default is False.
-         - lens = apply GLTX lens correction to remove lens distortion. Default is True.
+        Args:
+            image (hylite.HyImage): a hyImage instance of an image captured using this sensor.
+            verbose (bool): true if updates/progress should be printed to the console. Default is False.
+            **kwds: Optional arguments include:
+
+                 - rad = true if image should be converted to radiance by applying dark reference. Default is True.
+                 - bpr = replace bad pixels (only for raw data). Default is True.
+                 - shift = shift bands to account for time-delay between their acquisitions.
+                           Only use for near-field sensing (e.g. drill-core scans). Default is False.
+                 - flip = true if image should be flipped before applying lens correction (if camera mounted backwards in core
+                          scanner). Default is False.
+                 - lens = apply GLTX lens correction to remove lens distortion. Default is True.
+
         """
 
         # get kwds
@@ -327,17 +329,16 @@ class Fenix(Sensor):
         Many sensors use simple/common data structures to store data/headers/dark reference etc. Hence it is often easiest
         to pass an output folder to the sensor for correction.
 
-        *Arguments*:
-         - path = a path to the folder containing the sensor specific data.
+        Args:
+            path (str): a path to the folder containing the sensor specific data.
+            **kwds: keywords are passed directly to correct_image, except for:
 
-        *Keywords*:
-         - verbose = True if print outputs should be made to update progress. Default is True.
-         - calib = Calibration spectra for any white references found.
-         - other keywords are passed directly to correct_image.
+                 - verbose = True if print outputs should be made to update progress. Default is True.
+                 - calib = Calibration spectra for any white references found.
 
-        *Returns*:
-         - a hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
-           topographic or atmospheric corrections.
+        Returns:
+            A hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
+            topographic or atmospheric corrections.
 
         """
         verbose = kwds.get("verbose", True)

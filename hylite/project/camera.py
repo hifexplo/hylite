@@ -1,3 +1,7 @@
+"""
+A simple data structure for storing camera pose information.
+"""
+
 import numpy as np
 from scipy import spatial
 
@@ -8,15 +12,13 @@ class Camera( object ):
 
     def __init__(self, pos, ori, proj, fov, dims, step = None):
         """
-        Creates a new camera object.
-
-        *Arguments*:
-         - pos = the camera position vector.
-         - ori = the camera orientation vector (pitch, roll, yaw) in degrees.
-         - proj = the project type: 'persp' or 'pano'.
-         - fov = the camera field of view (degrees).
-         - dims = the pixel dimensions of the frame.
-         - step = the angular step of pixels in the x-direction for panoramic projections. Default is None.
+        Args:
+            pos (ndarray): the camera position vector.
+            ori (ndarray): the camera orientation vector (pitch, roll, yaw) in degrees.
+            proj (str): the project type: 'persp' or 'pano'.
+            fov (float): the camera field of view (degrees).
+            dims (tuple): the pixel dimensions of the frame.
+            step (float): the angular step of pixels in the x-direction for panoramic projections. Default is None.
         """
 
         assert isinstance(pos, np.ndarray) and len(pos)==3, \
@@ -48,9 +50,9 @@ class Camera( object ):
         """
         Sets the position and rotation of this camera.
 
-        *Arguments*:
-         - camera_pos = the new position.
-         - camera_ori = the new orientation.
+        Args:
+            camera_pos (ndarray): the new position.
+            camera_ori (ndarray): the new orientation.
         """
         assert isinstance(camera_pos, np.ndarray) and len(camera_pos) == 3, \
                                         "Error - camera_position must be a numpy array with length 3. "

@@ -25,28 +25,30 @@ def TPT(data, sigma=10., window=21, n=2, thresh=0, domain=None, weighted=True, m
     Extract the turning points from each spectra in dataset, and build an associated kernel density estimates that
     can be used to calculate the probability of observing given features.
 
-    *Arguments:*
-     - data = a HyData instance containing the spectra to filter.
-     - sigma = Standard deviation of the KDE kernel. Either a number, or a function such that sigma(w) returns the
+    Args:
+        data: a HyData instance containing the spectra to filter.
+        sigma: Standard deviation of the KDE kernel. Either a number, or a function such that sigma(w) returns the
                standard deviation for a specific wavelength (e.g. if a larger kernel should be used for
                LWIR than VNIR data). Default is 10 nm.
-     - window = the size of the window (in indices) used during savgol smoothing and derivative calculation. Default is 21.
-     - n = the order of the polynomial to use for savgol smoothing. Larger number preserve smaller features but
+        window: the size of the window (in indices) used during savgol smoothing and derivative calculation. Default is 21.
+        n: the order of the polynomial to use for savgol smoothing. Larger number preserve smaller features but
            are slower to compute (and more prone to noise). Default is 2.
-     - thresh = a depth/prominence threshold to ignore small maxima or minima. Default is 0.
-     - domain = None (default) if the KDE should be evaluated over the same wavelengths as the input data. Alternatively, a
+        thresh: a depth/prominence threshold to ignore small maxima or minima. Default is 0.
+        domain: None (default) if the KDE should be evaluated over the same wavelengths as the input data. Alternatively, a
                 tuple can be passed containing (min_wav, max_wav, [resolution (optional)]).
-     - weighted = True if the KDE should be weighted based on feature depth (i.e. more prominent features get extra
+        weighted: True if the KDE should be weighted based on feature depth (i.e. more prominent features get extra
                   weight in the KDE as they are ~ 'more likely to be observed'). Default is True.
-     - maxima = True the filter should include maxima. Default is True.
-     - minima = True if the filter should include minima. Default is True.
-     - vb = True progress should be printed to the console. Default is True.
+        maxima: True the filter should include maxima. Default is True.
+        minima: True if the filter should include minima. Default is True.
+        vb: True progress should be printed to the console. Default is True.
 
-    *Returns*:
-     - tpt = a HyData instance containg kernel density estimates of maxima and minima in the each pixel/point. Maxima
-             are given positive weight while minima are given negative weight.
-     - Tpos = an array containing a list of turning point positions (wavelength) for each point/pixel.
-     - Tdepth = an array containing a list of turning point depths for each point/pixel. Maxima are positive, minima negative.
+    Returns:
+        A tuple containing:
+
+         - tpt = a HyData instance containg kernel density estimates of maxima and minima in the each pixel/point. Maxima
+                 are given positive weight while minima are given negative weight.
+         - Tpos = an array containing a list of turning point positions (wavelength) for each point/pixel.
+         - Tdepth = an array containing a list of turning point depths for each point/pixel. Maxima are positive, minima negative.
     """
 
     # init wavelength domain
@@ -193,16 +195,16 @@ def TPT2MWL(pos, depth, wmin=0, wmax=-1, data=None, vb=True):
     Convert the results from a turning point filter (TPT) into a minimum wavelength array. This will return
     the deepest feature within the specified range.
 
-    *Arguments*:
-     - pos = an array containing per-spectra turning point positions, as returned by TPT(...).
-     - depth = an array containing per-spectra turning point depths, as returned by TPT(...).
-     - wmin = the start of the wavelength range of interest. Default is 0 (all wavelengths).
-     - wmax = the end of the wavelength range of interest. Default is -1 (all wavelengths).
-     - data = a HyData instance to use as a template for outputs. If not None (default) then this will return a HyData instance.
-     - vb = True if a progress bar should be created. Default is True.
+    Args:
+        pos: an array containing per-spectra turning point positions, as returned by TPT(...).
+        depth: an array containing per-spectra turning point depths, as returned by TPT(...).
+        wmin: the start of the wavelength range of interest. Default is 0 (all wavelengths).
+        wmax: the end of the wavelength range of interest. Default is -1 (all wavelengths).
+        data: a HyData instance to use as a template for outputs. If not None (default) then this will return a HyData instance.
+        vb: True if a progress bar should be created. Default is True.
 
-    *Returns*
-     - a numpy array or HyData instance (if data is not none), containing 4 bands (pos, width, depth, strength).
+    Returns:
+        a numpy array or HyData instance (if data is not none), containing 4 bands (pos, width, depth, strength).
     """
 
     # reshape for loop

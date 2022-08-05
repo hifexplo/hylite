@@ -14,19 +14,19 @@ def cluster_hierarchical( data, nclasses, distance='SAM', vb=False, labels=None,
     specified distance metric. Note that this can be very slow for large datasets, but
     can work well for spectral libraries or small images.
 
-    *Arguments*:
-     - data = a HyData instance to cluster.
-     - nclasses = the number of classes to extract (level to slice the tree at).
-     - distance = the distance metric to use. Options are 'SAM' (spectral angle) and 'pca' (use top n principal components).
-     - vb = True if a preview plot of the dendrogram should be created.
-     - labels = labels for the dendrogram, or None (default).
+    Args:
+        data: a HyData instance to cluster.
+        nclasses: the number of classes to extract (level to slice the tree at).
+        distance: the distance metric to use. Options are 'SAM' (spectral angle) and 'pca' (use top n principal components).
+        vb: True if a preview plot of the dendrogram should be created.
+        labels: labels for the dendrogram, or None (default).
+        nbands: the number of mnf bands to use if distance = MNF. Default is 10.
 
-    *Keywords*:
-     - nbands = the number of mnf bands to use if distance = MNF. Default is 10.
+    Returns:
+        A tuple containing:
 
-    *Returns*:
-     - labels = an integer array of class labels.
-     - Z = the linkage matrix returned by scipy.
+         - labels = an integer array of class labels.
+         - Z = the linkage matrix returned by scipy.
     """
 
     assert isinstance( data, HyData ), "Error - dataset is not a HyData instance."

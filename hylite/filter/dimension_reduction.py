@@ -1,3 +1,7 @@
+"""
+PCA and MNF methods for dimensionality reduction.
+"""
+
 import numpy as np
 import spectral
 from hylite import HyData
@@ -6,19 +10,21 @@ def PCA(hydata, bands=20, band_range=None, step=5):
     """
     Apply a PCA dimensionality reduction to the hyperspectral dataset using singular vector decomposition (SVD).
 
-    *Arguments*:
-     - data = the dataset (HyData object) to apply PCA to.
-     - output_bands = number of bands to return (i.e. how many dimensions to retain). Default is 20.
-     - bands = the spectral range to perform the PCA over. If (int,int) is passed then the values are treated as
+    Args:
+        data: the dataset (HyData object) to apply PCA to.
+        output_bands: number of bands to return (i.e. how many dimensions to retain). Default is 20.
+        bands: the spectral range to perform the PCA over. If (int,int) is passed then the values are treated as
                     min/max band IDs, if (float,float) is passed then values are treated as wavelenghts (in nm). If None is
                     passed (default) then the PCA is computed using all bands. Note that wavelengths can only be passed
                     if image is a hyImage object.
-     - step = subsample the dataset during SVD for performance reason. step = 1 will include all pixels in the calculation,
+        step: subsample the dataset during SVD for performance reason. step = 1 will include all pixels in the calculation,
               step = n includes every nth pixel only. Default is 5 (as most images contain more than enough pixels to
               accurately estimate variance etc.).
-    *Returns*:
-     - bands = Bands transformed into PCA space, ordered from highest to lowest variance.
-     - factors = the factors (vector) each band is multiplied with to give the corresponding PCA band.
+    Returns:
+        A tuple containing:
+
+        - bands = Bands transformed into PCA space, ordered from highest to lowest variance.
+        - factors = the factors (vector) each band is multiplied with to give the corresponding PCA band.
     """
 
     # get numpy array
@@ -94,18 +100,21 @@ def PCA(hydata, bands=20, band_range=None, step=5):
 def MNF(hydata, bands=20, band_range=None, denoise=False):
     """
     Apply a minimum noise filter to a hyperspectral image.
-    *Arguments*:
-     - hydata = A HyData instance containing the source dataset (e.g. image or point cloud).
-     - bands = the number of bands to keep after MNF for dimensionality reduction or denoising. Default is 20.
-     - band_range = the spectral range to perform the MNF over. If (int,int) is passed then the values are treated as
+
+    Args:
+        hydata: A HyData instance containing the source dataset (e.g. image or point cloud).
+        bands: the number of bands to keep after MNF for dimensionality reduction or denoising. Default is 20.
+        band_range: the spectral range to perform the MNF over. If (int,int) is passed then the values are treated as
                     min/max band IDs, if (float,float) is passed then values are treated as wavelenghts (in nm). If None is
                     passed (default) then the MNF is computed using all bands. Note that wavelengths can only be passed
                     if image is a hyImage object.
-     - denoise = True if a MNF denoised image should be returned (rather than the MNF bands). Default is False.
-    *Returns*:
-     - mnf = a HyData instance containing the MNF bands or denoised image.
-     - factors = A 2D numpy array containing the factors applied to the input datset. Useful
-                 for plotting/interpreting the regions each MNF band is sensitive too.
+        denoise: True if a MNF denoised image should be returned (rather than the MNF bands). Default is False.
+    Returns:
+        A tuple containing:
+
+        - mnf = a HyData instance containing the MNF bands or denoised image.
+        - factors = A 2D numpy array containing the factors applied to the input datset. Useful
+                     for plotting/interpreting the regions each MNF band is sensitive too.
     """
 
     # prepare data for MNF
@@ -212,13 +221,13 @@ def from_loadings(data, L):
     Transform a dataset using a precomputed loading vector.  This allows PCA or MNF
     transforms to be computed on one dataset and then applied to another.
 
-    *Arguments*:
-    - data = A dataset (HyData instance or numpy array) with b bands in the last axis.
-    - L = the loadings vector of shape (k,b), such that data is projected into a
+    Args:
+       data: A dataset (HyData instance or numpy array) with b bands in the last axis.
+       L: the loadings vector of shape (k,b), such that data is projected into a
                  k-dimensional space.
 
-    *Returns*:
-    - a hydata instance or numpy array containing the transformed data.
+    Returns:
+       a hydata instance or numpy array containing the transformed data.
     """
     # get relevant data
     if isinstance(data, HyData):

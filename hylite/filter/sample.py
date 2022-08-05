@@ -1,19 +1,19 @@
+"""
+Utility functions for sampling from hyperspectral datasets, including extracting averaged spectra (spectra libraries)
+and resampling images to match band widths of other sensors (e.g. ASTER bands). CAUTION: this code is poorly tested.
+"""
+
 from hylite import HyData, HyLibrary
 import numpy as np
-
-"""
-Utility functions for sampling from hyperspectral datasets, including extracting averaged spectra (spectra libraries) 
-and resampling images to match band widths of other sensors (e.g. ASTER bands).
-"""
 
 def getClassLibrary( data, classification, skip0=True ):
     """
     Create a spectral library from a classified image by extracting all spectra associated with each class.
 
-    *Arguments*:
-     - data = a HyImage or HyCloud instance containing spectral data.
-     - classification = a HyImage or HyCloud instance containing classifications per point/pixel.
-     - skip0 = True if class 0 (typically background) should be ignored. Default is True.
+    Args:
+        data: a HyImage or HyCloud instance containing spectral data.
+        classification: a HyImage or HyCloud instance containing classifications per point/pixel.
+        skip0: True if class 0 (typically background) should be ignored. Default is True.
     """
 
     assert isinstance(data, HyData), "Error - data must be a HyData instance not %s" % type(data)
@@ -55,10 +55,8 @@ class Resample( object ):
 
     def __init__( self, bands ):
         """
-        Create a spectral resampler.
-
-        *Arguments*:
-         - a list of wavelength tuples specifying the minimum and maximum spectra of each band in this resampling scheme.
+        Args:
+            bands (list): a list of wavelength tuples specifying the minimum and maximum spectra of each band in this resampling scheme.
         """
 
         # check valid
@@ -72,9 +70,9 @@ class Resample( object ):
         Get the n'th band under this resampling scheme by averaging hyperspectral bands between the
         specified range.
 
-        *Arguments*:
-         - data = the dataset to extract information from.
-         - n = the resampled band index to extract. NOTE THAT BAND INDICES START AT 1 FOR COMPATIBILITY WITH
+        Args:
+            data: the dataset to extract information from.
+            n: the resampled band index to extract. NOTE THAT BAND INDICES START AT 1 FOR COMPATIBILITY WITH
                STANDARD SATELLITE NOTATION!
         """
         assert n >= 1 and (n-1) < len(self.bands), "Error - Band %d is not defined in this resampling scheme." % n
@@ -104,9 +102,9 @@ class Resample( object ):
         """
         Apply this resampling to a HyData instance and return a new instance with appropriately averaged bands.
 
-        *Arguments*:
-         - data = the HyData instance to apply this sampling scheme to.
-        *Returns*: A copy of the original HyData instance with the bands averaged as defined. Corresponding wavelengths will be set to the middle of each averaged region.
+        Args:
+            data: the HyData instance to apply this sampling scheme to.
+        Returns: A copy of the original HyData instance with the bands averaged as defined. Corresponding wavelengths will be set to the middle of each averaged region.
         """
 
         bands = [self.get_band(data, n + 1) for n in range(len(self.bands))]

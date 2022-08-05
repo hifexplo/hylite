@@ -28,10 +28,10 @@ class HyImage( HyData ):
             data (ndarray): a numpy array such that data[x][y][band] gives each pixel value.
             **kwds:
 
-                 - affine = an affine transform of the format returned by GDAL.GetGeoTransform().
-                 - project = string defining the project. Default is None.
-                 - sensor = sensor name. Default is "unknown".
-                 - header = path to associated header file. Default is None.
+                affine = an affine transform of the format returned by GDAL.GetGeoTransform().
+                projection = string defining the project. Default is None.
+                sensor = sensor name. Default is "unknown".
+                header = path to associated header file. Default is None.
 
         """
 
@@ -45,7 +45,7 @@ class HyImage( HyData ):
                 self.data = self.data[:, :, np.newaxis]
 
         #load any additional project information (specific to images)
-        self.set_projection(kwds.get("project",None))
+        self.set_projection(kwds.get("projection",None))
         self.affine = kwds.get("affine",[0,1,0,0,0,1])
 
         #special header formatting
@@ -378,13 +378,13 @@ class HyImage( HyData ):
             bfac (float): brightness adjustment to apply to hyperspectral bands before matching. Default is 0.0.
             **kwds: keyword arguments are passed to the opencv feature detector. For SIFT these are:
 
-                    - contrastThreshold: default is 0.01.
-                    - edgeThreshold: default is 10.
-                    - sigma: default is 1.0
+                - contrastThreshold: default is 0.01.
+                - edgeThreshold: default is 10.
+                - sigma: default is 1.0
 
                 For ORB these are:
 
-                    - nfeatures = the number of features to detect. Default is 5000.
+                - nfeatures = the number of features to detect. Default is 5000.
 
             Returns:
                 Tuple containing
@@ -700,7 +700,7 @@ class HyImage( HyData ):
             crop (bool): True if rows/columns containing only zeros should be removed. Default is False.
             bands (tuple): the bands of the image to plot if no mask is specified. If None, the middle band is used.
 
-         *Returns*:
+         Returns:
             Tuple containing
 
             - mask (ndarray): a boolean array with True where pixels are masked and False elsewhere.

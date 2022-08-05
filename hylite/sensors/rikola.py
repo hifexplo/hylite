@@ -25,24 +25,24 @@ class Rikola(Sensor):
         """
         Apply sensor corrections to an image.
 
-        *Arguments*:
-         - image = a hyImage instance of an image captured using this sensor.
-         - verbose = true if updates/progress should be printed to the console. Default is True.
+        Args:
+            image (hylite.HyImage): a hyImage instance of an image captured using this sensor.
+            verbose (str): true if updates/progress should be printed to the console. Default is True.
+            **kwds: Optional keywords include:
 
-        *Keywords*:
-         - crop = True if the image should be cropped so that only pixels covered by all bands after alignment are retained. Default is True.
-         - align = True if the image bands should be coaligned using sift (due to delayed aquisition times). Default is True.
-         - lens = True if the RIKOLA lens correction should be apply to correct for lens distortion. Default is True.
-         - match_band = the band to co-register data to. This should be a good quality band (low noise etc.). Default is 30.
-         - contrast_thresh = the contrast threshold used for SIFT matching. Default is 0.01.
-         - sigma = the sigma to use for SIFT matching. Default is 1.5.
-         - edge_thresh = the edge threshold to use for sift matching. Default is 10.
-         - eq = equalise before sift? 'True' or 'False'. Default is 'False'.
-         - match_dist = maximum matching distance for SIFT. Default is 0.7.
-         - min_match = the minimum number of matches to apply band coregistration. Default is 5.
-         - warp = the warping method used to align bands. Can be 'affine', 'homography' or 'flow'.
-           Default is 'flow' aligns each band using 'affine' and then refines the result using dense optical flow.
-           This is slow but corrects for errors associated with perspective and non-flat topography....
+                 - crop = True if the image should be cropped so that only pixels covered by all bands after alignment are retained. Default is True.
+                 - align = True if the image bands should be coaligned using sift (due to delayed aquisition times). Default is True.
+                 - lens = True if the RIKOLA lens correction should be apply to correct for lens distortion. Default is True.
+                 - match_band = the band to co-register data to. This should be a good quality band (low noise etc.). Default is 30.
+                 - contrast_thresh = the contrast threshold used for SIFT matching. Default is 0.01.
+                 - sigma = the sigma to use for SIFT matching. Default is 1.5.
+                 - edge_thresh = the edge threshold to use for sift matching. Default is 10.
+                 - eq = equalise before sift? 'True' or 'False'. Default is 'False'.
+                 - match_dist = maximum matching distance for SIFT. Default is 0.7.
+                 - min_match = the minimum number of matches to apply band coregistration. Default is 5.
+                 - warp = the warping method used to align bands. Can be 'affine', 'homography' or 'flow'.
+                   Default is 'flow' aligns each band using 'affine' and then refines the result using dense optical flow.
+                   This is slow but corrects for errors associated with perspective and non-flat topography....
 
         """
 
@@ -332,18 +332,16 @@ class Rikola(Sensor):
         Many sensors use simple/common data structures to store data/headers/dark reference etc. Hence it is often easiest
         to pass an output folder to the sensor for correction.
 
-        *Arguments*:
-         - path = a path to the folder containing the sensor specific data.
+        Args:
+            path (str): a path to the folder containing the sensor specific data.
+            **kwds: Keywords will be passed to correct_image, except for:
 
-        *Keywords*:
-         - keywords as defined by inherited classes (sensor specific)
+                - multi = True if multiple threads will be spawned to processes images in parallel. Default is True.
+                - nthreads = the number of worker threads to spawn if multithreaded is true. Default is the number of CPU cores.
 
-        *Returns*:
-         - a hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
-           topographic or atmospheric corrections.
-         - multi = True if multiple threads will be spawned to processes images in parallel. Default is True.
-         - nthreads = the number of worker threads to spawn if multithreaded is true. Default is the number of CPU cores.
-
+        Returns:
+            A hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
+            topographic or atmospheric corrections.
         """
 
         assert os.path.isdir(path), "Error - %s is not a valid directory path" % path
@@ -392,8 +390,8 @@ class Rikola(Sensor):
         """
         Creates geotagged RGB JPGs for a folder of calibrated Rikola images and stores them in a subfolder "RGB/"
 
-        *Arguments*:
-         - MAIN = path to the folder containing the image data (ending with "CORRECTED.dat")
+        Args:
+            MAIN (str): path to the folder containing the image data (ending with "CORRECTED.dat")
                   as well as the acquisition-specific "TASKFILE.TXT"
 
         """

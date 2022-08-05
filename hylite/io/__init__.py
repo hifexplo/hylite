@@ -27,13 +27,13 @@ def save(path, data, **kwds):
     A generic function for saving HyData instances such as HyImage, HyLibrary and HyCloud. The appropriate file format
     will be chosen automatically.
 
-    *Arguments*:
-     - path = the path to save the file too.
-     - data = the data to save. This must be an instance of HyImage, HyLibrary or HyCloud.
+    Args:
+        path (str): the path to save the file too.
+        data (HyData or ndarray): the data to save. This must be an instance of HyImage, HyLibrary or HyCloud.
+        **kwds: Keywords can include:
 
-    *Keywords*:
-     - vmin = the data value that = 0 when saving RGB images.
-     - vmax = the data value that = 255 when saving RGB images. Must be > vmin.
+             - vmin = the data value that = 0 when saving RGB images.
+             - vmax = the data value that = 255 when saving RGB images. Must be > vmin.
     """
 
     if isinstance(data, HyImage):
@@ -80,7 +80,7 @@ def save(path, data, **kwds):
         save_func = saveCameraTXT
         ext = 'brm'
     elif isinstance(data, HyCollection):
-        save_func = saveCollection
+        save_func = _saveCollection
         ext = data.ext[1:]
         outdir = os.path.join(data.root, os.path.splitext(data.name)[0])
         if os.path.splitext(path)[0] != outdir:
@@ -111,11 +111,11 @@ def load(path):
     A generic function for loading hyperspectral images, point clouds and libraries. The appropriate load function
     will be chosen based on the file extension.
 
-    *Arguments*:
-     - path = the path of the file to load.
+    Args:
+        path (str): the path of the file to load.
 
-    *Returns*:
-     - a HyData instance containing the loaded dataset.
+    Returns:
+        The loaded data.
     """
 
     assert os.path.exists( path ), "Error: file %s does not exist." % path
@@ -147,7 +147,7 @@ def load(path):
     elif 'tsg' in ext: # (flat) spectral library
         out = loadLibraryTSG(path)
     elif 'hyc' in ext or 'hys' in ext or 'mwl' in ext: # load hylite collection, hyscene or mwl map
-        out = loadCollection(path)
+        out = _loadCollection(path)
     elif 'cam' in ext or 'brm' in ext: # load pushbroom and normal cameras
         out = loadCameraTXT(path)
     else: # image
@@ -172,7 +172,7 @@ def load(path):
 ## save and load data collections
 ##############################################
 # save collection
-def saveCollection(path, collection):
+def _saveCollection(path, collection):
     # generate file paths
     dirmap = collection.get_file_dictionary(root=os.path.dirname(path),
                                             name=os.path.splitext(os.path.basename(path))[0])
@@ -181,7 +181,7 @@ def saveCollection(path, collection):
         os.makedirs(os.path.dirname(p), exist_ok=True)
         save(p, o)  # save each path and item [ n.b. this includes the header file! :-) ]
 
-def loadCollection(path):
+def _loadCollection(path):
     # load header and find directory path
     header, directory = matchHeader(path)
 

@@ -9,6 +9,9 @@ from hylite.hyfeature import *
 #N.B. All values here are approximate and largely for (1) plotting and (2) as initial values for feature fitting
 #     routines. Believe nothing!
 class Features:
+    """
+    Specific absorption types. Useful for plotting etc. Not really used for anything and will probably be depreciated soon.
+    """
 
     H2O = [ HyFeature("H2O", p, w, color='skyblue') for p,w in [(825,50), (940,75), (1130,100), (1400,150), (1900,200), (2700,150)] ]
     OH = [HyFeature("OH", 1400, 50, color='aquamarine'), HyFeature("OH", 1550, 50, color='aquamarine'), HyFeature("OH", 1800, 100, color='aquamarine')]
@@ -34,6 +37,9 @@ class Features:
 
 # common minerals
 class Minerals:
+    """
+    Common mineral absorption features. Useful for plotting etc. Not really used for anything and will probably be depreciated soon.
+    """
 
     # Kaolin clays (dominant SWIR feature)
     Kaolinite = [HyFeature("Kaolinite/Halloysite", 2200, 100, color='aquamarine')]
@@ -89,6 +95,9 @@ class Minerals:
 
 # and some useful 'themes' (for plotting etc)
 class Themes:
+    """
+    Some useful 'themes' (for plotting etc)
+    """
     ATMOSPHERE = Features.H2O  #[HyFeature("H2O", 975, 30), HyFeature("H2O", 1395, 120), HyFeature("H2O", 1885, 180), HyFeature("H2O", 2450, 100)]
     CARBONATE = [Minerals.CARBONATE]
     OH = Features.AlOH + Features.FeOH + Features.MgOH

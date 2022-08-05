@@ -1,3 +1,7 @@
+"""
+Store projection maps binding image data to point cloud data during e.g. the correction of pushbroom UAV datasets.
+"""
+
 import numpy as np
 import os
 
@@ -7,9 +11,9 @@ def savePMap(path, pmap):
     """
     Save a PMap instance using numpy.
 
-    *Arguments*:
-     - path = the path to save to.
-     - pmap = the PMap instance to save.
+    Args:
+        path: the path to save to.
+        pmap: the PMap instance to save.
     """
     pnt,pix,z = pmap.get_flat()
     dims = np.array([pmap.xdim, pmap.ydim, pmap.npoints])
@@ -19,11 +23,11 @@ def loadPMap(path):
     """
     Load a PMap instance using numpy.
 
-    *Arguments*:
-     - path = the file path to load from.
+    Args:
+        path: the file path to load from.
 
-    *Returns*:
-     - a PMap instance loaded from the file.
+    Returns:
+        a PMap instance loaded from the file.
     """
 
     # check extension

@@ -8,11 +8,11 @@ def hist_eq(adj, ref):
     """
     Perform histogram normalisation on two datasets, as describe at: https://stackoverflow.com/questions/32655686/histogram-matching-of-two-images-in-python-2-x.
 
-    *Arguments*:
-     - adj = the source data to transform
-     - ref = data following the distribution to be matched too.
-    *Returns*
-     - an array of the same shape as source that contains the transformed data.
+    Args:
+        adj: the source data to transform
+        ref: data following the distribution to be matched too.
+    Returns:
+        an array of the same shape as source that contains the transformed data.
     """
     olddtype = adj.dtype
     oldshape = adj.shape
@@ -45,14 +45,14 @@ def norm_eq(adj, adj_s, ref_s, per_band=True, inplace=False):
 
     (loosely based on https://www.cs.tau.ac.il/~turkel/imagepapers/ColorTransfer.pdf )
 
-    *Arguments*
-     - adj = the source data to transform.
-     - adj_s = subset of adj to calculate statistics from (e.g. matching pixels).
-     - ref_s = reference subset to match statistics too (e.g. matching pixels from reference image).
-     - per_band = True (default) if the correction should be applied to each band separately. This can
+    Args:
+        adj: the source data to transform.
+        adj_s: subset of adj to calculate statistics from (e.g. matching pixels).
+        ref_s: reference subset to match statistics too (e.g. matching pixels from reference image).
+        per_band: True (default) if the correction should be applied to each band separately. This can
                   potentially introduce spectral artefacts so use with care. If False, the whole dataset is
                   scaled/recentered at once, so the spectra will not be distorted.
-     - inplace = True if data should be modified in place rather than being copied. Default is False.
+        inplace: True if data should be modified in place rather than being copied. Default is False.
     """
 
     assert isinstance(adj, np.ndarray), "Adj must be numpy array."

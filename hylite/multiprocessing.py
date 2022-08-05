@@ -16,11 +16,11 @@ def _split(data, nchunks):
     """
     Split the specified HyCloud instance into a number of chunks.
 
-    *Arguments*:
-     - data = the complete HyData object to copy and split.
-     - nchunks = the number of chunks to split into.
-    *Returns*:
-     - a list of split
+    Args:
+        data = the complete HyData object to copy and split.
+        nchunks = the number of chunks to split into.
+    Returns:
+        a list of split
     """
 
     if isinstance(data, HyCloud):  # special case for hyperclouds - split xyz, rgb and normals too
@@ -71,10 +71,10 @@ def _merge(chunks, shape):
     """
     Merge a list of HyData objects into a combined one (aka. do the opposite of split(...)).
 
-    *Arguments*:
-     - chunks = a list of HyData chunks to merge.
-     - shape = the output data shape.
-    *Returns*: a single merged HyData instance (of the same type as the input).
+    Args:
+        chunks = a list of HyData chunks to merge.
+        shape = the output data shape.
+    Returns: a single merged HyData instance (of the same type as the input).
                The header of this instance will be a copy of chunks[0].header.
     """
 

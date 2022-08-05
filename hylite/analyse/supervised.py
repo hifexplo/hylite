@@ -12,15 +12,17 @@ def get_feature_vectors(data, labels, ignore=[]):
     """
     Returns a feature vector and associated labels from a HyData instance.
 
-    *Arguments*:
-     - data = the dataset (HyData instance) to extract features from.
-     - labels = a list of boolean point or pixel masks where True values should be associated with
+    Args:
+        data: the dataset (HyData instance) to extract features from.
+        labels: a list of boolean point or pixel masks where True values should be associated with
                 that label. Generated label indices will range from 0 to len(labels). Alternatively, if labels is
                 a HyData instance (e.g. a classification image), then labels will be extacted from this.
-     - ignore = a list of labels to ignore (if labels is a HyData instance). E.g. [ 0 ] will ignore pixels labelled as background.
-    *Returns*:
-     - F = a list containing a feature array for each class in labels.
-     - c = a list of the number of features for each class.
+        ignore: a list of labels to ignore (if labels is a HyData instance). E.g. [ 0 ] will ignore pixels labelled as background.
+    Returns:
+        A tuple containing:
+
+        - F = a list containing a feature array for each class in labels.
+        - c = a list of the number of features for each class.
     """
 
     # build boolean masks from HyData instance if necessary
@@ -63,15 +65,17 @@ def balance( F, n=1.0):
     Samples a balanced feature vector from a list of features, as returned by
     get_feature_vectors( ... ).
 
-    *Arguments*:
-     - F = a list containing an array of features for each class.
-     - n = the number of features to extract. Default is None (extract as mean features as possible).
+    Args:
+        F: a list containing an array of features for each class.
+        n: the number of features to extract. Default is None (extract as mean features as possible).
            If a float between 0 and 1 is passed then it is treated as a fraction of the maximum number of features.
            If an integer is passed then this number of features will be extracted (or max(counts)).
 
-    *Returns*:
-     - X = a balanced feature feature vector with dimensions N_samples x M_features.
-     - y = an array of length N_samples containing labels for each feature (ranging from 0 - n_classes).
+    Returns:
+        A tuple containing:
+
+         - X = a balanced feature feature vector with dimensions N_samples x M_features.
+         - y = an array of length N_samples containing labels for each feature (ranging from 0 - n_classes).
     """
 
     c = [f.shape[0] for f in F]
@@ -100,13 +104,13 @@ def split(X, y, frac=0.5):
     """
     Randomly split a labeled feature set into testing and training sets.
 
-    *Arguments*:
-     - X = the feature set to split.
-     - y = the label set to split.
-     - frac = the fraction of train vs test datasets. Default is 0.5 (50%).
+    Args:
+        X: the feature set to split.
+        y: the label set to split.
+        frac: the fraction of train vs test datasets. Default is 0.5 (50%).
 
-    *Returns*:
-     - train_X, train_y, test_X, test_y = training and testing features and labels.
+    Returns:
+        train_X, train_y, test_X, test_y = training and testing features and labels.
     """
 
     # extract training dataset

@@ -1,3 +1,8 @@
+"""
+Perspective, panoramic and orthographic projections.
+"""
+
+
 import numpy as np
 from scipy import spatial
 from numba import jit, prange
@@ -7,13 +12,19 @@ def proj_persp( xyz, C, a, fov, dims, normals=None):
     """
     Project 3d point xyz based on a pinhole camera model.
 
-    *Arguments*:
-     - xyz = a nx3 numpy array with a position vector (x,y,z) in each column.
-     - C = the position of the camera.
-     - a = the three camera rotatation euler angles (appled around x, then y, then z == pitch, roll, yaw). In DEGREES.
-     - fov = the vertical field of view.
-     - dims = the image dimensions (width, height)
-     - normals = per-point normals. Used to do backface culling if specified. Default is None (not used).
+    Args:
+        xyz (ndarray): a nx3 numpy array with a position vector (x,y,z) in each column.
+        C (ndarray): the position of the camera.
+        a (ndarray): the three camera rotatation euler angles (appled around x, then y, then z == pitch, roll, yaw). In DEGREES.
+        fov (float): the vertical field of view.
+        dims (tuple): the image dimensions (width, height)
+        normals (ndarray): per-point normals. Used to do backface culling if specified. Default is None (not used).
+
+    Returns:
+        A tuple containing:
+
+        - pp = a (n,3) array containg the project point coordinates (x,y) and distance from the camera (z).
+        - vis = a (n,) array scored with True if the corresponding point is visible from the camera.
     """
 
     #transform origin to camera position
@@ -54,14 +65,20 @@ def proj_pano(xyz, C, a, fov, dims, step=None, normals=None):
     """
     Project 3d point xyz based on a pinhole camera model.
 
-    *Arguments*:
-     - xyz = a nx3 numpy array with a position vector (x,y,z) in each column.
-     - C = the position of the camera.
-     - a = the three camera rotatation euler angles (appled around x, then y, then z == pitch, roll, yaw). In DEGREES.
-     - fov = the vertical field of view.
-     - dims = the image dimensions (width, height)
-     - step = the angular step (degrees) between pixels in x.  If None, this is calculated to ensure square pixels.
-     - normals = per-point normals. Used to do backface culling if specified. Default is None (not used).
+    Args:
+        xyz (ndarray): a nx3 numpy array with a position vector (x,y,z) in each column.
+        C (ndarray): the position of the camera.
+        a (ndarray): the three camera rotatation euler angles (appled around x, then y, then z == pitch, roll, yaw). In DEGREES.
+        fov (float): the vertical field of view.
+        dims (tuple): the image dimensions (width, height)
+        step (float): the angular step (degrees) between pixels in x.  If None, this is calculated to ensure square pixels.
+        normals (ndarray): per-point normals. Used to do backface culling if specified. Default is None (not used).
+
+    Returns:
+        A tuple containing:
+
+        - pp = a (n,3) array containg the project point coordinates (x,y) and distance from the camera (z).
+        - vis = a (n,) array scored with True if the corresponding point is visible from the camera.
     """
 
     # transform origin to camera position
@@ -106,14 +123,17 @@ def proj_ortho( xyz, C, V, s=1.0 ):
     """
     Project points onto a plane (orthographic projection).
 
-    *Arguments*:
-    - xyz = a nx3 numpy array with a position vector (x,y,z) in each column.
-    - C = the position of the viewing plane origin (will become pixel 0,0).
-    - V = the [x,y,z] viewing/projection vector (normal to the projection plane).
-    - s = the scale factor to transform world coordinates into image coordinates. Default is 1.0 (keep world coords).
-    *Returns*:
-     - px,py,pz = projected point coordinates (x,y,depth)
-     - vis = array containing True if each point is visible and False for points behind the viewing plane.
+    Args:
+        xyz (ndarray): a nx3 numpy array with a position vector (x,y,z) in each column.
+        C (ndarray): the position of the viewing plane origin (will become pixel 0,0).
+        V (ndarray): the [x,y,z] viewing/projection vector (normal to the projection plane).
+        s (float): the scale factor to transform world coordinates into image coordinates. Default is 1.0 (keep world coords).
+
+    Returns:
+        A tuple containing:
+
+         - an ndarray with projected point coordinates (x,y,depth)
+         - an array containing True if each point is visible and False for points behind the viewing plane.
     """
 
     xyz = xyz - C[None, :]  # center origin on camera
@@ -159,18 +179,21 @@ def rasterize(points, vis, vals, dims, s=1):
     """
     Rasterizes projected points onto an image grid.
 
-    *Arguments*:
-     - points = the points (px,py,depth) to rasterise,
+    Args:
+        points (ndarray): the points (px,py,depth) to rasterise,
                 as returned by proj_persp or proj_pano.
-     - vis = a boolean array that is True if the points are visible (as returned by
+        vis (ndarray): a boolean array that is True if the points are visible (as returned by
                 proj_persp or proj_pano).
-     - vals = Nxm array of (m) additional point values (e.g. position, normals, colour) to add to rasterize. Alternatively
+        vals (ndarray): Nxm array of (m) additional point values (e.g. position, normals, colour) to add to rasterize. Alternatively
               a list of Nxm numpy arrays can be passed (these will be concatentated).
-     - dims = the size of the image grid.
-     - s = the size of the points in pixels. Default is 1.
-    *Returns*:
-     - raster = rasterised image with m bands corresponding to vals.
-     - depth = the depth buffer.
+        dims (ndarray): the size of the image grid.
+        s (int): the size of the points in pixels. Default is 1.
+
+    Returns:
+        A tuple containing:
+
+        - raster = rasterised image with m bands corresponding to vals.
+        - depth = the depth buffer.
     """
 
     #vals is a list of numpy arrays - stack them
@@ -213,14 +236,14 @@ def pix_to_ray_persp(x, y, fov, dims):
     Transform pixel coordinates to a unit direction (ray) in camera coordinates using a
     perspective pinhole camera model.
 
-    *Arguments*:
-     - x = the pixel x-coordinate. Cannot be array (only works for single pixels).
-     - y = the pixel y-coordinate. Cannot be array (only works for single pixels).
-     - fov = the camera's vertical field of view (degrees)
-     - dims = the dimensions of the image the pixels are contained in.
+    Args:
+        x (int): the pixel x-coordinate. Cannot be array (only works for single pixels).
+        y (int): the pixel y-coordinate. Cannot be array (only works for single pixels).
+        fov (float): the camera's vertical field of view (degrees)
+        dims (tuple): the dimensions of the image the pixels are contained in.
 
-    *Returns*:
-     - numpy array with the components of the light ray in camera coordinates (z == view direction, y == up)
+    Returns:
+        A numpy array with the components of the light ray in camera coordinates (z == view direction, y == up)
     """
 
     aspx = dims[0] / float(dims[1])
@@ -235,15 +258,15 @@ def pix_to_ray_pano(x, y, fov, step, dims):
     Transform pixel coordinates to a unit direction (ray) in camera coordinates using a
     panoramic camera model.
 
-    *Arguments*:
-     - px = the pixel x-coordinate. Cannot be array (only works for single pixels).
-     - py = the pixel y-coordinate. Cannot be array (only works for single pixels).
-     - fov = the camera's vertical field of view (degrees)
-     - step = the angular step between pixels in the x-direction.
-     - dims = the dimensions of the image the pixels are contained in.
+    Args:
+        px: the pixel x-coordinate. Cannot be array (only works for single pixels).
+        py: the pixel y-coordinate. Cannot be array (only works for single pixels).
+        fov: the camera's vertical field of view (degrees)
+        step: the angular step between pixels in the x-direction.
+        dims: the dimensions of the image the pixels are contained in.
 
-    *Returns*:
-     - numpy array with the components of the light ray in camera coordinates (z == view direction, y == up)
+    Returns:
+        numpy array with the components of the light ray in camera coordinates (z == view direction, y == up)
     """
 
     # calculate image plane properties
@@ -265,15 +288,15 @@ def pano_to_persp(x, y, fov, step, dims):
     Transforms pixels in a panoramic image to pixel coordinates as though they had been captured using a
     perspective camera with the same dimensions.
 
-    *Arguments*:
-     - x = array of pixel x-coordinates. These will be projected onto the image plane.
-     - y = array of pixel y-coordinate.
-     - fov = the camera's vertical field of view (degrees)
-     - step = the angular step between pixels in the x-direction.
-     - dims = the dimensions of the image the pixels are contained in.
+    Args:
+        x: array of pixel x-coordinates. These will be projected onto the image plane.
+        y: array of pixel y-coordinate.
+        fov: the camera's vertical field of view (degrees)
+        step: the angular step between pixels in the x-direction.
+        dims: the dimensions of the image the pixels are contained in.
 
-    *Returns*:
-     - px, py = numpy array with the projected pixel coordinates.
+    Returns:
+        px, py = numpy array with the projected pixel coordinates.
     """
     # are px and py lists?
     if isinstance(x, np.ndarray) or isinstance(x, list):
@@ -307,23 +330,23 @@ def pnp(kxyz, kxy, fov, dims, ransac=True, **kwds):
     """
     Solves the pnp problem to locate a camera given keypoints that are known in world and pixel coordinates using opencv.
 
-    *Arguments*:
-     - kxyz = Nx3 array of keypoint positions in world coordinates.
-     - kxy = Nx2 array of corresponding keypoint positions in pixel coordinates.
-     - fov = the (vertical) field of view of the camera.
-     - dims = the dimensions of the image in pixels
-     - ransac = true if ransac should be used to filter outliers. Default is True.
+    Args:
+        kxyz: Nx3 array of keypoint positions in world coordinates.
+        kxy: Nx2 array of corresponding keypoint positions in pixel coordinates.
+        fov: the (vertical) field of view of the camera.
+        dims: the dimensions of the image in pixels
+        ransac: true if ransac should be used to filter outliers. Default is True.
+        **kwds: keyword arguments are passed to cv2.solvePnP(...) or cv2.solvePnPRansac(...).
+                Other arguments can include:
 
-    *Keywords*:
-     - optical_centre = the pixel coordinates (cx,cy) of the optical centre to use. By default the
-         middle pixel of the image is used.
-     - other keyword arguments are passed to cv2.solvePnP(...) or cv2.solvePnPRansac(...).
+            - optical_centre = the pixel coordinates (cx,cy) of the optical centre to use. By default the
+                 middle pixel of the image is used. Additionally a custom optical center can be passed as (cx,cy)
+    Returns:
+        A tuple containing:
 
-       Additionally a custom optical center can be passed as (cx,cy)
-    *Returns*:
-     - p = the camera position in world coordinates
-     - r = the camera orientation (as XYZ euler angle).
-     - inl = list of Ransac inlier indices used to estimate the position, or None if ransac == False.
+         - p = the camera position in world coordinates
+         - r = the camera orientation (as XYZ euler angle).
+         - inl = list of Ransac inlier indices used to estimate the position, or None if ransac == False.
     """
     # normalize keypoints so that origin is at mean
     mean = np.mean(kxyz, axis=0)

@@ -17,22 +17,24 @@ def readAnnotations(annot, hsi, mask_patches=False, mask_panels=False, mask_poin
     """
     Extract pixel positions and region spectra (e.g. calibration panels) based on an annotation image.
     This image should have three RGB bands (0 - 255) and will be parsed as follows:
+
      - [0,0,0] = black = retain data.
      - [255,255,255] = white = mask data (replace with nan).
      - [aaa,aaa,aaa] = grays = extract regions and add averaged spectra to header file indexed by grey value.
      - [0,255,255],[255,0,255],[255,255,0]  = cyan, magenta, yellow = extract calibration panels A, B and C (respectively).
      - [n,0,0] (reds), [0,n,0] (blues), [0,0,n] (greens) = extract pixel locations and add to header file as points A, B and C (respectively). These will be ordered based on the corresponding channel value.
 
-    *Arguments*:
-     - annot = the annotations image (three channels, 0-255, uint8) matching the format described above.
-     - hsi = a hyperspectral image with matching x- and y- dimensions to the annotation image.
-     - mask_patches = True if patches should be removed from output. Default is False. [ i.e. these will be retained in the image ].
-     - mask_panels = True if panels should be removed from output. Default is False. [ i.e. these will be retained in the image ].
-     - mask_points = True if points should be removed from output. Default is False. [ i.e. these will be retained in the image ].
-     - mode = function used to aggregate pixel values. Options are 'average' (default) or 'median'.
-     - inplace = True if the hsi image should be modified in-place or copied (default).
-    *Returns*:
-     - a copy of the input file (if inplace is False) with the extracted points and spectra added to the header file.
+    Args:
+        annot: the annotations image (three channels, 0-255, uint8) matching the format described above.
+        hsi: a hyperspectral image with matching x- and y- dimensions to the annotation image.
+        mask_patches: True if patches should be removed from output. Default is False. [ i.e. these will be retained in the image ].
+        mask_panels: True if panels should be removed from output. Default is False. [ i.e. these will be retained in the image ].
+        mask_points: True if points should be removed from output. Default is False. [ i.e. these will be retained in the image ].
+        mode: function used to aggregate pixel values. Options are 'average' (default) or 'median'.
+        inplace: True if the hsi image should be modified in-place or copied (default).
+
+    Returns:
+        a copy of the input file (if inplace is False) with the extracted points and spectra added to the header file.
     """
 
     # check inputs
@@ -107,18 +109,16 @@ def label_blocks(image, fg=None, s=8, epad=20, boost=3, erode=3, bands=hylite.RG
     """
     Segments an image into background and different hand samples based on point labels.
 
-    **Arguments**:
-     - image = the image to segment.
-     - fg = the foreground definition (labelled with sample IDs). If None (default) then samples are pulled from the header file.
-     - s = the number of pixels to label at each label point (if fg is not specified).
-     - epad = padding around the edge of the image to be specified as background. Default is 20 pixels.
-     - boost = multiplication factor to exaggurate foreground background contrast.
-     - erode = Amount of erosion to apply to remove small regions labelled as sample. Default is 3. Set to 0 to disable.
-     - bands = the bands to use for segmentation. Default is hylite.RGB.
-     - vb = True if figures should be generated for QAQC. Default is True.
-
-    *Keywords*:
-     - keywords are passed to HyImage.quick_plot( ... ) if vb is true.
+    Args:
+        image: the image to segment.
+        fg: the foreground definition (labelled with sample IDs). If None (default) then samples are pulled from the header file.
+        s: the number of pixels to label at each label point (if fg is not specified).
+        epad: padding around the edge of the image to be specified as background. Default is 20 pixels.
+        boost: multiplication factor to exaggurate foreground background contrast.
+        erode: Amount of erosion to apply to remove small regions labelled as sample. Default is 3. Set to 0 to disable.
+        bands: the bands to use for segmentation. Default is hylite.RGB.
+        vb: True if figures should be generated for QAQC. Default is True.
+        **kwds: keywords are passed to HyImage.quick_plot( ... ) if vb is true.
     """
 
     # create fg array?
@@ -212,9 +212,9 @@ def extract_tiles( image, labels ):
     Extract tiles that each contain a single contiguous block based on the specified classification. Useful for
     extracting individual samples from core-scanner imagery.
 
-    *Arguments*:
-     - image = the hyperspectral image to extract blocks from
-     - labels = a HyImage instance with different samples labelled as non-0 values.
+    Args:
+        image: the hyperspectral image to extract blocks from
+        labels: a HyImage instance with different samples labelled as non-0 values.
     """
 
     # extract connected components
@@ -257,18 +257,20 @@ def group_tiles( tiles, groups, ids=None, rotate=True, ignore=[] ):
     """
     Group a list of image tiles based on corresponding group IDs.
 
-    *Arguments*:
-     - tiles = a list of HyImage tiles.
-     - groups = a list of integers corresponding to the grouping to arrange tiles by.
-     - ids = a list of sample IDs to create an id classification (or None).
-     - rotate = True if tiles should be rotated such that they're longer dimension aligns with the x-axis.
-     - ignore = a list of group id's that should be ignored/excluded from this grouping.
-    *Returns*:
-     - tiled_image = a HyImage instance containing the arranged tiles.
-     - tiled_label = a HyImage classification containing the class indices used to arrange the tiles.
-     - [tiled_id] = a HyImage classification containing individual sample IDs (if ids is not None).
-     - bounds = the bounds (x,y,width,height) of each group of tiles. Useful for labelling or separation.
-    """
+    Args:
+        tiles: a list of HyImage tiles.
+        groups: a list of integers corresponding to the grouping to arrange tiles by.
+        ids: a list of sample IDs to create an id classification (or None).
+        rotate: True if tiles should be rotated such that they're longer dimension aligns with the x-axis.
+        ignore: a list of group id's that should be ignored/excluded from this grouping.
+    Returns:
+        A tuple containing:
+
+         - tiled_image = a HyImage instance containing the arranged tiles.
+         - tiled_label = a HyImage classification containing the class indices used to arrange the tiles.
+         - [tiled_id] = a HyImage classification containing individual sample IDs (if ids is not None).
+         - bounds = the bounds (x,y,width,height) of each group of tiles. Useful for labelling or separation.
+     """
 
     # rotate tiles
     if rotate:
@@ -349,12 +351,12 @@ def build_core_template(images, N=5, thresh=40, vb=True):
     individual core segments and is robust to data quirks (e.g. empty trays). All images must be identical
     dimensions and properly co-aligned.
 
-    *Arguments*:
-     - images = a list of co-aligned images of different core trays build template with.
-     - N = the number of cores per tray. Default is 5.
-     - thresh = percentile used to separate foreground from background. Default is 40. Higher values ensure
+    Args:
+        images: a list of co-aligned images of different core trays build template with.
+        N: the number of cores per tray. Default is 5.
+        thresh: percentile used to separate foreground from background. Default is 40. Higher values ensure
                 proper separation of cores, but will crop data more closely.
-     - vb = True if a tqdm progress bar should be printed.
+        vb: True if a tqdm progress bar should be printed.
     """
 
     # sum valid pixels
@@ -398,16 +400,16 @@ def unwrap_core(image, template, stack='linear', **kwds):
     the top-left of the core tray is considered to be the "top", so the image may need to be flipped/mirrored prior
     to calling this function.
 
-    *Arguments*:
-     - image = the image to unwrap. Background (non-core pixels) must have already been masked and set as np.nan.
-     - template = A labelled template
-     - stack = 'line' or 'separate'; either align cores in a single stick ('line'),
+    Args:
+        image: the image to unwrap. Background (non-core pixels) must have already been masked and set as np.nan.
+        template: A labelled template
+        stack: 'line' or 'separate'; either align cores in a single stick ('line'),
                 or return individual tiles ('separate').
+        **kwds: Keywords can include:
 
-    *Keywords*:
-     - start = the meterage of the top of the core. Will be added to the image header.
-     - end = the meterage of the bottom of the core. Will be added to the image header.
-     - id = the id of this core tray.
+             - start = the meterage of the top of the core. Will be added to the image header.
+             - end = the meterage of the bottom of the core. Will be added to the image header.
+             - id = the id of this core tray.
     """
 
     # extract tiles
@@ -466,9 +468,9 @@ def tray_to_stick(tray, N):
     """
     Break a unwrapped tray into individual sticks.
 
-    *Arguments*:
-     - tray = a HyImage instance containing a linearly unwrapped tray.
-     - N = the number of chunks of core to break it into.
+    Args:
+        tray: a HyImage instance containing a linearly unwrapped tray.
+        N: the number of chunks of core to break it into.
     """
 
     # check orientation
@@ -499,11 +501,11 @@ def composite_cores(trays, pad=2):
     Composites a list of uwrapped core trays (cf. unwrap_core(...)) into a single image such that each column
     represents a single tray (arranged vertically).
 
-    *Arguments*:
-     - trays = a list of HyImage instances containing unwrapped core trays. The header of these
+    Args:
+        trays: a list of HyImage instances containing unwrapped core trays. The header of these
                images must contain localisation information; specifically the "core start" and "core end"
                keywords.
-     - pad = the padding (in pixels) between core segments.
+        pad: the padding (in pixels) between core segments.
     """
 
     # calculate order and identify breaks in core
@@ -553,9 +555,9 @@ def plot_drillhole(composite, N=5, maxN=25, **kwds):
     Plot a composite drillhole as created by composite_core. This plots the image data, but includes annotations
     the specify the distances along/down hole.
 
-    *Arguments*:
-     - N = the number of sticks per tray. Used to ensure start/end labels are in the correct place.
-     - max_trays = the maximum number of trays per row. Default is 25.
+    Args:
+        N: the number of sticks per tray. Used to ensure start/end labels are in the correct place.
+        max_trays: the maximum number of trays per row. Default is 25.
     *Keywords*: are passed to HyImage.quick_plot( ... )
     """
 

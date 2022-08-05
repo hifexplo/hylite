@@ -23,12 +23,12 @@ class PMap(object):
         """
         Create a new (empty) PMap object.
 
-        *Arguments*:
-          - xdim = the width of the associated image in pixels. Used for ravelling indices.
-          - ydim = the height of the associated image in pixels. Used for ravelling indices.
-          - points = the number of points that are in this map. Used for ravelling indices.
-          - cloud = a link to the source cloud, default is None.
-          - image = a link to the source image, default is None.
+        Args:
+             xdim: the width of the associated image in pixels. Used for ravelling indices.
+             ydim: the height of the associated image in pixels. Used for ravelling indices.
+             points: the number of points that are in this map. Used for ravelling indices.
+             cloud: a link to the source cloud, default is None.
+             image: a link to the source image, default is None.
         """
         self.xdim = xdim  # width of the associated image
         self.ydim = ydim  # height of the associated image
@@ -88,10 +88,12 @@ class PMap(object):
         """
         Return three flat arrays that contain all the links in this projection map.
 
-        *Returns*:
-         - points = an (n,) list of point ids.
-         - pixels = an (n,) list of pixel ids corresponding to the points above.
-         - z = an (n,) list of distances between each point and corresponding pixel.
+        Returns:
+            A tuple containing:
+
+            - points = an (n,) list of point ids.
+            - pixels = an (n,) list of pixel ids corresponding to the points above.
+            - z = an (n,) list of distances between each point and corresponding pixel.
         """
         self.coo()
         return self.data.row, self.data.col, 1/self.data.data # return
@@ -100,10 +102,10 @@ class PMap(object):
         """
         Adds links to this pmap from flattened arrays as returned by get_flat( ... ).
 
-        *Arguments*:
-         - points = an (n,) list of point ids.
-         - pixels = an (n,) list of pixel ids corresponding to the points above.
-         - z = an (n,) list of distances between each point and corresponding pixel.
+        Args:
+            points: an (n,) list of point ids.
+            pixels: an (n,) list of pixel ids corresponding to the points above.
+            z: an (n,) list of distances between each point and corresponding pixel.
         """
         # easy!
         self.data = coo_matrix( (1/z, (points,pixels)), shape=(self.npoints, self.xdim*self.ydim), dtype=np.float32 )
@@ -117,9 +119,9 @@ class PMap(object):
         Adds links to the pmap based on a projected point coordinates array and a visibility list, as returned by
         e.g. proj_persp and proj_pano.
 
-        *Arguments*:
-         - pp = projected point coordinates as returned by e.g. proj_pano.
-         - vis = point visibilities, as returned by e.g. proj_pano.
+        Args:
+            pp: projected point coordinates as returned by e.g. proj_pano.
+            vis: point visibilities, as returned by e.g. proj_pano.
         """
         # convert to indices
         pid = np.argwhere(vis)[:, 0]
@@ -163,11 +165,13 @@ class PMap(object):
         """
         Get the index of the closest point in the specified pixel
 
-        *Arguments*;
-         - pixel = the index of the pixel (integer or (x,y) tuple).
-        *Returns*:
-         - point = the point index or None if no points are in the specified pixel.
-         - depth = the distance to this point.
+        Args:
+            pixel: the index of the pixel (integer or (x,y) tuple).
+        Returns:
+            A tuple containing:
+
+             - point = the point index or None if no points are in the specified pixel.
+             - depth = the distance to this point.
         """
         self.csc() # convert to column format
         C = self.data[:, self._ridx(pixel)] # get column
@@ -178,11 +182,12 @@ class PMap(object):
         """
         Get the indices and depths of all points in the specified pixel.
 
-        *Arguments*;
-         - pixel = the index of the pixel (integer or (x,y) tuple).
-        *Returns*:
-         - points = a list of point indices, or [ ] if no points are present.
-         - depths = a list of associated depths, or [ ] if no points are present.
+        Args:
+            pixel: the index of the pixel (integer or (x,y) tuple).
+        Returns:
+            A tuple containing:
+                 - points = a list of point indices, or [ ] if no points are present.
+                 - depths = a list of associated depths, or [ ] if no points are present.
         """
         self.csc() # convert to column format
         C = self.data[:, self._ridx(pixel)] # get column
@@ -192,11 +197,13 @@ class PMap(object):
         """
         Get the index of the closest pixel to the specified point.
 
-        *Arguments*;
-         - point = the point index
-        *Returns*:
-         - (px, py) = the pixel coordinates, or None if no mapping exists
-         - depth = the distance to this pixel.
+        Args:
+            point: the point index
+        Returns:
+            A tuple containing:
+
+             - (px, py) = the pixel coordinates, or None if no mapping exists
+             - depth = the distance to this pixel.
         """
         self.csr() # convert to row format
         R = self.data[point, :] # get row
@@ -206,11 +213,14 @@ class PMap(object):
         """
         Get a list of pixel coordinates associated with the specified point.
 
-        *Arguments*:
-         - point = the point index
-        *Returns*:
-         - pixels = a list of (n,2) containing pixel coordinates.
-         - depths = a list of (n,) containing associated distances.
+        Args:
+            point: the point index
+
+        Returns:
+            A tuple containing:
+
+                 - pixels = a list of (n,2) containing pixel coordinates.
+                 - depths = a list of (n,) containing associated distances.
         """
         self.csr() # convert to row format
         R = self.data[point,:] # get row
@@ -239,7 +249,7 @@ class PMap(object):
         Calculate how many points are in each pixel.
 
         Returns:
-         - a HyImage instance containing point counts per pixel.
+            a HyImage instance containing point counts per pixel.
         """
         self.csr() # use row-compressed form
         W = (self.data > 0).astype(np.float32)  # convert to binary adjacency matrix
@@ -251,7 +261,7 @@ class PMap(object):
         Calculates how many pixels project to each point.
 
         Returns:
-         - a copy of self.cloud, but with a scalar field containing pixel counts per point. If self.cloud is not defined
+            a copy of self.cloud, but with a scalar field containing pixel counts per point. If self.cloud is not defined
            then a numpy array of point counts will be returned.
         """
         self.csc() # use column compressed form
@@ -269,10 +279,10 @@ class PMap(object):
         """
         Get point indices that exist (are visible in) this scene and another.
 
-        *Arguments*:
-         - map2 = a PMap instance that references the same cloud but with a different image/viewpoint.
-        *Returns*:
-         - indices = a list of point indices that are visible in both scenes.
+        Args:
+            map2: a PMap instance that references the same cloud but with a different image/viewpoint.
+        Returns:
+            a list of point indices that are visible in both scenes.
         """
         S1 = set( self.points )
         S2 = set( map2.points )
@@ -282,10 +292,10 @@ class PMap(object):
         """
         Returns points that are included in one or more of the passed PMaps.
 
-        *Arguments*:
-         - maps = a list of pmap instances to compare with (or just one).
-        *Returns*:
-         - indices = a list of point indices that are visible in either or both scenes.
+        Args:
+            maps: a list of pmap instances to compare with (or just one).
+        Returns:
+            a list of point indices that are visible in either or both scenes.
         """
         if not isinstance(maps, list):
             maps = [maps]
@@ -297,12 +307,14 @@ class PMap(object):
         """
         Identifies matching pixels between two scenes.
 
-        *Arguments*:
-         - map2 = the scene to match against this one
+        Args:
+            map2: the scene to match against this one
 
-        *Returns*:
-         - px1 = a numpy array of (x,y) pixel coordinates in this scene.
-         - px2 = a numpy array of corresponding (x,y) pixel coordinates in scene 2.
+        Returns:
+            A tuple containing:
+
+             - px1 = a numpy array of (x,y) pixel coordinates in this scene.
+             - px2 = a numpy array of corresponding (x,y) pixel coordinates in scene 2.
         """
         px1 = []
         px2 = []
@@ -318,8 +330,8 @@ class PMap(object):
         """
         Removes mappings to nan pixels from linkage matrix.
 
-        *Arguments*:
-         - image = the image containing nan pixels that should be removed. Default is self.image.
+        Args:
+            image: the image containing nan pixels that should be removed. Default is self.image.
         """
         self.csc()  # change to column format
 
@@ -343,8 +355,8 @@ class PMap(object):
         on-ground footprint above the specified threshold. This operation is
         applied in-place to conserve memory.
 
-        *Arguments*:
-         - thresh = the maximum allowable pixel footprint (in points). Pixels containing > than
+        Args:
+            thresh: the maximum allowable pixel footprint (in points). Pixels containing > than
                     this number of points will be removed from the projection map.
         """
 
@@ -368,8 +380,8 @@ class PMap(object):
         Filter projections in a PMap instance and remove points that are likely to be
         occluded. This operation is applied in-place to conserve memory.
 
-        *Arguments*:
-         - occ_tol = the tolerance of the occlusion culling. Points within this distance of the
+        Args:
+            occ_tol: the tolerance of the occlusion culling. Points within this distance of the
                      closest point in each pixel will be retained.
         """
 
@@ -388,10 +400,12 @@ def _gather_bands(data, bands):
     """
     Utility function used by push_to_image( ... ) and push_to_cloud( ... ) to slice data from a HyData instance.
 
-    *Returns*:
-     - data = a data array containing the requested bands (hopefully).
-     - wav = the wavelengths of the extracted bands (or -1 for non-spectral attributes).
-     - names = the names of the extracted bands.
+    Returns:
+        A tuple containing:
+
+             - data = a data array containing the requested bands (hopefully).
+             - wav = the wavelengths of the extracted bands (or -1 for non-spectral attributes).
+             - names = the names of the extracted bands.
     """
 
     # extract wavelength and band name info
@@ -485,23 +499,26 @@ def push_to_cloud(pmap, bands=(0, -1), method='best', image=None, cloud=None ):
     """
     Push the specified bands from an image onto a hypercloud using a (precalculated) PMap instance.
 
-    *Arguments*:
-     - pmap = a pmap instance. the pmap.image and pmap.cloud references must also be defined.
-     - bands = List defining the bands to include in the output dataset. Elements should be one of:
-              - numeric = index (int), wavelength (float) of an image band
-              - tuple of length 2: start and end bands (float or integer) to export.
-              - iterable of length > 2: list of bands (float or integer) to export.
-     - method = The method used to condense data from multiple pixels onto each point. Options are:
-                 - 'closest': use the closest pixel to each point.
-                 - 'distance': average with inverse distance weighting.
-                 - 'count' : average weighted inverse to the number of points in each pixel.
-                 - 'best' : use the pixel that is mapped to the fewest points (only). Default.
-                 - 'average' : average with all pixels weighted equally.
-     - image = the image to project (if different to pmap.image). Must have matching dimensions. Default is pmap.image.
-     - cloud = the cloud to project (if different to pmap.cloud). Must have matching dimensions. Default is pmap.cloud.
+    Args:
+        pmap: a pmap instance. the pmap.image and pmap.cloud references must also be defined.
+        bands: List defining the bands to include in the output dataset. Elements should be one of:
 
-    *Returns*:
-     - A HyCloud instance containing the back-projected data.
+            - numeric = index (int), wavelength (float) of an image band
+            - tuple of length 2: start and end bands (float or integer) to export.
+            - iterable of length > 2: list of bands (float or integer) to export.
+        method: The method used to condense data from multiple pixels onto each point. Options are:
+
+            - 'closest': use the closest pixel to each point.
+            - 'distance': average with inverse distance weighting.
+            - 'count' : average weighted inverse to the number of points in each pixel.
+            - 'best' : use the pixel that is mapped to the fewest points (only). Default.
+            - 'average' : average with all pixels weighted equally.
+
+        image: the image to project (if different to pmap.image). Must have matching dimensions. Default is pmap.image.
+        cloud: the cloud to project (if different to pmap.cloud). Must have matching dimensions. Default is pmap.cloud.
+
+    Returns:
+        A HyCloud instance containing the back-projected data.
     """
 
     if image is None:
@@ -571,23 +588,27 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
     Project the specified data from a point cloud onto an image using a (precalculated) PMap instance. If multiple points map
     to a single pixel then the results are averaged.
 
-    *Arguments*:
-     - pmap = a pmap instance. the pmap.image and pmap.cloud references must also be defined.
-     - bands = List defining the bands to include in the output dataset. Elements should be one of:
-              - numeric = index (int), wavelength (float) of an image band
-              - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
-                   can also be expected by passing any combination of the following:
-                    - 'rgb' = red, green and blue per-point colour values
-                    - 'klm' = point normals
-                    - 'xyz' = point coordinates
-              - iterable of length > 2: list of bands (float or integer) to export.
-     - method = The method used to condense data from multiple points onto each pixel. Options are:
-                 - 'closest': use the closest point to each pixel (default is this is fastest).
-                 - 'average' : average with all pixels weighted equally. Slow.
-     - image = the image to project (if different to pmap.image). Must have matching dimensions. Default is pmap.image.
-     - cloud = the cloud to project (if different to pmap.cloud). Must have matching dimensions. Default is pmap.cloud.
-    *Returns*:
-     - A HyImage instance containing the projected data.
+    Args:
+        pmap: a pmap instance. the pmap.image and pmap.cloud references must also be defined.
+        bands: List defining the bands to include in the output dataset. Elements should be one of:
+
+            - numeric = index (int), wavelength (float) of an image band
+            - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
+               can also be expected by passing any combination of the following:
+                - 'rgb' = red, green and blue per-point colour values
+                - 'klm' = point normals
+                - 'xyz' = point coordinates
+            - iterable of length > 2: list of bands (float or integer) to export.
+
+        method: The method used to condense data from multiple points onto each pixel. Options are:
+
+            - 'closest': use the closest point to each pixel (default is this is fastest).
+            - 'average' : average with all pixels weighted equally. Slow.
+
+        image: the image to project (if different to pmap.image). Must have matching dimensions. Default is pmap.image.
+        cloud: the cloud to project (if different to pmap.cloud). Must have matching dimensions. Default is pmap.cloud.
+    Returns:
+        A HyImage instance containing the projected data.
     """
 
     if image is None:
@@ -644,17 +665,18 @@ def push_geomattr(scene, method='best'):
     """
     Return a HyCloud instance containing the geometric attributes of a given projection. This will have
     two or three bands as follows:
+
      - distance from the sensor to each point
      - effective GSD (number of points per source pixel)
      - obliquity (angle in degrees between surface normal and view vector), if the point cloud has normal vectors.
 
     These are useful for QAQC of projected results or doing weighted blending.
 
-    *Arguments*:
-     - scene = the HyScene instance to compute geometric attributes for.
-     - method = the projection method used for handling duplicate pixels. See scene.push_to_cloud for details.
-    *Returns*:
-     - a HyCloud instance containing the three geometric attributes.
+    Args:
+        scene: the HyScene instance to compute geometric attributes for.
+        method: the projection method used for handling duplicate pixels. See scene.push_to_cloud for details.
+    Returns:
+        a HyCloud instance containing the three geometric attributes.
     """
     # get projection map and relevant attributes (in image space)
     pmap = scene.pmap
@@ -681,16 +703,18 @@ def get_blend_weights(scenes, method, ascloud=True):
     Compute weights for doing scene blending based on geometric attributes computed using
     push_geomattr( ... ).
 
-    *Arguments*:
-     - scenes = a list of scenes to compute blend weights for.
-     - method = the weighting method. Options are:
-                 - 'equal' = all values are weighted equally.
-                 - 'distance' = closer points are given higher weight.
-                 - 'gsd' = lower ground-sampling values are given higher weight.
-                 - 'obliquity' = less oblique points are given higher weight.
-     - ascloud = True if weights should be returned as a HyCloud instance. Otherwise a numpy array is returned.
-    *Returns*:
-     - a numpy array containing the normalised blending weight for each (point,scene).
+    Args:
+        scenes: a list of scenes to compute blend weights for.
+        method: the weighting method. Options are:
+
+             - 'equal' = all values are weighted equally.
+             - 'distance' = closer points are given higher weight.
+             - 'gsd' = lower ground-sampling values are given higher weight.
+             - 'obliquity' = less oblique points are given higher weight.
+
+        ascloud: True if weights should be returned as a HyCloud instance. Otherwise a numpy array is returned.
+    Returns:
+        a numpy array containing the normalised blending weight for each (point,scene).
     """
 
     weights = np.ones((scenes[0].cloud.point_count(), len(scenes)))
@@ -722,22 +746,22 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
     Blend together collections of scenes that reference the same underlying cloud to create a fused
     hypercloud.
 
-    *Arguments*:
-     - scenes = a list of scenes to fuse. Data will be extracted from scene.image and pushed to the cloud using
+    Args:
+        scenes: a list of scenes to fuse. Data will be extracted from scene.image and pushed to the cloud using
                 scene.pmap.
-     - weights = a numpy array or HyCloud instance containings weighting factors with shape (points,scenes). See
+        weights: a numpy array or HyCloud instance containings weighting factors with shape (points,scenes). See
                  get_blend_weights(...) for more details.
-     - bands = tuple specifying the (min,max) bands of scenes.image to export. Default is all bands (0,-1).
-     - chunksize = the number of bands to project in any given iteration. Larger numbers are faster but require
+        bands: tuple specifying the (min,max) bands of scenes.image to export. Default is all bands (0,-1).
+        chunksize: the number of bands to project in any given iteration. Larger numbers are faster but require
                    more RAM.
-     - trim = True if points with no data mapped to them should be removed.
-     - ooc = True if hypercloud bands should be created out-of-core and then assembled. This is slower but less RAM
+        trim: True if points with no data mapped to them should be removed.
+        ooc: True if hypercloud bands should be created out-of-core and then assembled. This is slower but less RAM
              intensive for large hyperclouds. If this is True, scene.free() will also be called to unload hyperspectral images
              after they have been processed; so please save HyScenes before using!
-     - vb = True if progress bars should be created.
+        vb: True if progress bars should be created.
 
-    *Returns*:
-     - a HyCloud instance contain
+    Returns:
+        a HyCloud instance contain
     """
 
     # check / format input

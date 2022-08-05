@@ -5,16 +5,16 @@ def band_ratio(data, num, den):
     """
     Calculate a band ratio to map broad absorbion features (e.g. iron).
 
-    *Arguments*:
-     - data = HyData instance to calculate a band ratio for.
-     - num = the numerator of the band ratio. Integers are treated as indices, floats as wavelengths.
+    Args:
+        data: HyData instance to calculate a band ratio for.
+        num: the numerator of the band ratio. Integers are treated as indices, floats as wavelengths.
 
                 If a tuple is passed then values between band1[0] and band1[1] will be averaged before computing the
                band ratio. Lists of tuples/floats or indices will be summed (for calculating ratios of the form (a+b)/c).
 
-     - den = the denominator of the band ratio. Values are treated like in band1.
-    *Returns*:
-     - a new HyData instance containing the band ratio.
+        den: the denominator of the band ratio. Values are treated like in band1.
+    Returns:
+        a new HyData instance containing the band ratio.
 
     """
     if not isinstance(num, list):
@@ -99,10 +99,10 @@ def NDVI(data):
     """
     Calculate NDVI.
 
-    *Arguments*:
-     - data = the HyData instance to calculate a NDVI for.
-    *Returns*:
-     - a new HyData instance containing the band ratio.
+    Args:
+        data: the HyData instance to calculate a NDVI for.
+    Returns:
+        a new HyData instance containing the band ratio.
     """
 
     idxNIR = data.get_band_index(800.0)
@@ -128,10 +128,10 @@ def SKY(data):
     Calculate ratio between blue (479.89 nm and featureless swir (1688.64 nm) to identify sky pixels and (sometimes)
     very distance pixels due to blue scattering.
 
-    *Arguments*:
-     - data = the HyData instance to calculate a NDVI for.
-    *Returns*:
-     - a new HyData instance containing the SKY band ratio.
+    Args:
+        data: the HyData instance to calculate a NDVI for.
+    Returns:
+        a new HyData instance containing the SKY band ratio.
     """
 
     return band_ratio(data, 479.89, 1688.64)
@@ -142,10 +142,10 @@ def SHADE(data):
 
     Generally this should work well, except for objects that are very blue. Luckily blue things are not common in Geology.
 
-    *Arguments*:
-     - data = the HyData instance to calculate SHADE for.
-    *Returns*:
-     - a new HyData instance containing the SHADE band ratio.
+    Args:
+        data: the HyData instance to calculate SHADE for.
+    Returns:
+        a new HyData instance containing the SHADE band ratio.
     """
 
     return band_ratio(data, 480.0, 800.0)

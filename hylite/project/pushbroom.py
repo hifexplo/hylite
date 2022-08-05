@@ -1,6 +1,7 @@
 """
 Functions for projecting between pushbroom sensors (with known orientation/position from IMU data) and a 3D point cloud.
 """
+
 import hylite
 from hylite.project import rasterize, PMap, push_to_cloud
 from scipy import spatial
@@ -25,12 +26,12 @@ class Pushbroom(object):
         """
         Initialise this pushbroom camera instance.
 
-        *Arguments*:
-         - pos = a list containing the position of the sensor at each frame.
-         - ori = a list containing the orientation of the sensor (roll, pitch, yaw in degrees) at each frame.
-         - xfov = the across-track field of view of one pixel (e.g. 0.01 degree).
-         - lfov = the along-track field of view of one pixel (e.g. 0.01 degree).
-         - dims = the dimensions of the resulting image. Should be (pixels_in_sensor, number_of_frames).
+        Args:
+            pos: a list containing the position of the sensor at each frame.
+            ori: a list containing the orientation of the sensor (roll, pitch, yaw in degrees) at each frame.
+            xfov: the across-track field of view of one pixel (e.g. 0.01 degree).
+            lfov: the along-track field of view of one pixel (e.g. 0.01 degree).
+            dims: the dimensions of the resulting image. Should be (pixels_in_sensor, number_of_frames).
         """
 
         # store track and fov info
@@ -61,15 +62,15 @@ class Pushbroom(object):
         at these points, (3) interpolates these residuals between the known points and (4) subtracts them from
         the IMU track.
 
-        *Arguments*:
-         - t_all = timestamps associated with the orientation and position data in this pushbroom track.
-         - t_known = an array of timestamps of shape (n,) associated with the known positions/orientations.
-         - cp_known = an array of shape (n,3) containing known positions to fudge to.
-         - co_known = an array of of shape (n,3) containing known orientations to fudge to.
-         - method = the interpolation method to use, as defined in scipy.interpolate.interp1d. Default is 'quadratic'.
+        Args:
+            t_all: timestamps associated with the orientation and position data in this pushbroom track.
+            t_known: an array of timestamps of shape (n,) associated with the known positions/orientations.
+            cp_known: an array of shape (n,3) containing known positions to fudge to.
+            co_known: an array of of shape (n,3) containing known orientations to fudge to.
+            method: the interpolation method to use, as defined in scipy.interpolate.interp1d. Default is 'quadratic'.
 
-        *Returns*:
-         - a fudged copy of this track.
+        Returns:
+            a fudged copy of this track.
         """
 
         # check shapes
@@ -104,7 +105,7 @@ class Pushbroom(object):
         """
         Add constant values (boresight) to the roll, pitch and yaw angles.
 
-        *Returns*: a new Pushbroom instance with the adjusted values.
+        Returns: a new Pushbroom instance with the adjusted values.
         """
         # appy boresight
         co_adj = self.co + np.array( [roll, pitch, yaw ] )
@@ -114,8 +115,8 @@ class Pushbroom(object):
         """
         Return scipy.spatial.Rotation objects that store camera orientation data.
 
-        *Arguments*:
-         i = the frame index to get a rotation object for. If None (Default) a list of all Rotations is returned.
+        Args:
+         i: the frame index to get a rotation object for. If None (Default) a list of all Rotations is returned.
         """
         if i is not None:
             return self.R[i]
@@ -126,9 +127,9 @@ class Pushbroom(object):
         """
         Get the local camera x (0), y (1) or z (2) axis vector from the rotation matrices.
 
-        *Arguments*:
-         - axis = 0 (x), 1 (y) or 2 (z).
-         - i = the frame index to get vector for. If None (Default) a list of all vectors is returned.
+        Args:
+            axis: 0 (x), 1 (y) or 2 (z).
+            i: the frame index to get vector for. If None (Default) a list of all vectors is returned.
         """
         if i is not None:
             assert i >= 0 and i < 3, "Error - i must be 0, 1 or 2."
@@ -140,8 +141,8 @@ class Pushbroom(object):
         """
         Get the Camera's along-track (movement) vector.
 
-        *Arguments*:
-         i = the frame index to get vector for. If None (Default) a list of all vectors is returned.
+        Args:
+         i: the frame index to get vector for. If None (Default) a list of all vectors is returned.
         """
         return self.get_axis(0, i)
 
@@ -149,8 +150,8 @@ class Pushbroom(object):
         """
         Get the Camera's cross-track vector.
 
-        *Arguments*:
-         i = the frame index to get vector for. If None (Default) a list of all vectors is returned.
+        Args:
+         i: the frame index to get vector for. If None (Default) a list of all vectors is returned.
         """
         return self.get_axis(1, i)
 
@@ -158,8 +159,8 @@ class Pushbroom(object):
         """
         Get the Camera's view vector.
 
-        *Arguments*:
-         i = the frame index to get vector for. If None (Default) a list of all vectors is returned.
+        Args:
+         i: the frame index to get vector for. If None (Default) a list of all vectors is returned.
         """
         return self.get_axis(2, i)
 
@@ -167,15 +168,16 @@ class Pushbroom(object):
         """
         Project the point cloud onto an (instantaneous) frame from this pushbroom camera.
 
-        *Arguments*:
-         - cloud = the point cloud to project. Must have points stored in cloud.xyz (HyCloud) or be a (n,3) array.
-         - i = the camera frame (along track index) to use.
-         - flip = True if pixel coordinates should be flipped.
-        *Returns*:
-         - a (3,) array of projected points with coordinates that are:
-             0. xtrack = the position (in pixels) of the points across track (pixels on the sensor)
-             1. ltrack = the position (in pixels) of the points along track. Values between 0 and 1 will pass through the sensor slit.
-             2. depth = the depth along the view direction of each point (in meters).
+        Args:
+            cloud: the point cloud to project. Must have points stored in cloud.xyz (HyCloud) or be a (n,3) array.
+            i: the camera frame (along track index) to use.
+            flip: True if pixel coordinates should be flipped.
+        Returns:
+            a (3,) array of projected points with coordinates that are:
+
+             - xtrack = the position (in pixels) of the points across track (pixels on the sensor)
+             -  ltrack = the position (in pixels) of the points along track. Values between 0 and 1 will pass through the sensor slit.
+             -  depth = the depth along the view direction of each point (in meters).
         """
 
         # project into camera coordinates
@@ -202,10 +204,10 @@ class Pushbroom(object):
         """
         Clip this tracks IMU data to the specified frames. Note that this is not reversable.
 
-        *Arguments*:
-         - start = the start frame.
-         - end = the end frame.
-         - image = a HyImage instance to clip also, if provided (default is None). Clipping will
+        Args:
+            start: the start frame.
+            end: the end frame.
+            image: a HyImage instance to clip also, if provided (default is None). Clipping will
                    be applied to the y-direction.
         """
         assert self.co.shape[0] > end and start > 0, "Error - invalid range %d - %d (data shape is %s)" % (start,end,self.co.shape)
@@ -221,14 +223,14 @@ class Pushbroom(object):
         """
         Plot IMU data and (if provided) the raw image frames.
 
-        *Arguments*:
-         - image = the waterfall image to plot. Default is None (no plot).
-         - bands = the bands of the waterfall image to plot. Default is (0,1,2).
-         - flipY = flip the Y axis of the image. Default is True.
-         - flipX = flip the X axis of the image. Default is False.
-         - rot = rotate the image by 90 degrees. Default is True.
-        *Returns*:
-         - fig,ax = the figure and a list of associated axes.
+        Args:
+            image: the waterfall image to plot. Default is None (no plot).
+            bands: the bands of the waterfall image to plot. Default is (0,1,2).
+            flipY: flip the Y axis of the image. Default is True.
+            flipX: flip the X axis of the image. Default is False.
+            rot: rotate the image by 90 degrees. Default is True.
+        Returns:
+            fig,ax = the figure and a list of associated axes.
         """
         if image is None:
             fig, ax = plt.subplots(6, 1, figsize=(18, 12))
@@ -261,11 +263,11 @@ class Pushbroom(object):
         """
         Create a curtain plot for visualising this camera track.
 
-        *Arguments*:
-         - scale = the scale of the camera basis vectors (curtain). This is in transformed coordinates.
-         - alpha = the alpha value to use for the curtain. Default is 0.1.
-         - ax = an external axis to plot too.
-         - ortho = an orthoimage to use to project to pixel coordinates. Image must have a defined affine transform.
+        Args:
+            scale: the scale of the camera basis vectors (curtain). This is in transformed coordinates.
+            alpha: the alpha value to use for the curtain. Default is 0.1.
+            ax: an external axis to plot too.
+            ortho: an orthoimage to use to project to pixel coordinates. Image must have a defined affine transform.
         """
 
         if ax is None:
@@ -319,10 +321,10 @@ class Pushbroom(object):
         Plot the camera axes and scan line in world coordinates. Useful for checking camera orientation at a
         given frame (and debugging!).
 
-        *Arguments*:
-         - i = plot the i'th camera.
-        *Returns*:
-         - fig,ax = the matplotlib plot.
+        Args:
+            i: plot the i'th camera.
+        Returns:
+            fig,ax = the matplotlib plot.
         """
         import matplotlib.pyplot as plt
         from mpl_toolkits.mplot3d import axes3d
@@ -374,13 +376,13 @@ class Pushbroom(object):
         """
         Plot a projected strip for comparision between an image and a point cloud.
 
-        *Arguments*:
-         - line = the line ID to plot.
-         - width = how many pixels to plot either side of the line. Default is 10.
-         - cloud = the cloud to plot. Can be None.
-         - image = the (linescanner) image to plot. Can be None.
-         - s = size of rendered points in pixels. Default is 2.
-         - aspect = the aspect ratio of the renders / image plot. Default is 'equal'. Change to
+        Args:
+            line: the line ID to plot.
+            width: how many pixels to plot either side of the line. Default is 10.
+            cloud: the cloud to plot. Can be None.
+            image: the (linescanner) image to plot. Can be None.
+            s: size of rendered points in pixels. Default is 2.
+            aspect: the aspect ratio of the renders / image plot. Default is 'equal'. Change to
                     'auto' to stretch data to figure size.
         """
 
@@ -436,21 +438,21 @@ def project_pushbroom(image, cloud, cam, chunk=500, step=100, near_clip=10., vb=
     Map an image acquired using a moving pushbroom scanner onto a point cloud using known
     camera position and orientations for each line of the image.
 
-    *Arguments*:
-     - image = a HyImage instance containing the data to project. This is only used to determine image dimensions.
-     - cloud = the destination point cloud to project data onto.
-     - cam = a pushbroom camera instance.
-     - chunk = The size of chunks used to optimise the projection step. Points are culled based on the first and
+    Args:
+        image: a HyImage instance containing the data to project. This is only used to determine image dimensions.
+        cloud: the destination point cloud to project data onto.
+        cam: a pushbroom camera instance.
+        chunk: The size of chunks used to optimise the projection step. Points are culled based on the first and
                last line of each chunk prior to processing to reduce the number of projections that need to be
                performed. To reduce errors at chunk margins these chunks are padded by 50%. Default is 500.
-     - step = the step to use in the masking step for each chunk. Default is 100. Reducing this will ensure no points
+        step: the step to use in the masking step for each chunk. Default is 100. Reducing this will ensure no points
               are missed, but at large performance cost.
-     - near_clip = the z-depth of the near clipping plane. Default is 10.0 m.
-     - vb = True if a progress bar should be displayed. Default is True.
+        near_clip: the z-depth of the near clipping plane. Default is 10.0 m.
+        vb: True if a progress bar should be displayed. Default is True.
 
 
-    *Returns*:
-     - A hylite.project.PMap instance containing the mapping matrix between points and pixels.
+    Returns:
+        A hylite.project.PMap instance containing the mapping matrix between points and pixels.
     """
 
     # check dims match
@@ -551,12 +553,12 @@ def get_corr_coef(pmap, bands=(0, 1, 2)):
     and pmap.cloud.rgb.  Used to optimise boresight values against point
     cloud colours (slow, but worthwhile).
 
-    *Arguments*:
-     - pmap = the pmap instance containing the projection.
-     - bands = indices for the red, green and blue bands of pmap.image. Default is (0,1,2).
+    Args:
+        pmap: the pmap instance containing the projection.
+        bands: indices for the red, green and blue bands of pmap.image. Default is (0,1,2).
 
-    *Returns*:
-     - the corellation of the red, green and blue bands.
+    Returns:
+        the corellation of the red, green and blue bands.
     """
     assert pmap.cloud.rgb is not None, "Error - cloud must contain independent RGB information."
     rgb_ref = pmap.cloud.rgb  # 'true' RGB from SfM
@@ -579,24 +581,28 @@ def optimize_boresight(track, cloud, image, bands=(0, 1, 2), n=100, iv=np.array(
     to calculate these values using a small but high-quality subset of a swath; the optimised values
     can subsequently be applied to the whole dataset
 
-    *Arguments*:
-     - cloud = the cloud containing the geometry to project onto and associated RGB values.
-     - image = the image containing RGB data.
-     - n = the subsampling factor for the pointcloud (uses cloud.xyz[::n,:]). Default is 100.
-     - iv = the initial value for the boresight estimation. Default is [0,0,0].
-     - bands = indices for the red, green and blue bands of image. Default is (0,1,2).
-     - scale = The size of the search space. Default is ±3 degrees from the initial value.
-     - coarse_eps = the perturbation step size for the first solution.
-     - fine_eps = the perturbation step size for subsequent refinement.
-     - ztol = the tolerance of the z-filtering step. Set to 0 to disable (default).
-     - ftol = the maximum number of points per (valid) pixel. Set to 0 to disable (default).
-     - vb = True if output of the least-squares solver should be printed at each state.
-     - gf = True if a plot should be generated showing the search trace. Default is True
-    *Returns*:
-     - track = an updated track with the boresight applied.
-     - boresight = a (3,) array with optimised boresight adjustments (roll, pitch, yaw).
-     - trace = the search path of the optimisation, with shape (niter,4). The last column contains
-                the cost function at each iteration point.
+    Args:
+        cloud: the cloud containing the geometry to project onto and associated RGB values.
+        image: the image containing RGB data.
+        n: the subsampling factor for the pointcloud (uses cloud.xyz[::n,:]). Default is 100.
+        iv: the initial value for the boresight estimation. Default is [0,0,0].
+        bands: indices for the red, green and blue bands of image. Default is (0,1,2).
+        scale: The size of the search space. Default is ±3 degrees from the initial value.
+        coarse_eps: the perturbation step size for the first solution.
+        fine_eps: the perturbation step size for subsequent refinement.
+        ztol: the tolerance of the z-filtering step. Set to 0 to disable (default).
+        ftol: the maximum number of points per (valid) pixel. Set to 0 to disable (default).
+        vb: True if output of the least-squares solver should be printed at each state.
+        gf: True if a plot should be generated showing the search trace. Default is True
+
+    Returns:
+        A tuple containing:
+
+         - track = an updated track with the boresight applied.
+         - boresight = a (3,) array with optimised boresight adjustments (roll, pitch, yaw).
+         - trace = the search path of the optimisation, with shape (niter,4). The last column contains
+                    the cost function at each iteration point.
+
     """
 
     # check cloud and build subsampled copy

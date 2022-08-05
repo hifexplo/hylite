@@ -8,12 +8,12 @@ def spectral_angles(reference, spectra):
     """
     Calculate the angle between each spectra and each reference.
 
-    *Arguments*:
-     - reference = a numpy array of reference spectra.
-     - spectra = a numpy array of spectra to compare to the references.
+    Args:
+        reference: a numpy array of reference spectra.
+        spectra: a numpy array of spectra to compare to the references.
 
-    *Returns*: a 2D numpy array such that [spectra i][reference j] gives the angle between
-               the i'th spectra and j'th reference spectra.
+    Returns:
+        a 2D numpy array such that [spectra i][reference j] gives the angle between the i'th spectra and j'th reference spectra.
     """
 
     # normalise spectra
@@ -32,13 +32,12 @@ def SAM(data, ref_spec):
     """
     Apply a spectral angle classification based on reference spectra.
 
-    *Arguments*:
-     - data = the HyData instance (e.g. image or cloud) to apply the classification to.
-     - ref_spec = a list containing lists of spectra for each class. i.e.:
+    Args:
+        data: the HyData instance (e.g. image or cloud) to apply the classification to.
+        ref_spec: a list containing lists of spectra for each class. i.e.:
                     ref_spect = [ [class1_spec1, class1_spec2],[class2_spec1, class2_spec2], ... ]
-    *Returns*:
-     - a HyData instance with the same type as data containing two bands: the class index, and the
-       spectral angle to this (closest) class.
+    Returns:
+        a HyData instance with the same type as data containing two bands: the class index, and the spectral angle to this (closest) class.
     """
     R = []
     L = []

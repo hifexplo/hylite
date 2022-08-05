@@ -1,3 +1,7 @@
+"""
+Save and load viewing positions associated with data acquisition or rendering 3D point cloud data.
+"""
+
 import numpy as np
 
 from hylite.io import makeDirs
@@ -9,9 +13,9 @@ def saveCameraTXT( path, camera ):
     Saves a Camera view to a simple text format. The camera can either be an instance of Camera or
     Pushbroom.
 
-    *Arguments*:
-     - path = the path to save the file.
-     - camera = a camera object containing the data to save.
+    Args:
+        path: the path to save the file.
+        camera: a camera object containing the data to save.
     """
 
     # make directories if need be
@@ -44,8 +48,8 @@ def loadCameraTXT( path ):
     """
     Loads a Camera view from a simple text format.
 
-    *Returns*:
-     - a Camera object containing the camera properties.
+    Returns:
+        a Camera object containing the camera properties.
     """
 
     with open(path, 'r') as f:

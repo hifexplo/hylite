@@ -1,3 +1,7 @@
+"""
+Read ENVI header files.
+"""
+
 import os
 import glob
 import numpy as np
@@ -8,8 +12,8 @@ def makeDirs(path):
     """
     Checks if all the directories to the specified file exist, and if they do not, makes them.
 
-    *Arguments*:
-     - path = the directory or file path to check. If any directories do not exist, they will be created.
+    Args:
+        path: the directory or file path to check. If any directories do not exist, they will be created.
     """
 
     # convert path to directory
@@ -24,9 +28,9 @@ def saveHeader(path, header):
     """
     Write to a header file.
 
-    *Arguments*:
-     - path = the path to write to.
-     - header = the HyHeader object to write.
+    Args:
+        path: the path to write to.
+        header: the HyHeader object to write.
     """
 
     if os.path.exists(path):
@@ -67,8 +71,8 @@ def loadHeader(path):
     """
     Load a header file.
 
-    *Arguments*:
-    - file = a file path to a .hdr file.
+    Args:
+       file: a file path to a .hdr file.
     """
     header = HyHeader()
 
@@ -150,12 +154,14 @@ def matchHeader(path):
     """
     Matches image and header path.
 
-    *Arguments*:
-     - path = the path to an image or header file
+    Args:
+        path: the path to an image or header file
 
-    *Returns*:
-     - header = file path to the associated .hdr or .HDR file (if found, otherwise None)
-     - image = file path to the associated image data (if found, otherwise None).
+    Returns:
+        A tuple containing:
+
+        - header = file path to the associated .hdr or .HDR file (if found, otherwise None)
+        - image = file path to the associated image data (if found, otherwise None).
     """
 
     # find files with the same name but different extensions

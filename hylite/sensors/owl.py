@@ -51,14 +51,15 @@ class OWL(Sensor):
         """
         Apply sensor corrections to an image.
 
-        *Arguments*:
-         - image = a hyImage instance of an image captured using this sensor.
-         - verbose = true if updates/progress should be printed to the console. Default is False.
-        *Keywords*:
-         - rad = true if image should be converted to radiance by applying dark and white references. Default is True.
-         - bpr = replace bad pixels (only for raw data). Default is True.
-         - flip = true if image should be flipped (if camera mounted backwards in core
-                  scanner). Default is False.
+        Args:
+            image (hylite.HyImage): a hyImage instance of an image captured using this sensor.
+            verbose (bool): true if updates/progress should be printed to the console. Default is False.
+            **kwds: Optional keywords include:
+
+                 - rad = true if image should be converted to radiance by applying dark and white references. Default is True.
+                 - bpr = replace bad pixels (only for raw data). Default is True.
+                 - flip = true if image should be flipped (if camera mounted backwards in core
+                          scanner). Default is False.
         """
 
         # get kwds
@@ -135,15 +136,14 @@ class OWL(Sensor):
         Many sensors use simple/common data structures to store data/headers/dark reference etc. Hence it is often easiest
         to pass an output folder to the sensor for correction.
 
-        *Arguments*:
-         - path = a path to the folder containing the sensor specific data.
+        Args:
+            path (str): a path to the folder containing the sensor specific data.
+            **kwds: keywords are passed directly to correct_image, except for:
 
-        *Keywords*:
-         - verbose = True if print outputs should be made to update progress. Default is True.
-          - other keywords are passed directly to correct_image.
+                - verbose = True if print outputs should be made to update progress. Default is True.
 
-        *Returns*:
-         - a hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
+        Returns:
+            A hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
            topographic or atmospheric corrections.
 
         """

@@ -15,10 +15,10 @@ class Target(object):
         """
         Load a custom target from a .txt file with a band,reflectance pair on each line. Lines not of this format will be ignored.
 
-        *Arguments*:
-         - wavelength = the calibration wavelengths (in nanometers).
-         - reflectance = the target reflectances.
-         - name = the name of this target.
+        Args:
+            wavelength (ndarray): the calibration wavelengths (in nanometers).
+            reflectance (ndarray): the target reflectances.
+            name (str): the name of this target.
         """
 
         self.band = np.array(wavelength)
@@ -67,8 +67,8 @@ def loadTarget( path ):
     """
     Load a target from a .txt file with a band,reflectance pair on each line. Lines not of this format will be ignored.
 
-    *Arguments*:
-     - path = path to the file to load.
+    Args:
+        path (str): path to the file to load.
     """
 
     band = []
@@ -93,11 +93,11 @@ def loadDirectory( path ):
     """
     Load all spectra (stored as .txt files) in a directory.
 
-    *Arguments*:
-     - path = the directory to search.
+    Args:
+        path (str): the directory to search.
 
-    *Returns*:
-     - reference = a dictionary of reference (with target names as keys)
+    Returns:
+        A dictionary of reference (with target names as keys)
     """
 
     files = glob.glob( os.path.join(path, "*.txt" ) )

@@ -1,3 +1,7 @@
+"""
+Read common image formats, including ENVI format hyperspectral data.
+"""
+
 import sys, os
 import numpy as np
 import spectral
@@ -12,11 +16,11 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
     """
     Load an image using gdal.
 
-    *Arguments*:
-     - path = file path to the image to load
-     - mask_zero = True if zero values should be masked (replaced with nan). Default is true.
-    *Returns*:
-     - a hyImage object
+    Args:
+        path: file path to the image to load
+        mask_zero: True if zero values should be masked (replaced with nan). Default is true.
+    Returns:
+        a hyImage object
     """
 
     # find GDAL
@@ -68,11 +72,11 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
     Load an image using spectral python. This works for most envi images, but doesn not load
     georeferencing information (in which case loadWithGDAL(...) should be used).
 
-    *Arguments*:
-     - path = file path to the image to load
-     - mask_zero = True if zero values should be masked (replaced with nan). Default is true.
-    *Returns*:
-     - a hyImage object
+    Args:
+        path: file path to the image to load
+        mask_zero: True if zero values should be masked (replaced with nan). Default is true.
+    Returns:
+        a hyImage object
     """
 
     assert os.path.exists(path), "Error - %s does not exist." % path
@@ -123,12 +127,12 @@ def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32, mask_zero=Tr
     Load either specific bands (bands!=None) or pixels (pixels != None) from an ENVI file using spy to facilitate e.g. out-of-core
     processing routines.
 
-    *Arguments*:
-     - path = a path to the hyperspectral image to read.
-     - bands = a list of hyperspectral band indices or wavelengths to extract, or None.
-     - pixels = a list of [(x1,y1),(x2,y2)] pixels to extract spectra for, or None. Either bands or pixels must be defined (but not both).
-     - dtype = the output data type. Default is float32.
-     - mask_zero = True if zero values should be replaced with nans. Default is True.
+    Args:
+        path: a path to the hyperspectral image to read.
+        bands: a list of hyperspectral band indices or wavelengths to extract, or None.
+        pixels: a list of [(x1,y1),(x2,y2)] pixels to extract spectra for, or None. Either bands or pixels must be defined (but not both).
+        dtype: the output data type. Default is float32.
+        mask_zero: True if zero values should be replaced with nans. Default is True.
     """
     assert os.path.exists(path), "Error - %s does not exist." % path
     assert (pixels is not None) or (bands is not None), "Error - either pixels OR bands must be specified"
@@ -175,11 +179,11 @@ def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
     """
     Write this image to a file.
 
-    *Arguments*:
-     - path = the path to save to.
-     - image = the image to write.
-     - writeHeader = true if a .hdr file will be written. Default is true.
-     - interleave = data interleaving for ENVI files. Default is 'BSQ', other options are 'BIL' and 'BIP'.
+    Args:
+        path: the path to save to.
+        image: the image to write.
+        writeHeader: true if a .hdr file will be written. Default is true.
+        interleave: data interleaving for ENVI files. Default is 'BSQ', other options are 'BIL' and 'BIP'.
     """
 
     # find GDAL

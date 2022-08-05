@@ -1,3 +1,7 @@
+"""
+Read common point cloud formats (.ply, .laz, .csv).
+"""
+
 import os
 import numpy as np
 from hylite import HyCloud
@@ -10,12 +14,12 @@ def saveCloudCSV(path, cloud, delimeter=' ', fmt='%.3f', writeHeader=True):
     """
     Saves a HyperCloud object to csv format.
 
-    *Arguments*:
-     - path = the path to save with. If an extension is provided (e.g. .las) then it will be retained. Otherwise .csv is used.
-     - cloud = the hypercloud to write
-     - delimeter = the delimeter to use to separate values. Default is ",".
-     - fmt = numeric value formatting (see documentation for np.savetxt(...) for more details).
-     - write = True if first row should contain field names (including scalar fields). Default is true.
+    Args:
+        path: the path to save with. If an extension is provided (e.g. .las) then it will be retained. Otherwise .csv is used.
+        cloud: the hypercloud to write
+        delimeter: the delimeter to use to separate values. Default is ",".
+        fmt: numeric value formatting (see documentation for np.savetxt(...) for more details).
+        write: True if first row should contain field names (including scalar fields). Default is true.
     """
 
     # make directories if need be
@@ -81,21 +85,25 @@ def loadCloudCSV(path, delimiter=' ', order='xyzrgbklm'):
     """
     Loads a point cloud from a csv (or other formatted text) file.
 
-    *Arguments*:
-     - path = the file path
-     - delimeter = the delimeter used (e.g. ' ', ',', ';'). Default is ' '.
-     - order = A string defining the order of data in the csv. Each character maps to the following:
-                -'x' = point x coordinate
-                -'y' = point y coordinate
-                -'z' = point z coordinate
-                -'r' = point r coordinate
-                -'g' = point g coordinate
-                -'b' = point b coordinate
-                -'k' = point normal (x)
-                -'l' = point normal (y)
-                -'m' = point normal (z).
+    Args:
+        path: the file path
+        delimeter: the delimeter used (e.g. ' ', ',', ';'). Default is ' '.
+        order: A string defining the order of data in the csv. Each character maps to the following:
 
-              Default is 'xyzrgbklm'.
+        - 'x' = point x coordinate
+        - 'y' = point y coordinate
+        - 'z' = point z coordinate
+        - 'r' = point r coordinate
+        - 'g' = point g coordinate
+        - 'b' = point b coordinate
+        - 'k' = point normal (x)
+        - 'l' = point normal (y)
+        - 'm' = point normal (z).
+
+        Default is 'xyzrgbklm'.
+
+    Returns:
+        A HyCloud instance.
     """
 
     # look for/load header file if one exists
@@ -149,10 +157,9 @@ def saveCloudLAS(path, cloud):
     """
     Write a point cloud object to .las. Note that LAS file formats cannot handle scalar field data.
 
-    *Arguments*:
-     - path = the .las file to save to.
-     - cloud = a HyCloud instance containing data to save
-
+    Args:
+        path: the .las file to save to.
+        cloud: a HyCloud instance containing data to save
     """
 
     try:
@@ -231,14 +238,16 @@ def saveCloudPLY(path, cloud, sfmt=None):
     """
     Write a point cloud and associated RGB and scalar fields to .ply.
 
-    *Arguments*:
-     - path = the .ply file to save to.
-     - cloud = a HyCloud instance containing data to save
-     - sfmt = the format for scalar field data. Can be 'u1', 'u2' or 'f4'.
-                 - 'u1' uses one byte per point per scalar field (255 possible values). This results in smaller file size.
-                 - 'u2' uses two bytes per point per scalar field (65535 possible values).
-                 - 'f4' uses four bytes per point per scalar field (float32 precision). This results in large files.
-              Default (None) is to use u2 for integer data and f4 for float data.
+    Args:
+        path: the .ply file to save to.
+        cloud: a HyCloud instance containing data to save
+        sfmt: the format for scalar field data. Can be 'u1', 'u2' or 'f4':
+
+            - 'u1' uses one byte per point per scalar field (255 possible values). This results in smaller file size.
+            - 'u2' uses two bytes per point per scalar field (65535 possible values).
+            - 'f4' uses four bytes per point per scalar field (float32 precision). This results in large files.
+
+            Default (None) is to use u2 for integer data and f4 for float data.
     """
 
     # make directories if need be

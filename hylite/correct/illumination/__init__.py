@@ -1,3 +1,8 @@
+"""
+A collection of functions for performing illumination corrections to derive reflectance estimates
+from radiance data.
+"""
+
 import datetime
 import numpy as np
 import pytz
@@ -45,17 +50,21 @@ def cart2sph(x, y, z):
 def estimate_sun_vec(lat, lon, time):
     """
     Calculate the sun illumination vector at the specified position and time.
-    *Arguments*:
-     - lat = the latitude of the position to calculate the sun vector at (in decimal degrees).
-     - lon = the longitude of the position to calculate the sun vector at (in decimal degrees).
-     - time = the time the dataset was acquired. This, and the position defined by the "pos"
+
+    Args:
+        lat: the latitude of the position to calculate the sun vector at (in decimal degrees).
+        lon: the longitude of the position to calculate the sun vector at (in decimal degrees).
+        time: the time the dataset was acquired. This, and the position defined by the "pos"
               argument will be used to calculate the sun direction. Should be an instance of datetime.datetime,
               or a tuple containing (timestring, formatstring, pytz timezone).
               E.g. time = ("19/04/2019 12:28","%d/%m/%Y %H:%M", 'Europe/Madrid')
-    *Returns*:
-     - sunvec = the sun illumination direction (i.e. from the sun to the observer) in cartesian coords
-     - azimuth = the azimuth of the sun (bearing towards sun)
-     - elevation = the elevation of the sun (angle above horizon)
+
+    Returns:
+        A tuple containing:
+
+         - sunvec = the sun illumination direction (i.e. from the sun to the observer) in cartesian coords
+         - azimuth = the azimuth of the sun (bearing towards sun)
+         - elevation = the elevation of the sun (angle above horizon)
 
     """
 
@@ -87,10 +96,10 @@ def estimate_skyview( normal ):
     Return a crude estimate of sky-view factor by assuming geometry is an inclined plane (and that the sky is invisible
     below the horizon level. Useful for e.g. estimating the skyview factor for calibration panels based on their orientation.
 
-    *Arguments*:
-     - normal = the surface or panel normal vector as a (3,) numpy array or (...,3) image or cloud.
-    *Returns*:
-     - the skyview factor (0 - 1).
+    Args:
+        normal: the surface or panel normal vector as a (3,) numpy array or (...,3) image or cloud.
+    Returns:
+        the skyview factor (0 - 1).
     """
     return ( np.pi - np.arccos( np.dot( normal, np.array([0,0,1]) ) ) ) / np.pi # sky view factor for inclined plane
 
@@ -148,15 +157,15 @@ def UAC(data, band_range=(0, -1), thresh=98, vb=True):
     Reference:
     https://doi.org/10.3390/rs10020176
 
-    *Arguments*:
-     - image = a hyperspectral image to correct
-     - band_range = a range of bands to do this over. Default is (0,-1), which applies the correction to all bands.
-     - thresh = the percentile to apply when identifying the smallest absorbtion in any range based on hull corrected
+    Args:
+        image: a hyperspectral image to correct
+        band_range: a range of bands to do this over. Default is (0,-1), which applies the correction to all bands.
+        thresh: the percentile to apply when identifying the smallest absorbtion in any range based on hull corrected
                 spectra. Lower values will remove more absorption (potentially including features of interest).
-     - vb = True if a progress bar should be created during hull correction steps.
+        vb: True if a progress bar should be created during hull correction steps.
 
-    *Returns*:
-     - a HyData instance containing the corrected spectra.
+    Returns:
+        a HyData instance containing the corrected spectra.
     """
     # subset dataset
     out = data.export_bands(band_range)
@@ -185,22 +194,22 @@ def estimate_illu(image, panel, pilf, pskv, ilf, skv=0.6, oc=None, thresh=0.01, 
     they have the same median reflectance spectra. See Thiele et al., 2021 for more details:
     https://doi.org/10.1109/TGRS.2021.3098725.
 
-    *Arguments*:
-     - image = the hyperspectral image to extract spectra from.
-     - panel = a Panel instance containing calibration spectra from a fully illuminated calibration panel.
-     - pilf = a measured or estimated lambert illumination factor for the panel (from 0 to 1). If a value of
+    Args:
+        image: the hyperspectral image to extract spectra from.
+        panel: a Panel instance containing calibration spectra from a fully illuminated calibration panel.
+        pilf: a measured or estimated lambert illumination factor for the panel (from 0 to 1). If a value of
               0 is used then it is assumed that the panel is completely shaded.
-     - pskv = a measured or estimated skyview factor for the panel (from 0.1 to 1).
-     - ilf = direct illumination factors representing the fraction of downwelling light reflected towards the
+        pskv: a measured or estimated skyview factor for the panel (from 0.1 to 1).
+        ilf: direct illumination factors representing the fraction of downwelling light reflected towards the
              sensor, as estimated using e.g., hylite.correct.illumination.reflection.calcLambert(...) or
              hylite.correct.illumination.reflection.calcOrenNayar(..).
-     - skv = a(width,height) array of skyview factors or a float containg the average sky view factor (0 to 1)
-         for the scene. Default is 0.6.
-     - oc = a (width, height) array of occlusion factors computed using
-        e.g., hylite.correct.illumination.occlusion.calcBandRatioOcc, or None (default; for no cast shadows).
-     - thresh = the threshold for direct illumination factor (skv * (1-oc)) at which a pixel is considered entirely
+        skv: a(width,height) array of skyview factors or a float containg the average sky view factor (0 to 1)
+             for the scene. Default is 0.6.
+        oc: a (width, height) array of occlusion factors computed using
+            e.g., hylite.correct.illumination.occlusion.calcBandRatioOcc, or None (default; for no cast shadows).
+        thresh: the threshold for direct illumination factor (skv * (1-oc)) at which a pixel is considered entirely
                 lit by ambient (sky) light. Default is 0.01.
-     - clip = a subset of the image to use for estimation (to ensure our assumption of equal median reflectance between
+        clip: a subset of the image to use for estimation (to ensure our assumption of equal median reflectance between
               sun and shade pixels is met). Default is None, but a clipping rectangle can be passed as (xmin,xmax,ymin,ymax).
     """
 
@@ -259,6 +268,7 @@ class IlluModel(object):
     r = (aS + oI)R + P
 
     Where,
+
      - r = the measured pixel radiance.
      - a = the skyview factor associated with this pixel.
      - S = the downwelling skylight spectra (assumed to be constant across the scene).
@@ -273,23 +283,23 @@ class IlluModel(object):
         """
         Create an illumination model. All arguments should be (...,1) shape arrays.
 
-        *Arguments*:
-         - I = the incident sunlight spectra. This must be provided.
-         - P = the path radiance spectra. Defaults to 0 if unknown (i.e. ignore path radiance). If this
+        Args:
+            I: the incident sunlight spectra. This must be provided.
+            P: the path radiance spectra. Defaults to 0 if unknown (i.e. ignore path radiance). If this
                is a 1-D array then it is assumed to be constant across the scene. If it is an (...,1) shaped
                array then it will be applied separately per-pixel or per-point, to account for e.g. variations
                in distance to target.
-         - S = the downwelling skylight spectra. Defaults to 0 if unknown (i.e. ignore skylight).
-         - skv = skyview factors. Will be ignored unless a skylight spectra is defined. Default is 0.6
+            S: the downwelling skylight spectra. Defaults to 0 if unknown (i.e. ignore skylight).
+            skv: skyview factors. Will be ignored unless a skylight spectra is defined. Default is 0.6
                      (if a skylight spectra is defined but skyview factors are unknown).
-         - rf = reflectance factors as determined by e.g. a lambertian or oren-nayar reflectance model. Default
+            rf: reflectance factors as determined by e.g. a lambertian or oren-nayar reflectance model. Default
                 is a perfect reflection (1.0).
-         - o = occlusion factors that reduce the amount of incident light recieved across the scene due to e.g.
+            o: occlusion factors that reduce the amount of incident light recieved across the scene due to e.g.
                shadows. Reflection factors specified by the rf argument are multiplied by (1 - oc). Default is 0
                (no occlusion).
 
-        *Returns*:
-         - an IlluModel instance.
+        Returns:
+            an IlluModel instance.
         """
         # store data
         self.I = I  # n.b. this copies arrays (for safety), and also wraps constants in a numpy object.
@@ -321,13 +331,13 @@ class IlluModel(object):
 
         r = (aS + oI)R + P
 
-        *Arguments*:
-         - R = the reflectance(s) to evaluate. If a scalar value is passed (must be between 0 and 1) then
+        Args:
+            R: the reflectance(s) to evaluate. If a scalar value is passed (must be between 0 and 1) then
                a single combined illumination spectra will be returned. If a (...,1) array of values are
                provided then a (...,n) array containing the illumination spectra at each point or pixel will
                be returned.
-        *Returns*:
-         - an array containing the illumination spectra in its last axis.
+        Returns:
+            an array containing the illumination spectra in its last axis.
         """
         if isinstance(R, hylite.HyData):
             R = R.data.squeeze()
@@ -345,11 +355,11 @@ class IlluModel(object):
 
         R = (r - P) / (aS + oI)
 
-        *Arguments*:
-         - r = a (..., n) array containing the measured radiance values.
-         - strict = True if reflectance values should be clipped to the physically plausible range (0 - 1). Default is True.
-        *Returns*:
-         - an array containing the reflectance spectra in its last axis.
+        Args:
+            r: a (..., n) array containing the measured radiance values.
+            strict: True if reflectance values should be clipped to the physically plausible range (0 - 1). Default is True.
+        Returns:
+            an array containing the reflectance spectra in its last axis.
         """
         if isinstance(r, hylite.HyData):
             self.r = r.data.squeeze()
@@ -370,9 +380,9 @@ class IlluModel(object):
         force the regression line to pass through (0,0). Reflectance outliers are then detected and can be masked or
         corrected.
 
-        *Arguments*:
-         - radiance = radiance data to fit to. Must have the same shape as self.data.
-         - shift = apply the correction in the y-direction (adjust measured radiance to simulate the influence of path
+        Args:
+            radiance: radiance data to fit to. Must have the same shape as self.data.
+            shift: apply the correction in the y-direction (adjust measured radiance to simulate the influence of path
                    radiance) or in the x-direction (adjust modelled illumination to account for unknown light source). Default
                    is 'x' (this is the typical c-factor correction).
         """
@@ -402,14 +412,14 @@ class IlluModel(object):
         """
         Plot the relationship between illumination and measured radiance.
 
-        *Arguments*:
-         - radiance = the radiance data (HyImage or HyCloud) to compare too. Shape must match internal self.data array.
-         - bands = the band (integer or float), band range (tuple) or bands (list) to include on the regression plot. Default
+        Args:
+            radiance: the radiance data (HyImage or HyCloud) to compare too. Shape must match internal self.data array.
+            bands: the band (integer or float), band range (tuple) or bands (list) to include on the regression plot. Default
                    is None (use all bands).
-         - n = plot every nth point (only) to speed up plotting. Default is 100. This value does not affect the regressions.
-         - nb = only calculate / plot every nb'th band if bands is a (min,max) tuple. Default is 5.
+            n: plot every nth point (only) to speed up plotting. Default is 100. This value does not affect the regressions.
+            nb: only calculate / plot every nb'th band if bands is a (min,max) tuple. Default is 5.
         *Keywords*:
-         - keywords are passed to plt.scatter(...).
+            keywords are passed to plt.scatter(...).
         """
 
         # get data
@@ -530,8 +540,8 @@ class ELC(object):
         Constructor that takes a list of Panel objects (one for each target used for the correction) and computes
         an empirical line correction.
 
-        *Arguments*:
-          - panels = a list of Panel objects defining the reflectance and radiance of each panel in the scene.
+        Args:
+             panels: a list of Panel objects defining the reflectance and radiance of each panel in the scene.
         """
 
         if not isinstance(panels, list):
@@ -566,11 +576,13 @@ class ELC(object):
         """
         Find bands in which signal-noise ratios are amplified above a threshold (due to large correction slope).
 
-        *Keywords*:
-         - thresh = the threshold slope. Defaults to the 85th percentile.
+        Args:
+            **kwds: Keywords can include:
 
-        *Returns*:
-         - a boolean numpy array containing True for bad bands and False otherwise.
+                - thresh = the threshold slope. Defaults to the 85th percentile.
+
+        Returns:
+            a boolean numpy array containing True for bad bands and False otherwise.
         """
 
         thresh = kwds.get("thresh", np.nanpercentile(self.slope, 85))
@@ -581,15 +593,15 @@ class ELC(object):
         """
         Apply this empirical line calibration to the specified image.
 
-        *Arguments*:
-         - data = a HyData instance to correct
+        Args:
+            data: a HyData instance to correct
+            **kwds: Keywords can include:
 
-        *Keywords*:
-         - thresh = the threshold slope. Defaults to the 90th percentile.
+                 - thresh = the threshold slope. Defaults to the 90th percentile.
 
-        *Returns*:
-         - a mask containing true where the corrected values are considered reasonable - see get_bad_bands(...) for more
-           details. Note that this returns the np.logical_not( self.get_bad_bands(...) ).
+        Returns:
+            a mask containing true where the corrected values are considered reasonable - see get_bad_bands(...) for more
+            details. Note that this returns the np.logical_not( self.get_bad_bands(...) ).
         """
 
         assert data.band_count() == len(self.slope), "Error - data has %d bands but ELC has %d" % (
@@ -604,14 +616,15 @@ class ELC(object):
         """
         Plots the correction factors (slope and intercept) computed for this ELC.
 
-        *Arguments*:
-         - ax = the axes to plot on. If None (default) then a new axes is created.
-        *Keywords*:
-          - figsize = a figsize for the figure to create (if ax is None).
-         - thresh = the threshold to separate good vs bad correction values (see get_bad_bands(...)). Default is the
-                    85th percentile of slope values.
-        *Returns*:
-         -fig, ax = the figure and axes objects containing the plot.
+        Args:
+            ax: the axes to plot on. If None (default) then a new axes is created.
+            **kwds: Keywords can include:
+
+                 - figsize = a figsize for the figure to create (if ax is None).
+                 - thresh = the threshold to separate good vs bad correction values (see get_bad_bands(...)). Default is the
+                            85th percentile of slope values.
+        Returns:
+            fig, ax = the figure and axes objects containing the plot.
 
         """
 

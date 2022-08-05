@@ -1,3 +1,8 @@
+"""
+Functions for modelling the amount of incident light that is reflected towards the camera, including Lambertian
+and Oren-Nayar BRDFs.
+"""
+
 import numpy as np
 import hylite
 
@@ -5,13 +10,13 @@ def estimate_incidence(normals, sunvec):
     """
     Utility function to estimate the cosine of incidence angles based on normals and calculated sun position.
 
-    *Arguments*:
-     - normals = either: (1) a HyImage with band 0 = nx, band 1 = ny and band 2 = nz, (2) HyCloud instance containing
+    Args:
+        normals: either: (1) a HyImage with band 0 = nx, band 1 = ny and band 2 = nz, (2) HyCloud instance containing
                  normals, or (3) mx3 numpy array of normal vectors.
-     - sunvec = a numpy array containing the sun illumination vector (as calculated by estimate_sun_vec(...)).
+        sunvec: a numpy array containing the sun illumination vector (as calculated by estimate_sun_vec(...)).
 
-    *Returns*:
-     - list of incidence angles matching the shape of input data (but with a single band only).
+    Returns:
+        list of incidence angles matching the shape of input data (but with a single band only).
     """
 
     # extract normal vectors
@@ -38,14 +43,14 @@ def calcOrenNayar(normals, view, source, roughness=0.3):
     """
     Calculate OrenNayar reflectance across a scene.
 
-    *Arguments*:
-     - normals = a (...,3) array containing normal vectors for each point or pixel.
-     - view = a (...,3) array containing viewing directions for each point or pixel.
-     - source = a (3,) array containing the illumination direction.
-     - roughness = a float describing the OrenNayar roughness parameter. Default is 0.3.
+    Args:
+        normals: a (...,3) array containing normal vectors for each point or pixel.
+        view: a (...,3) array containing viewing directions for each point or pixel.
+        source: a (3,) array containing the illumination direction.
+        roughness: a float describing the OrenNayar roughness parameter. Default is 0.3.
 
-    *Returns*:
-     - a (...,1) numpy array containing the Oren-Nayar reflectance factors.
+    Returns:
+        a (...,1) numpy array containing the Oren-Nayar reflectance factors.
     """
 
     # check array shapes are compatible
@@ -90,12 +95,12 @@ def calcLambert(normals, source):
     """
     Calculate lambertian reflectance across a scene.
 
-    *Arguments*:
-     - normals = a (...,3) array containing normal vectors for each point or pixel.
-     - source = a (3,) array containing the illumination direction.
+    Args:
+        normals: a (...,3) array containing normal vectors for each point or pixel.
+        source: a (3,) array containing the illumination direction.
 
-    *Returns*:
-     - a (...,1) numpy array containing the Lambertian reflectance factors.
+    Returns:
+        a (...,1) numpy array containing the Lambertian reflectance factors.
     """
 
     # check array shapes are compatible

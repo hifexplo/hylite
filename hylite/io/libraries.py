@@ -1,3 +1,7 @@
+"""
+Load or import spectral libraries.
+"""
+
 import os
 import numpy as np
 import glob
@@ -13,15 +17,17 @@ def _read_sed_file(path):
     """
     Read a (single) reference spectra from a .sed file.
 
-    *Arguments*:
-     - path to the file.
+    Args:
+        path to the file.
 
-    *Returns*:
-     - wav = a list of the wavelengths in the sed file
-     - refl = a list of corresponding reflectances
-     - name = a name for this sample (the file name without extension)
-     - meta = a dictionary containing additional metadata in the header to the .sed file
-    """
+    Returns:
+        A tuple containing:
+
+             - wav = a list of the wavelengths in the sed file
+             - refl = a list of corresponding reflectances
+             - name = a name for this sample (the file name without extension)
+             - meta = a dictionary containing additional metadata in the header to the .sed file
+     """
 
     with open(path, 'r') as f:
         # read header into metadata dict
@@ -61,8 +67,8 @@ def loadLibrarySED(path):
     """
     Load a spectral library stored as a folder of .sed files.
 
-    *Arguments*
-     - directory = the directory containing the .sed files. Filenames will be used as sample names.
+    Args:
+        directory: the directory containing the .sed files. Filenames will be used as sample names.
     """
 
     assert os.path.isdir(path), "Error - must specify a directory, not a file."
@@ -123,8 +129,8 @@ def loadLibraryTSG(path):
     """
     Load a spectral library of TSG (The Spectral GeologistTM, e.g. HyLogger data) stored as a folder of .csv files.
 
-    *Arguments*
-     - directory = the directory containing the .sed files. Filenames will be used as sample names.
+    Args:
+        directory: the directory containing the .sed files. Filenames will be used as sample names.
     """
 
     assert ".csv" in path, "Error - path must specify a csv file."
@@ -194,17 +200,14 @@ def loadLibraryTXT(path):
     """
     Load an ENVI text format library. This should have the following structure:
 
-    ----
-    ENVI ASCII Plot File
-    Column 1: Wavelength
-    Column 2: Sample1
-    Column 3: Sample2
-    C10 C20 C30
-    C11 C21 C31
-    C12 C22 C32
-    ... ... ..
-
-    -------
+            ENVI ASCII Plot File
+            Column 1: Wavelength
+            Column 2: Sample1
+            Column 3: Sample2
+            C10 C20 C30
+            C11 C21 C31
+            C12 C22 C32
+            ... ... ..
 
     """
 
@@ -259,6 +262,7 @@ import glob
 def loadLibraryDIR(path, wav=None):
     """
     Load a spectral library from a directory of ENVI text files, with the following structure:
+
      - path
          - mineralA
              - spectraA.txt
@@ -272,13 +276,13 @@ def loadLibraryDIR(path, wav=None):
     Data in this format can be downloaded using iSpec: https://www.samthiele.science/app/iSpec/index.html.
 
 
-    *Arguments*:
-     - path = the directory path to search for ENVI spectra.
-     - wav = an array of wavelengths to resample the spectra onto. This is required as the txt files often
+    Args:
+        path: the directory path to search for ENVI spectra.
+        wav: an array of wavelengths to resample the spectra onto. This is required as the txt files often
              have differing wavelength arrays. Data that does not overlap with wav will be set to nan. If None,
              this will be set to the wavelengths of the first encounted dataset.
-    *Returns*:
-     - a HyLibrary spectral library instance.
+    Returns:
+        a HyLibrary spectral library instance.
     """
 
     files = glob.glob(os.path.join(path, "*/*.txt"))

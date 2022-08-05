@@ -17,12 +17,12 @@ def QAQC(image, method, dim=0, fit="minmax", checklines=[]):
     """
     Estimate the spectral quality of a sensor according to reference measurements. Mask image first if required.
 
-    *Arguments*:
-     - image = the image containing data from the sensor..
-     - method = "LDPE" for SWIR using reference LDPE foil, "FT" for VNIR using fluorescence tube.
-     - dim = dimensionality of the evaluation (0 = overall average, 1 = row-wise, 2 = full frame).
-     - fit = method for peak fitting. For details, check hylite.analyse.mapping.minimum_wavelength( ... ).
-     - checklines = define custom features to check for (list of ints or floats).
+    Args:
+        image (hylite.HyImage): the image containing data from the sensor..
+        method (str): "LDPE" for SWIR using reference LDPE foil, "FT" for VNIR using fluorescence tube.
+        dim (int): dimensionality of the evaluation (0 = overall average, 1 = row-wise, 2 = full frame).
+        fit (str): method for peak fitting. For details, check hylite.analyse.mapping.minimum_wavelength( ... ).
+        checklines (list): define custom features to check for (list of ints or floats).
     """
 
     image.data = image.data.astype(np.float)

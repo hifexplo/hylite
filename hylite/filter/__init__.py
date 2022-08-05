@@ -12,17 +12,17 @@ def boost_saturation( image, bands, flip=True, sat=0.8, val=None, clip=(2,98),pe
     """
     Create a saturation boosted composite image.
 
-    *Arguments*:
-     - the image containing the data
-     - bands = the bands to map to r, g, b.
-     - flip = true if the image should be inverted prior to boosting saturation
+    Args:
+        image (hylite.HyImage): the image containing the data
+        bands: the bands to map to r, g, b.
+        flip: true if the image should be inverted prior to boosting saturation
               (good for interpreting absorbtion features). Default is True.
-     - sat = the (constant) saturation value to use. Default is 0.8.
-     - val = the (constant) brightness value to use. Default is None (do not fix brightness).
-     - clip = the percentile clip range to use to map to 0 - 1. Default is the 2nd and 98th percentile (2,98).
-     - per_band = True if this clipping should be done per band or over the whole RGB composite. Default is False
-    *Returns*
-     - a HyImage instance containing the saturation enhanced result
+        sat: the (constant) saturation value to use. Default is 0.8.
+        val: the (constant) brightness value to use. Default is None (do not fix brightness).
+        clip: the percentile clip range to use to map to 0 - 1. Default is the 2nd and 98th percentile (2,98).
+        per_band: True if this clipping should be done per band or over the whole RGB composite. Default is False
+    Returns:
+        a HyImage instance containing the saturation enhanced result
     """
 
     from matplotlib.colors import rgb_to_hsv, hsv_to_rgb

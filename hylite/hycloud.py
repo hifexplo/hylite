@@ -26,15 +26,15 @@ class HyCloud( HyData ):
 
         Args:
             xyz (ndarray): a numpy array such that data[i] = [ x, y, z ]
-            **keywords: Optional keywords include:
+            **kwds: Optional keywords include:
 
-                     - normals = a Nx3 numpy array containing point normals. Default is None.
-                     - rgb = a Nx3 numpy array containing point colors. Default is None.
-                     - bands = a Nxm numpy array containing additional scalar bands (e.g. hyperspectral bands). This will become the
-                                data array of this cloud.
-                     - band_names = a Nxm list of names corresponding to each scalar band.
-                     - wavelengths = a Nxm list of hyperspectral wavelengths corresponding to each scalar band. Should be -1 for non
-                                     hyperspectral bands.
+                 - normals = a Nx3 numpy array containing point normals. Default is None.
+                 - rgb = a Nx3 numpy array containing point colors. Default is None.
+                 - bands = a Nxm numpy array containing additional scalar bands (e.g. hyperspectral bands). This will become the
+                            data array of this cloud.
+                 - band_names = a Nxm list of names corresponding to each scalar band.
+                 - wavelengths = a Nxm list of hyperspectral wavelengths corresponding to each scalar band. Should be -1 for non
+                                 hyperspectral bands.
 
 
         """
@@ -184,7 +184,6 @@ class HyCloud( HyData ):
                 self.set_wavelengths(np.hstack( [self.get_wavelengths(), wavelengths] ))
 
     def filter_points(self, band, val, trim=True):
-
         """
         Remove points based on their scalar field values.
 
@@ -198,7 +197,6 @@ class HyCloud( HyData ):
 
             trim (bool): True if points outside a tuple val should be deleted. False if points falling within the range defined by val
                  should be deleted.
-
         """
 
         b = self.get_band_index(band)
@@ -234,7 +232,7 @@ class HyCloud( HyData ):
             radius (float): the radius around each point defining the neighbourhood.
             function: the operator to call. This should have the following form: function( radius, current_id, neighbour_ids, *args ).
             vb (bool): True if a progress bar should be created. Default is True.
-            args (tuple): = remainin arguments are passed to function(...).
+            args (tuple): remaininh arguments are passed to function(...).
 
         Returns:
             a list of values corresponding to the returned value of function for each point in this cloud (or None if the
@@ -347,26 +345,26 @@ class HyCloud( HyData ):
             step (int): the image pixel angular step (in x) for panoramic images. Default is None == square pixels.
             bands (list,str, tuple): List defining the bands to include in the output image. Elements should be one of:
 
-                    - 'rgb' = rgb
-                    - 'xyz' = point position
-                    - 'klm' = normal vectors
-                    - numeric = index (int), wavelength (float) of a scalar field
-                    - tuple of length 2 = slice of scalar fields (e.g. (0,-1) would return all bands).
-                    - tuple of length > 2 or list: list of band indices (int) or wavelengths (float).
+                - 'rgb' = rgb
+                - 'xyz' = point position
+                - 'klm' = normal vectors
+                - numeric = index (int), wavelength (float) of a scalar field
+                - tuple of length 2 = slice of scalar fields (e.g. (0,-1) would return all bands).
+                - tuple of length > 2 or list: list of band indices (int) or wavelengths (float).
 
-                    Default is ['rgb'].
+                Default is ['rgb'].
 
             **kwds: Keyword arguments can be any of:
 
-                     - s = the point size (in pixels). Must be an integer. Default is 1.
-                     - step = skip through n points for quicker plotting (default is 1 = draw all points).
-                     - fill_holes = True if 1-pixel holes should be filled. Default is False.
-                     - blur = Gaussian kernel size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
-                     - despeckle = Median kernel size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
-                     - res = the pixel size (in world coordinates) used to georeference the resulting raster (if creating an orthophoto).
-                             Default is one thousandth of the maximum dimension (in x or y).
-                     - epsg = an epsg code used to georeference the resulting render (if creating an orthophoto). Default is 32629.
-                     - depth = include the depth buffer in the output image. Default is False.
+                 - s = the point size (in pixels). Must be an integer. Default is 1.
+                 - step = skip through n points for quicker plotting (default is 1 = draw all points).
+                 - fill_holes = True if 1-pixel holes should be filled. Default is False.
+                 - blur = Gaussian kernel size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
+                 - despeckle = Median kernel size (in pixels) to blur/smooth final image with. Default is 0 (no blur). Must be odd.
+                 - res = the pixel size (in world coordinates) used to georeference the resulting raster (if creating an orthophoto).
+                         Default is one thousandth of the maximum dimension (in x or y).
+                 - epsg = an epsg code used to georeference the resulting render (if creating an orthophoto). Default is 32629.
+                 - depth = include the depth buffer in the output image. Default is False.
 
         Returns:
             a HyImage object.

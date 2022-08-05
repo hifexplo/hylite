@@ -21,12 +21,12 @@ class MWL(HyCollection):
         """
         Band a new MWL mapping results. Essentially treat this as the constructor.
 
-        *Arguments*:
-         - model = the underlying HyData instance containing feature parameters.
-         - nfeatures = the number of features stored in the underlying model.
-         - x = Wavelengths that the model should be evaluated at.
-         - X = the underlying data that the model was fitted to. Useful for plotting / debugging. Default is None.
-         - sym = True if symmetric features are stored (3-parameters). Default is False (4-parameters).
+        Args:
+            model: the underlying HyData instance containing feature parameters.
+            nfeatures: the number of features stored in the underlying model.
+            x: Wavelengths that the model should be evaluated at.
+            X: the underlying data that the model was fitted to. Useful for plotting / debugging. Default is None.
+            sym: True if symmetric features are stored (3-parameters). Default is False (4-parameters).
         """
 
         # store attributes
@@ -52,9 +52,9 @@ class MWL(HyCollection):
         Slice this MWL object to return specific features or feature parameters.
 
         Options are:
-         self[n] = get the n'th feature (as a HyData instance). See self.sortByDepth(..) and self.sortByPos(..) to
+         self[n]: get the n'th feature (as a HyData instance). See self.sortByDepth(..) and self.sortByPos(..) to
                    change feature order.
-         self[n,b] = return a numpy array containing a specific property of the n'th feature. b can be an index 0-3
+         self[n,b]: return a numpy array containing a specific property of the n'th feature. b can be an index 0-3
                      for symmetric and 0-4 for asymmetric features, or string ('depth', 'pos', 'width', 'width2').
         """
 
@@ -141,11 +141,11 @@ class MWL(HyCollection):
         """
         Returns a HyData instance containing the deepest feature within the specified range.
 
-        *Arguments*:
-         - wmin = the lower bound of the wavelength range. Default is 0 (accept all positions)
-         - wmax = the upper bound of the wavelength range. Default is -1 (accept all positions)
-        *Returns*:
-         - a MWL instance containing the deepest features within the range, or nans if no feature exists.
+        Args:
+            wmin: the lower bound of the wavelength range. Default is 0 (accept all positions)
+            wmax: the upper bound of the wavelength range. Default is -1 (accept all positions)
+        Returns:
+            a MWL instance containing the deepest features within the range, or nans if no feature exists.
         """
 
         if wmin==0:
@@ -179,13 +179,13 @@ class MWL(HyCollection):
         """
         Returns a HyData instance containing the closest feature within the specified range.
 
-        *Arguments*:
-         - position = the 'ideal' feature position to compare with (e.g. 2200.0 for AlOH)
-         - valid_range = A tuple defining the minimum and maximum acceptible wavelengths, or None (default). Values outside
+        Args:
+            position: the 'ideal' feature position to compare with (e.g. 2200.0 for AlOH)
+            valid_range: A tuple defining the minimum and maximum acceptible wavelengths, or None (default). Values outside
                          of the valid range will be set to nan.
-         - depth_cutoff = Features with depths below this value will be discared (and set to nan).
-        *Returns*
-         - a single HyData instance containing the closest minima.
+            depth_cutoff: Features with depths below this value will be discared (and set to nan).
+        Returns:
+            a single HyData instance containing the closest minima.
         """
         # get valid positions
         valid_pos = np.isfinite(self[:, 'pos'])
@@ -216,13 +216,13 @@ class MWL(HyCollection):
         Return True if the entries in each pixel/point include a feature within the specified wavelength range,
         and False otherwise. Useful for e.g. decision tree classifications.
 
-        *Arguments*:
-         - wmin = the lower bound of the wavelength range.
-         - wmax = the upper bound of the wavelength range.
-         - depth_cutoff = the minimum depth required for a feature to count as existing.
+        Args:
+            wmin: the lower bound of the wavelength range.
+            wmax: the upper bound of the wavelength range.
+            depth_cutoff: the minimum depth required for a feature to count as existing.
 
-        *Returns*:
-         - a numpy array  populated with False (no feature) or True (feature).
+        Returns:
+            a numpy array  populated with False (no feature) or True (feature).
         """
         valid_pos = (self[:, 'pos'] > wmin) & (np.array(self[:, 'pos']) < wmax)
         valid_depth = (self[:, 'depth'] > depth_cutoff)
@@ -233,10 +233,12 @@ class MWL(HyCollection):
         Return a HyFeature instance based on the specified point or pixel index. Useful for plotting fitted results
         vs actual spectra.
 
-        *Arguments*:
-         - idx = the index of the point or pixel to be retrieved.
-         - source = the source dataset, for plotting original spectra. Default is None.
-        *Returns*: a HyFeature instance containing the modelled minimum wavelength data at this point.
+        Args:
+            idx (int, tuple): the index of the point or pixel to be retrieved.
+            source (HyData): the source dataset, for plotting original spectra. Default is None.
+
+        Returns:
+            a HyFeature instance containing the modelled minimum wavelength data at this point.
         """
         pass
 
@@ -244,8 +246,8 @@ class MWL(HyCollection):
         """
         Evaluate this model and return the result as a HyData instance.
 
-        *Returns*
-         - A HyData instance containing the estimated spectra based on the fitted features.
+        Returns:
+            A HyData instance containing the estimated spectra based on the fitted features.
         """
         out = self.model.copy(data=False)
         out.data = 1. - evaluate(self.x, self.model.data, sym=self.sym)
@@ -256,8 +258,8 @@ class MWL(HyCollection):
         """
         Evaluate and return the residuals to the fitted minimum wavelength model.
 
-        *Returns*
-         - A HyData instance containing the residuals in band 0.
+        Returns:
+            A HyData instance containing the residuals in band 0.
         """
         out = self.model.copy(data=False)
         out.data = np.sum(np.abs(self.X.data - self.evaluate().data), axis=-1)[..., None]
@@ -270,14 +272,16 @@ class MWL(HyCollection):
 
         See this publication for more details: https://doi.org/10.3390/min11020136
 
-        *Arguments*:
-         - n = the number of classes to use.
-         - nf = the number of feature positions to use. Default is 2. Must not exceed the number of features fitted.
-         - step = the step to subsample points (used to avoid really slow plotting). Computes on all points by default.
-        *Returns*:
-         - labels =  a HyData instance (or numpy array if step > 1) containing integer class labels in band 0.
-         - centroids = a list containing the index of each class centroid (in the dataset).
-        """
+        Args:
+            n: the number of classes to use.
+            nf: the number of feature positions to use. Default is 2. Must not exceed the number of features fitted.
+            step: the step to subsample points (used to avoid really slow plotting). Computes on all points by default.
+        Returns:
+            A tuple containing:
+
+            - labels =  a HyData instance (or numpy array if step > 1) containing integer class labels in band 0.
+            - centroids = a list containing the index of each class centroid (in the dataset).
+         """
 
         assert nf <= self.n, "Error - MWL map has only %d features (<%d)." % (self.n, nf)
         import scipy.cluster.hierarchy as shc
@@ -317,18 +321,19 @@ class MWL(HyCollection):
         """
         Plot all features in this minimum wavelength model on a scatter plot.
 
-        *Arguments*:
-         - ax = a different axes to plot this figure on. Default is None (creates a new axis).
-        *Keywords*
-        - step = the step to subsample points (to avoid really slow plotting). Defaults to a step that gives 1000 points.
-         - n = the number of classes to use for classification (see self.classify()),
-             or a list of class ids as returned by classify.
-         - cmap = the colour map to use (string). Default is 'tab10'.
-         - point_size = the size of the points to plot.
-         - point_alpha = the transparency of the points to plot.
-         - legend = True if a legend should be plotted. Default is True.
-        *Returns*:
-         - fig,ax = the figure that was plotted.
+        Args:
+            ax: a different axes to plot this figure on. Default is None (creates a new axis).
+            **kwds: Keywords can include:
+
+                 - step = the step to subsample points (to avoid really slow plotting). Defaults to a step that gives 1000 points.
+                 - n = the number of classes to use for classification (see self.classify()),
+                     or a list of class ids as returned by classify.
+                 - cmap = the colour map to use (string). Default is 'tab10'.
+                 - point_size = the size of the points to plot.
+                 - point_alpha = the transparency of the points to plot.
+                 - legend = True if a legend should be plotted. Default is True.
+        Returns:
+            fig,ax = the figure that was plotted.
         """
         if ax is None:
             fig, ax = plt.subplots(figsize=(10, 5))
@@ -380,20 +385,20 @@ class MWL(HyCollection):
         Plot all features in this minimum wavelength model on a scatter plot. Note that calling
         this function will sort the features in this MWL instance by depth.
 
-        *Arguments*:
-         - f1 = the index of the first feature to plot (sorted by depth). Default is 0 (deepest feature).
-         - f2 = the index of the first feature to plot (sorted by depth). Default is 1.
-         - ax = a different axes to plot this figure on. Default is None (creates a new axis).
-        *Keywords*
-         - step = the step to subsample points (to avoid really slow plotting). Defaults to a step that gives 1000 points.
-         - n = the number of classes to use for classification (see self.classify()),
-             or a list of class ids as returned by classify.
-         - cmap = the colour map to use (string). Default is 'tab10'.
-         - point_size = the size of the points to plot.
-         - point_alpha = the transparency of the points to plot.
-         - legend = True if a legend should be plotted. Default is True.
-        *Returns*:
-         - fig,ax = the figure that was plotted.
+        Args:
+            f1: the index of the first feature to plot (sorted by depth). Default is 0 (deepest feature).
+            f2: the index of the first feature to plot (sorted by depth). Default is 1.
+            ax: a different axes to plot this figure on. Default is None (creates a new axis).
+            **kwds: Keywords can include:
+
+                - step = the step to subsample points (to avoid really slow plotting). Defaults to a step that gives 1000 points.
+                - n = the number of classes to use for classification (see self.classify()), or a list of class ids as returned by classify.
+                - cmap = the colour map to use (string). Default is 'tab10'.
+                - point_size = the size of the points to plot.
+                - point_alpha = the transparency of the points to plot.
+                - legend = True if a legend should be plotted. Default is True.
+        Returns:
+            fig,ax = the figure that was plotted.
         """
         if ax is None:
             fig, ax = plt.subplots(figsize=(10, 5))
@@ -434,25 +439,27 @@ class MWL(HyCollection):
         """
         Plot an overview visualisation that is useful for QAQC of MWL mapping results.
 
-        *Keywords*:
-         - image = the image preview to plot. Can be a HyData instance, or 'resid' (default) to plots the average residuals,
-                   or 'class' to a classification [slow!].
-         - bands = the bands of image to plot (if image is provided).
-         - vmin = the vmin value for plotting 'image' (if image is provided).
-         - vmax = the vmax value for plotting 'image' (if image is provided).
-         - residual_clip = the (mn,mx) percentile colour stretch to apply to the residuals.
-         - n = the number of clusters do create during absorbtion-feature clustering, or a list with precalculated
-                    cluster labels.
-         - nf = the number of features to use for this clustering. Default is 2.
-         - offset = the vertical offset between spectra in the spectral summaries. Default is 0.25
-         - cmap = the colour map to use (string). Default is 'tab10'.
-         - point_size = the size of the points to plot.
-         - point_alpha = the transparency of the points to plot.
-         - legend = True if a legend should be plotted. Default is True.
-         - cam = a camera instance if the underlying dataset is a pointcloud. Default is 'ortho'.
-         - s = specify point size if the underlying dataset is a pointcloud. Default is 1.
-        *Returns*:
-         - fig,ax = the plot that was created.
+        Args:
+            **kwds: Keywords can include:
+
+                 - image = the image preview to plot. Can be a HyData instance, or 'resid' (default) to plots the average residuals,
+                           or 'class' to a classification [slow!].
+                 - bands = the bands of image to plot (if image is provided).
+                 - vmin = the vmin value for plotting 'image' (if image is provided).
+                 - vmax = the vmax value for plotting 'image' (if image is provided).
+                 - residual_clip = the (mn,mx) percentile colour stretch to apply to the residuals.
+                 - n = the number of clusters do create during absorbtion-feature clustering, or a list with precalculated
+                            cluster labels.
+                 - nf = the number of features to use for this clustering. Default is 2.
+                 - offset = the vertical offset between spectra in the spectral summaries. Default is 0.25
+                 - cmap = the colour map to use (string). Default is 'tab10'.
+                 - point_size = the size of the points to plot.
+                 - point_alpha = the transparency of the points to plot.
+                 - legend = True if a legend should be plotted. Default is True.
+                 - cam = a camera instance if the underlying dataset is a pointcloud. Default is 'ortho'.
+                 - s = specify point size if the underlying dataset is a pointcloud. Default is 1.
+        Returns:
+            fig,ax = the plot that was created.
         """
 
         # todo; write another function for single-feature maps?
@@ -571,12 +578,13 @@ class MWL(HyCollection):
         """
         Plot the fitted features (and underlying data) for the specified indices.
 
-        *Arguments*:
-         - indices = a list containing the indices to plot.
-         - ax = a matplotlib axes to plot to, or None (default) to create a new one.
-        *Keywords*:
-         - offset = the vertical offset between successive spectra. Default is 0.25.
-         - leg = True if a legend should be plotted. Default is True.
+        Args:
+            indices: a list containing the indices to plot.
+            ax: a matplotlib axes to plot to, or None (default) to create a new one.
+            **kwds: Keywords can include:
+
+                 - offset = the vertical offset between successive spectra. Default is 0.25.
+                 - leg = True if a legend should be plotted. Default is True.
         """
 
         if ax is None:
@@ -616,24 +624,27 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
     """
     Perform minimum wavelength mapping to map the position of absorbtion features.
 
-    *Arguments*:
-     - data = the hyperspectral data (e.g. image or point cloud) to perform minimum wavelength mapping on.
-     - minw = the lower limit of the range of wavelengths to search (in nanometers).
-     - maxw = the upper limit of the range of wavelengths to search (in nanometers).
-     - method = the method/model used to quantify the feature. Options are:
-                 - "minmax" - Identifies the n most prominent local minima to approximately resolve absorbtion feature positions. Fast but inaccurate.
-                 - "poly" - Applies the minmax method but then interpolates feature position between bands using a polynomial function. TODO.
-                 - "gaussian" - fits n gaussian absorbtion features to the detrended spectra. Slow but most accurate.
-     - trend = the method used to detrend the spectra. Can be 'hull' or None. Default is 'hull'.
-     - n = the number of features to fit. Note that this is not compatible with method = 'tpt'.
-     - minima = True if features should fit minima. If False then 'maximum wavelength mapping' is performed.
-     - sym = True if symmetric gaussian fitting should be used. Default is False.
-     - k = the number of adjacent measurements to look at during detection of local minima. Default is 10. Larger numbers ignore smaller features as noise.
-     - nthreads = the number of threads to use for the computation. Default is 1 (no multithreading).
-     - vb = True if graphical progress updates should be created.
+    Args:
+        data: the hyperspectral data (e.g. image or point cloud) to perform minimum wavelength mapping on.
+        minw: the lower limit of the range of wavelengths to search (in nanometers).
+        maxw: the upper limit of the range of wavelengths to search (in nanometers).
+        method: the method/model used to quantify the feature. Options are:
 
-    *Keywords*: Keywords are passed to gfit.gfit( ... ).
-    *Returns*: A MWL (n>1) or HyData instance containing the minimum wavelength mapping results.
+         - "minmax" - Identifies the n most prominent local minima to approximately resolve absorbtion feature positions. Fast but inaccurate.
+         - "poly" - Applies the minmax method but then interpolates feature position between bands using a polynomial function. TODO.
+         - "gaussian" - fits n gaussian absorbtion features to the detrended spectra. Slow but most accurate.
+
+        trend: the method used to detrend the spectra. Can be 'hull' or None. Default is 'hull'.
+        n: the number of features to fit. Note that this is not compatible with method = 'tpt'.
+        minima: True if features should fit minima. If False then 'maximum wavelength mapping' is performed.
+        sym: True if symmetric gaussian fitting should be used. Default is False.
+        k: the number of adjacent measurements to look at during detection of local minima. Default is 10. Larger numbers ignore smaller features as noise.
+        nthreads: the number of threads to use for the computation. Default is 1 (no multithreading).
+        vb: True if graphical progress updates should be created.
+        **kwds: Keywords are passed to gfit.gfit( ... ).
+
+    Returns:
+        A MWL (n>1) or HyData instance containing the minimum wavelength mapping results.
     """
 
     # get relevant bands and detrend
@@ -693,16 +704,16 @@ class mwl_legend(object):
         """
         Create an mwl_legend instance.
 
-        *Arguments*:
-          - minh = the value (wavelength) mapped to hue of 0
-          - maxh = the value (wavelength) mapped to a hue of 1
-          - minc = the value (typically depth/strength) mapped to brightness/saturation of 0.
-          - maxc = the value (typically depth/strength) mapped to brightness/saturation fo 1.
-          - mode = specifies if minc and maxc refer to brightness ('val', default) or saturation ('sat').
+        Args:
+            minh: the value (wavelength) mapped to hue of 0
+            maxh: the value (wavelength) mapped to a hue of 1
+            minc: the value (typically depth/strength) mapped to brightness/saturation of 0.
+            maxc: the value (typically depth/strength) mapped to brightness/saturation fo 1.
+            mode: specifies if minc and maxc refer to brightness ('val', default) or saturation ('sat').
+            **kwds: Keywords can include:
 
-        *Keywords*:
-          - xlab = a custom name for the hue (x) label. Default is 'Wavelength (nm)'
-          - ylab = a custom name for the second axis. Default is 'Strength'.
+                - xlab = a custom name for the hue (x) label. Default is 'Wavelength (nm)'
+                - ylab = a custom name for the second axis. Default is 'Strength'.
         """
 
         self.minh = minh
@@ -717,14 +728,15 @@ class mwl_legend(object):
         """
         Add this legend to the specified figure.
 
-        *Arguments*:
-         - ax = the axes to overlay the legend on.
-         - pos = the position of the legend. Can be:
-                    - a string: 'top left' (default), 'bottom left', 'top right' or 'bottom right', or;
-                    - a tuple (x,y) coordinates of the top left of the legend in figure coordinates.
-         - s = the (width, height) of the legend in figure coordinates. Default is (0.2, 0.1).
-        *Returns*:
-         - ax = the axis that was added to the plot.
+        Args:
+            ax: the axes to overlay the legend on.
+            pos: the position of the legend. Can be:
+
+                - a string: 'top left' (default), 'bottom left', 'top right' or 'bottom right', or;
+                - a tuple (x,y) coordinates of the top left of the legend in figure coordinates.
+            s: the (width, height) of the legend in figure coordinates. Default is (0.2, 0.1).
+        Returns:
+            the axis that was added to the plot.
         """
 
         # create axis
@@ -811,22 +823,25 @@ def colourise_mwl(mwl, mode='p-d', **kwds):
     Takes a HyData instance containing minimum wavelength bands (pos, depth, width and strength) and creates
     a RGB composite such that hue ~ pos, sat ~ width and val ~ strength or depth.
 
-    *Arguments*:
-     - mwl = the HyData instance containing minimum wavelength data.
-     - mode = the mapping from position (p), width (w) and depth and (d) to hsv. Default is 'pwd', though other options
+    Args:
+        mwl: the HyData instance containing minimum wavelength data.
+        mode: the mapping from position (p), width (w) and depth and (d) to hsv. Default is 'pwd', though other options
               are 'p-d' (constant saturation of 80%), 'pdw' and 'pd-' (constant brightness of 85%).
-    *Keywords*:
-      - hue_map = Wavelengths (xxx.x, yyy.y) or percentiles (x,y) to use when converting wavelength to hue.
-                    Default is (0,100). Alternatively use 'SWIR' for customised colour stretch optimised for
-                    clay, mica and chlorite absorbtion features.
-      - sat_map = Widths (xxx.x, yyy.y) or percentiles (x,y) to use when converting width to saturation.
-                    Default is (0,100).
-      - val_map = Strengths/depths (xxx.x, yyy.y) or percentiles (x,y) to use when converting strength to brightness.
-                    Default is (0,75), as these tend to be dominated by low/zero values.
+        **kwds: Keywords can include:
 
-    *Returns*:
-     - either an RGB HyImage object (if mwl is an image) or the original HyCloud with defined rgb bands.
-     - cmap = a mwl_legend instance for plotting colour maps.
+              - hue_map = Wavelengths (xxx.x, yyy.y) or percentiles (x,y) to use when converting wavelength to hue.
+                            Default is (0,100). Alternatively use 'SWIR' for customised colour stretch optimised for
+                            clay, mica and chlorite absorbtion features.
+              - sat_map = Widths (xxx.x, yyy.y) or percentiles (x,y) to use when converting width to saturation.
+                            Default is (0,100).
+              - val_map = Strengths/depths (xxx.x, yyy.y) or percentiles (x,y) to use when converting strength to brightness.
+                            Default is (0,75), as these tend to be dominated by low/zero values.
+
+    Returns:
+        A tuple containing:
+
+        - either an RGB HyImage object (if mwl is an image) or the original HyCloud with defined rgb bands.
+        - cmap = a mwl_legend instance for plotting colour maps.
     """
 
     # extract data
@@ -939,24 +954,27 @@ def plot_ternary(F1, F2, F3, bounds, weights=[1., 1., 1.], subsample=1, depth_th
     """
     Plot a ternary diagram comparing the depths and positions of three minimum wavelength features.
 
-    *Arguments*:
-     - F1, F2, F3 = A HyData instance containing feature depth and position as band 0 and 1 respectively.
-     - bounds = List containing min and max position values for each feature [ (min,max), (min,max), (min,max)].
-     - weights = weights applied to each depth. Default is [1,1,1].
-     - subsample = skip entries in the data features for large datasets. Default is 1 (don't skip any).
-     - depth_thresh = the minimum depth to be considered a valid feature. Default is 0.01.
-     - ax = an axes to plot to. If None (default) then a new axes is created.
-    *Keywords*:
-     - r = the diameter of the ternary diagram (default is 0.8)
-     - figsize = the figure size as a (width,height) tuple. Default is (10,10)
-     - w = the width of edge plots. Default is 0.2.
-     - gs = the number of grid lines. Default is 5.
-     - invalid = invalid region (don't plot position if abundance < this value). Default is 0.2.
-     - title = the title of the plot.
-     - labels = the names of each of the features (F1, F2 and F3) used for labelling.
-     - label_offset = the space between each label and the relevant vertex.
-     - s = the point size. Default is 4.
-     - a = point alpha. Default is 0.1.
+    Args:
+        F1 (HyData): A HyData instance containing feature depth and position as band 0 and 1 respectively.
+        F2 (HyData): A HyData instance containing feature depth and position as band 0 and 1 respectively.
+        F3 (HyData): A HyData instance containing feature depth and position as band 0 and 1 respectively.
+        bounds: List containing min and max position values for each feature [ (min,max), (min,max), (min,max)].
+        weights: weights applied to each depth. Default is [1,1,1].
+        subsample: skip entries in the data features for large datasets. Default is 1 (don't skip any).
+        depth_thresh: the minimum depth to be considered a valid feature. Default is 0.01.
+        ax: an axes to plot to. If None (default) then a new axes is created.
+        **kwds: Keywords can include:
+
+             - r = the diameter of the ternary diagram (default is 0.8)
+             - figsize = the figure size as a (width,height) tuple. Default is (10,10)
+             - w = the width of edge plots. Default is 0.2.
+             - gs = the number of grid lines. Default is 5.
+             - invalid = invalid region (don't plot position if abundance < this value). Default is 0.2.
+             - title = the title of the plot.
+             - labels = the names of each of the features (F1, F2 and F3) used for labelling.
+             - label_offset = the space between each label and the relevant vertex.
+             - s = the point size. Default is 4.
+             - a = point alpha. Default is 0.1.
     """
     # put features in a list
     features = [F1, F2, F3]

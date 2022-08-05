@@ -66,11 +66,10 @@ class Sensor(object):
         """
         Apply sensor corrections to an image.
 
-        *Arguments*:
-         - image = a hyImage instance of an image captured using this sensor.
-         - verbose = true if updates/progress should be printed to the console. Default is False.
-        *Keywords*:
-         - keywords as defined by inherited classes (sensor specific)
+        Args:
+            image (hylite.HyImage): a hyImage instance of an image captured using this sensor.
+            verbose (bool): true if updates/progress should be printed to the console. Default is False.
+            **kwds: keywords as defined by inherited classes (sensor specific)
         """
 
         pass  # implement this in inherited classes
@@ -81,15 +80,13 @@ class Sensor(object):
         Many sensors use simple/common data structures to store data/headers/dark reference etc. Hence it is often easiest
         to pass an output folder to the sensor for correction.
 
-        *Arguments*:
-         - path = a path to the folder containing the sensor specific data.
+        Args:
+            path (str): a path to the folder containing the sensor specific data.
+            **kwds: keywords as defined by inherited classes (sensor specific)
 
-        *Keywords*:
-         - keywords as defined by inherited classes (sensor specific)
-
-        *Returns*:
-         - a hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
-           topographic or atmospheric corrections.
+        Returns:
+            A hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
+            topographic or atmospheric corrections.
 
         """
 
@@ -112,8 +109,8 @@ class Sensor(object):
         """
         Set the known reflectance spectra of the white reference.
 
-        *Arguments*:
-         - spectra = hylite.reference.spectra.Target instance defining the known reflectance spectra of the white reference.
+        Args:
+            spectra (hylite.reference.spectra.Target): The known reflectance spectra of the white reference.
                      If None, then the target is assumed to be pure white (reflectance = 1).
         """
         Sensor.white_spectra = spectra # store reference spectra
@@ -123,8 +120,8 @@ class Sensor(object):
         """
         Sets the white reference to be used for sensor corrections.
 
-        *Arguments*:
-         - image = the white reference image.
+        Args:
+            image (hylite.HyImage): the white reference image.
         """
 
         if isinstance(image, str):

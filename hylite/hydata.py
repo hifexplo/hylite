@@ -35,7 +35,7 @@ class HyData(object):
     #####################################
     ##  Instance methods
     #####################################
-    def __init__(self, data, header=None):
+    def __init__(self, data, header=None, **kwds):
         """
         Create an image object from a data array.
 
@@ -466,9 +466,9 @@ class HyData(object):
                is returned. If it is a wavelength then the closest band to this wavelength is returned.
             **kwds: This function takes one keyword:
 
-                     - thresh = the threshold (in nanometers) within which a band must fall to be valid. Default is
-                                hylite.band_select_threshold (which defaults to 10 nm). If a wavelength is passed and a
-                                band exists within this distance, then it is returned. Otherwise an error is thrown).
+                 - thresh = the threshold (in nanometers) within which a band must fall to be valid. Default is
+                            hylite.band_select_threshold (which defaults to 10 nm). If a wavelength is passed and a
+                            band exists within this distance, then it is returned. Otherwise an error is thrown).
 
         Returns:
             the matching band index.
@@ -720,8 +720,8 @@ class HyData(object):
             colours (list,str): a matplotlib colour string or list of colours corresponding to each index spectra. Default is 'blue'.
             **kwds: keywords are passed to plt.plot( ... ), except the following options:
 
-             - quantiles = True if summary quantiles of all pixels should be plotted. Default is True.
-             - median = True if the median spectra of all pixels should be plotted. Default is True.
+                 - quantiles = True if summary quantiles of all pixels should be plotted. Default is True.
+                 - median = True if the median spectra of all pixels should be plotted. Default is True.
 
         """
 

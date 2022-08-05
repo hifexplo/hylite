@@ -1,3 +1,8 @@
+"""
+Utility class for storing information on calibration panels and combining measured radiance values with known
+reflectance spectra.
+"""
+
 import matplotlib.pyplot as plt
 from matplotlib import path
 import numpy as np
@@ -22,24 +27,24 @@ class Panel( HyData ):
         """
         Generic constructor. Can be of the following forms:
 
-        *Arguments*:
-          - material = a hylite.reference.Target instance containing target reflectance data for this panel.
-          - radiance = either a HyImage object (which contains some reference pixels) or a
-                       NxM numpy array containing radiance values for N pixels across M bands.
+        Args:
+            material: a hylite.reference.Target instance containing target reflectance data for this panel.
+            radiance: either a HyImage object (which contains some reference pixels) or a
+                        NxM numpy array containing radiance values for N pixels across M bands.
+            **kwds: Keywords can include the following:
 
-        *Keywords*:
-         - wavelengths = wavelengths corresponding to the radiance values (if radiance is an array rather than a HyImage
-                         object).
-         - method = 'manual' (default) to manually pick reference in image (using an interactive plot). Can also be
-                     'sobel' or 'laplace' to use the corresponding edge detectors to automatically identify the
-                     calibration target (using OpenCV contouring).
-         - bands = list of band indices (integer) or wavelengths (float) to use when selecting the target.
-         - edge_thresh = the edge threshold (as percentile of gradient values) used when automatically identifying reference.
-                         Default is 95.
-         - area_thresh = the minimum area (in pixels) of candidate panels. Used to discard small/bright areas. Default is 100.
-         - shrink = a shrink factor to reduce the size of reference identified automatically (and so remove dodgy pixels
-                    near the target edge/frame. Default is 0.4.
-         - db = If True, visualisation of the edge detection layers will be plotted for debug purposes. Default is false.
+                 - wavelengths = wavelengths corresponding to the radiance values (if radiance is an array rather than a HyImage
+                                 object).
+                 - method = 'manual' (default) to manually pick reference in image (using an interactive plot). Can also be
+                             'sobel' or 'laplace' to use the corresponding edge detectors to automatically identify the
+                             calibration target (using OpenCV contouring).
+                 - bands = list of band indices (integer) or wavelengths (float) to use when selecting the target.
+                 - edge_thresh = the edge threshold (as percentile of gradient values) used when automatically identifying reference.
+                                 Default is 95.
+                 - area_thresh = the minimum area (in pixels) of candidate panels. Used to discard small/bright areas. Default is 100.
+                 - shrink = a shrink factor to reduce the size of reference identified automatically (and so remove dodgy pixels
+                            near the target edge/frame. Default is 0.4.
+                 - db = If True, visualisation of the edge detection layers will be plotted for debug purposes. Default is false.
         """
 
         super().__init__(None)  # initialise header etc.
@@ -204,8 +209,8 @@ class Panel( HyData ):
         """
         Define a panel outline (for e.g., estimating orientation) based on a known camera pose.
 
-        *Arguments*:
-         - coords = the coordinates of the four panel corners.
+        Args:
+            coords: the coordinates of the four panel corners.
         """
         assert len(coords) == 4 and len(coords[0]) == 2, "Error - coords must have shape (4,2) not %s" % str( np.array(coords).shape )
         self.outline = path.Path(coords, closed=True)
@@ -214,8 +219,8 @@ class Panel( HyData ):
         """
         Make a deep copy of this panel instance.
 
-        *Returns*
-          - a new Panel instance.
+        Returns:
+             a new Panel instance.
         """
         return Panel( self.material, self.data, wavelengths=self.get_wavelengths() )
 
@@ -235,12 +240,12 @@ class Panel( HyData ):
         """
         Get the normal vector of this panel by assuming its outline is square (prior to projection onto the camera).
 
-        *Arguments*:
-         - cam = a Camera object describing the pose of the camera from which the panel is viewed. Default is None (to retrieve
+        Args:
+            cam: a Camera object describing the pose of the camera from which the panel is viewed. Default is None (to retrieve
                  previously stored normals)
-         - recalc = True if a precomputed (or otherwise defined) normal vector should be recalculated. Default is False.
-        *Returns*:
-         - norm = the normal vector of the panel (in world coordinates). This is also stored as self.normal.
+            recalc: True if a precomputed (or otherwise defined) normal vector should be recalculated. Default is False.
+        Returns:
+            the normal vector of the panel (in world coordinates). This is also stored as self.normal.
         """
 
         if recalc or self.normal is None:
@@ -305,8 +310,8 @@ class Panel( HyData ):
         """
         Set panel normal vector to a known vector.
 
-        *Arguments*:
-         - n = a (3,) numpy array containing the normal vector in world coordinates.
+        Args:
+            n: a (3,) numpy array containing the normal vector in world coordinates.
         """
         if n is None:
             self.normal = None # remove normal
@@ -320,14 +325,14 @@ class Panel( HyData ):
         """
         Get this panels skyview factor. Normal vector must be defined, otherwise an error will be thrown.
 
-        *Arguments*:
-         - hori_elev = the angle from the panel to the horizon (perpendicular to the panel's orientation) in degrees.
+        Args:
+            hori_elev: the angle from the panel to the horizon (perpendicular to the panel's orientation) in degrees.
                        Used to reduce the sky view factor if the panel is below the horizon (e.g. in an open pit mine).
                        Default is 0.0 (i.e. assume a flat horizon). Can also be negative if sky is visible below the
                        (flat) horizon.
-         - up = the vertical (up) vector. Default is [0,0,1].
-        *Returns*:
-         - this panels sky view factor (assuming the panel is relatively unoccluded and the horizon is flat).
+            up: the vertical (up) vector. Default is [0,0,1].
+        Returns:
+            this panels sky view factor (assuming the panel is relatively unoccluded and the horizon is flat).
         """
 
         # proportion of sky visible assuming horizontal horizon
@@ -354,10 +359,9 @@ class Panel( HyData ):
         """
         Quickly plot the outline of this calibration target for quality checking etc.
 
-        *Arguments*:
-         - bands = the image bands to plot as a preview. Default is io.HyImage.RGB.
-        *Keywords*:
-         - keywords are passed to HyData.plot_spectra( ... ).
+        Args:
+            bands: the image bands to plot as a preview. Default is io.HyImage.RGB.
+            **kwds: keywords are passed to HyData.plot_spectra( ... ).
         """
         if self.source_image is not None: # plot including preview of panel
             fig, ax = plt.subplots(1, 2, figsize=(15, 5), gridspec_kw={'width_ratios': [1, 3]})
@@ -390,10 +394,10 @@ class Panel( HyData ):
         """
         Plots the ratio between known reflectance and observed radiance for each band in this target.
 
-        *Arguments*:
-         - ax = the axes to plot on. If None (default) then a new axes is created.
-        *Returns*:
-         -fig, ax = the figure and axes objects containing the plot.
+        Args:
+            ax: the axes to plot on. If None (default) then a new axes is created.
+        Returns:
+            fig, ax = the figure and axes objects containing the plot.
         """
 
         if ax is None:

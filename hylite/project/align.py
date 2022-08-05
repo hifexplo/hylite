@@ -1,3 +1,7 @@
+"""
+Functions for coregistering image and/or point cloud data.
+"""
+
 from hylite import HyImage
 from hylite.project.basic import *
 from hylite.project.camera import Camera
@@ -10,13 +14,15 @@ def deepWarp(image,target):
     """
     Uses deep optical flow to warp one image to match another.
 
-    *Arguments*
-     - source = the image to deform. Must be numpy array.
-     - target = the target image to fit the source image too. Must be numpy array.
+    Args:
+        source (ndarray): the image to deform. Must be numpy array.
+        target (ndarray): the target image to fit the source image too. Must be numpy array.
 
-    *Returns*:
-     - warped numpy array.
-     - displacement map of the warp.
+    Returns:
+        A tuple containing the:
+
+         - warped numpy array.
+         - displacement map of the warp.
 
     """
 
@@ -42,19 +48,19 @@ def align_to_cloud_manual( cloud, cam, points, pixels, **kwds ):
     """
     Solve for camera location given a list of >4 manually chosen pixel -> point pairs.
 
-    *Arguments*:
-     - cloud = the point cloud (HyCloud instance) to match to
-     - cam = a Camera instance containing the camera parameters (fov, etc.). The cam.pos and cam.ori properties will be ignored so can be set to anything.
-     - points = a list of keypoint ids with length > 4. The position of each keypoint should thus be given by cloud.xyz[ points[i], : ].
-     - pixels = a list of corresponding pixel coordinates (after projection), such that pixels[i] = (px,py).
+    Args:
+        cloud (hylite.HyCloud): the point cloud (HyCloud instance) to match to
+        cam (hylite.project.Camera): a Camera instance containing the camera parameters (fov, etc.). The cam.pos and cam.ori properties will be ignored so can be set to anything.
+        points (list): a list of keypoint ids with length > 4. The position of each keypoint should thus be given by cloud.xyz[ points[i], : ].
+        pixels (list): a list of corresponding pixel coordinates (after projection), such that pixels[i] = (px,py).
+        **kwds:  keywords are passed to hylite.project.pnp( ... ).
 
-    *Keywords*:
-     - keywords are passed to hylite.project.pnp( ... ).
+    Returns:
+        A tuple containing:
 
-    *Returns*:
-     - a Camera instance containing the PnP solution.
-     - err = the mean absolute error between projected keypoints (using the PnP solution) and the corresponding
-             positions given in the pixels array.
+         - a Camera instance containing the PnP solution.
+         - err = the mean absolute error between projected keypoints (using the PnP solution) and the corresponding
+                 positions given in the pixels array.
     """
 
     assert len(points) == len(pixels), "Error - %d pointIDs != %d corresponding pixels" % (len(points), len(pixels))
@@ -192,40 +198,45 @@ def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
     view direction. This inital position must be reasonable to ensure good tie-points can be
     created and used to solve for the camera position.
 
-    *Arguments*:
-     - image = a HyImage object to match.
-     - cloud = a georeferenced HyCloud to match to.
-     - cam = a Camera object containing camera data (fov, step, dims) and initial position/orientation estimate.
-     - bands = a tuple containing the 3 hyperspectral bands to match agains the RGB bands of the point cloud. Default is
-             io.HyImage.RGB.
-     - method = the matching method to use. Can be 'sift' (default) or 'orb'.
-     - recurse = The number of rounds of matching/alignment to perform. Default is 2.
-     - s = the point size to use for rendering. Default is 2. Must be integer.
-     - sf = increase resolution of rendered images to enhance point matching. Default is 3.
-     - cfac = contrast adjustment to apply to hyperspectral bands before matching. Default is 0.0.
-     - bfac = brightness adjustment to apply to hyperspectral bands before matching. Default is 0.0.
-     - vb = True if messages should be written to the console. Default is True.
-     - gf = True if a plot showing matching keypoints and residuals should be created. Useful for checking
-               matching accuracy, troubleshooting and evaluating the accuracy of the reconstructed camera position.
-               Default is True.
-    *Keywords*:
-      - keyword arguments are passed to the opencv feature detecting and matching algorithms.
-      For matching, selectivity can be adjusted using the dist parameter:
-      - dist = the similarity threshold for identifying matches. Default is 0.7.
-      For keypoint detection using SIFT, available parameters are:
-        - contrastThreshold: default is 0.01.
-        - edgeThreshold: default is 10.
-        - sigma: default is 2.0
+    Args:
+        image (hylite.HyImage): a HyImage object to match.
+        cloud (hylite.HyCloud): a georeferenced HyCloud to match to.
+        cam (hylite.project.Camera): a Camera object containing camera data (fov, step, dims) and initial position/orientation estimate.
+        bands (tuple): a tuple containing the 3 hyperspectral bands to match agains the RGB bands of the point cloud. Default is
+                       io.HyImage.RGB.
+        method (str): the matching method to use. Can be 'sift' (default) or 'orb'.
+        recurse (int): The number of rounds of matching/alignment to perform. Default is 2.
+        s (int): the point size to use for rendering. Default is 2. Must be integer.
+        sf (int): increase resolution of rendered images to enhance point matching. Default is 3.
+        cfac (float): contrast adjustment to apply to hyperspectral bands before matching. Default is 0.0.
+        bfac (float): brightness adjustment to apply to hyperspectral bands before matching. Default is 0.0.
+        vb (bool): True if messages should be written to the console. Default is True.
+        gf (bool): True if a plot showing matching keypoints and residuals should be created. Useful for checking
+            matching accuracy, troubleshooting and evaluating the accuracy of the reconstructed camera position.
+            Default is True.
+        **kwds: keyword arguments are passed to the opencv feature detecting and matching algorithms.  For matching,
+            selectivity can be adjusted using the dist parameter:
 
-        For keypoint detection using ORB, available parameters are:
+            - dist = the similarity threshold for identifying matches. Default is 0.7.
+
+            For keypoint detection using SIFT, available parameters are:
+
+            - contrastThreshold: default is 0.01.
+            - edgeThreshold: default is 10.
+            - sigma: default is 2.0
+
+            For keypoint detection using ORB, available parameters are:
+
             - nfeatures = the number of features to detect. Default is 5000.
 
-        Remaining keywords are passed to hylite.project.pnp( ... ).
+            Remaining keywords are passed to hylite.project.pnp( ... ).
 
-    *Returns*:
-     - cam_est = a camera object with optimised positions.
-     - keypoints = the keypoints used to determine this, such that keypoints[i] = [px,py,x,y,z].
-     - err = average distance (in pixels) between inlier points.
+    Returns:
+        A tuple containing:
+
+         - cam_est = a camera object with optimised positions.
+         - keypoints = the keypoints used to determine this, such that keypoints[i] = [px,py,x,y,z].
+         - err = average distance (in pixels) between inlier points.
     """
 
     if 'pano' in cam.proj.lower():
@@ -379,19 +390,18 @@ def align(image1, image2, source_bands, dest_bands=None, method='affine', matchd
     """
     Coregister an image or numpy array to a target image using SIFT keypoints and the specified image transform.
 
-    *Arguments*:
-     - image1= the reference image.
-     - image2 = the image to transform.
-     - source_bands = A tuple defining the bands to use in image 1.
-     - dest_bands = A tuple defining the bands to use in image 2. Defaults to source_bands.
-     - method = the method to use. Options are 'affine', 'piecewise_affine' or 'polynomial'.
-     - matchdist = the SIFT matching distance threshold. Default is 0.6.
-     - vb = create graphical output figures for debugging. Default is False.
-    *Keywords*:
-     - keywords are passed to HyImage.get_keypoints( ... ).
+    Args:
+        image1 (hylite.HyImage): the reference image.
+        image2 (hylite.HyImage): the image to transform.
+        source_bands (tuple): A tuple defining the bands to use in image 1.
+        dest_bands (tuple): A tuple defining the bands to use in image 2. Defaults to source_bands.
+        method (str): the method to use. Options are 'affine', 'piecewise_affine' or 'polynomial'.
+        matchdist (float): the SIFT matching distance threshold. Default is 0.6.
+        vb (bool): create graphical output figures for debugging. Default is False.
+        **kwds*: keywords are passed to HyImage.get_keypoints( ... ).
 
-    *Returns*:
-     - a transformed image
+    Returns:
+        A transformed image
     """
     assert isinstance(image1, hylite.HyImage) and isinstance(image2,
                                                              hylite.HyImage), "Error - images myst be HyImage instances."
@@ -463,32 +473,25 @@ def align_images(image1, image2, warp=True, **kwds):
     """
     Coregister an image or numpy array to a target image.
 
-    *Arguments*:
-     - image1= the image to transform
-     - image2 = the reference image to fit too.
+    Args:
+        image1 (hylite.HyImage): the image to transform
+        image2 (hylite.HyImage): the reference image to fit too.
+        **kwds: Optional keywords include:
 
-    *Keywords*:
-     - image_bands = the band(s) in the image to use for matching. If an integer or wavelength is
-                     passed then a single band will be used. A tuple contingin a minimum index or
-                     wavelength can also be passed, in which case bands will be averaged. Default is
-                     (0,3) (i.e. the first 3-bands).
-     - target_bands = the band(s) in the target image to use, in the same format as image_bands. Default
-                      is (0,3) (i.e. the first 3-bands).
-     - method = the method used for image warping. Default is 'affine'.
-     - features = the feature detector to use. Can be 'sift' (default) or 'orb'.
-     - warp = use dense flow to warp the image to better fit the target. Default is True.
-     - dist = the distance threshold used for keypoint matching. Default is 0.75.
-     - rthresh = the ransac inlier threshold for ransac outlier detection. Default is 10.0. Increase for more tolerance.
+             - image_bands = the band(s) in the image to use for matching. If an integer or wavelength is
+                             passed then a single band will be used. A tuple contingin a minimum index or
+                             wavelength can also be passed, in which case bands will be averaged. Default is
+                             (0,3) (i.e. the first 3-bands).
+             - target_bands = the band(s) in the target image to use, in the same format as image_bands. Default
+                              is (0,3) (i.e. the first 3-bands).
+             - method = the method used for image warping. Default is 'affine'.
+             - features = the feature detector to use. Can be 'sift' (default) or 'orb'.
+             - warp = use dense flow to warp the image to better fit the target. Default is True.
+             - dist = the distance threshold used for keypoint matching. Default is 0.75.
+             - rthresh = the ransac inlier threshold for ransac outlier detection. Default is 10.0. Increase for more tolerance.
 
-    *Returns*:
-     - a numpy array containing the coregistered image data.
-    ethod = the matching method to use. Can be 'sift' (default) or 'orb'.
-     - warp = use dense flow to warp the image to better fit the target. Default is True.
-     - dist = the distance threshold used for keypoint matching. Default is 0.75.
-     - rthresh = the ransac inlier threshold for ransac outlier detection. Default is 10.0. Increase for more tolerance.
-
-    *Returns*:
-     - a numpy array containing the coregistered image data.
+    Returns:
+        A numpy array containing the coregistered image data.
     """
     print("Warning: align_images is depreciated. Please use piecewise_align, polynomial_align or affine_align instead.")
 

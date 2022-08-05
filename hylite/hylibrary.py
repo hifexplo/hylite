@@ -457,8 +457,8 @@ class HyLibrary(HyData):
             hc (bool): True if the plotted spectra should be hull corrected first. Default is False.
             **kwds: Keywords are passed to plt.plot( ... ), except the following:
 
-                     - clip = a tuple with the min, med and max percentiles to plot. Default is (5,50,95).
-                     - figsize = a figsize for the figure to create (if ax is None).
+                 - clip = a tuple with the min, med and max percentiles to plot. Default is (5,50,95).
+                 - figsize = a figsize for the figure to create (if ax is None).
 
         Returns:
             Tuple containing

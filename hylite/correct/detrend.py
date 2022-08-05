@@ -1,3 +1,7 @@
+"""
+Hyperspectral detrending algorithms such as hull correction.
+"""
+
 from hylite import HyLibrary, HyData
 import numpy as np
 from gfit.util import remove_hull
@@ -7,14 +11,16 @@ def polynomial(data, degree = 1, method='div'):
     """
     Detrend an image data array using a polynomial fit and np.polyfit( ... ).
 
-    *Arguments*:
-     - data = numpy array of the format image[x][y][b].
-     - degree = the degree of the polynomial to fit. Default is 2.
-     - method = 'divide' or 'subtract'. Default is 'divide'.
+    Args:
+        data: numpy array of the format image[x][y][b].
+        degree: the degree of the polynomial to fit. Default is 2.
+        method: 'divide' or 'subtract'. Default is 'divide'.
 
-    *Returns*:
-     - corr = the corrected (detrended) data.
-     - trend = the trend that was removed.
+    Returns:
+        A tuple containing:
+
+         - corr = the corrected (detrended) data.
+         - trend = the trend that was removed.
     """
 
     #calculate trend
@@ -40,12 +46,15 @@ def get_hull_corrected(data, band_range=None, method='div', vb=True):
     the input dataset. Note that noise can greatly effect hull corrections, so you should consider denoising first (see
     HyData.smooth_median(...) and HyData.smooth_savgol(...).
 
-    *Arguments*:
-     - data = a numpy array or HyData instance to detrend.
-     - band_range = Tuple containing the (min,max) band indices or wavelengths to run the correction between. If None
+    Args:
+        data: a numpy array or HyData instance to detrend.
+        band_range: Tuple containing the (min,max) band indices or wavelengths to run the correction between. If None
                      (default) then the correction is run of the entire range. Only works if data is a HyData instance.
-     - method = Trend removal method: 'divide' or 'subtract'. Default is 'divide'.
-     - vb = True if this should print output.
+        method: Trend removal method: 'divide' or 'subtract'. Default is 'divide'.
+        vb: True if this should print output.
+
+    Returns:
+        A hull corrected dataset.
     """
 
     if isinstance(data, HyData):
