@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-python@v3
 
       # install pdoc
-      - run: pip install -e pdoc
+      - run: pip install pdoc
       # build documentation with pdoc into docs/
       - run: pdoc --html hylite --output-dir docs --force
 
