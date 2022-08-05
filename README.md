@@ -25,14 +25,14 @@ outdoor scenes.
 
 ------
 
-![workflow image](docs/workflow.png)
+![workflow image](workflow.png)
 
 
 *Preprocessing and correction workflows implemented in hylite for different data types.*
 
 -----------
 
-![hypercloud image](docs/mwl.png)
+![hypercloud image](mwl.png)
 
 
 *Example visualisations of minimum wavelength maps calculated for (a) imagery of rock samples acquired using a core-scanner
