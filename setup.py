@@ -3,10 +3,9 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-##TODO - do this properly
 setuptools.setup(
     name="hylite",
-    version="1.20",
+    version="1.21",
     author="Helmholtz Institute Freiberg",
     author_email="s.thiele@hzdr.de",
     description="Open-source toolbox for hyperspectral geology.",
@@ -41,8 +40,8 @@ setuptools.setup(
     # what's used to render the link text on PyPI.
     project_urls={  # Optional
         'Source': 'https://github.com/samthiele/hylite',
+        'Documentation' : 'https://hifexplo.github.io/hylite/hylite.html',
     },
 
     package_data={"": ["*.txt","*.hdr","*.cal","*.dat"] }
-    #todo - include data files here with data_files = [ .... ]
 )

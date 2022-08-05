@@ -9,9 +9,15 @@ can also be integrated and used to perform supervised classifications using mach
 
 --------
 
+#### Tutorial:
+
 Try *hylite* here! These example notebooks can alse be [downloaded](https://github.com/samthiele/hylite_demo2).
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/samthiele/hylite_demo2/HEAD)
+
+#### Documentation:
+
+Detailed documentation for *hylite* can be found here: https://hifexplo.github.io/hylite/hylite.html
 
 --------
 
@@ -92,9 +98,9 @@ conda activate hylite
 
 2. Download and unzip hylite from GitHub (or clone it using `git clone https://github.com/samthiele/hylite.git`)
 
-3. Navigate into the hylite directory using terminal and install using setuptools:
+3. Navigate into the hylite directory using terminal and install it using pip:
 
-`python setup.py install`
+`pip install .`
 
 
 Optional dependencies:
