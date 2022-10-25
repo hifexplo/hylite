@@ -695,12 +695,13 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
     mwl.bind( mwld, n, x=hc.get_wavelengths(), sym=sym, X=hc )
     return mwl
 
+
 class mwl_legend(object):
     """
     A utility class storing data needed to create a legend for mwl plots.
     """
 
-    def __init__(self, minh, maxh, minc, maxc, mode='val', **kwds):
+    def __init__(self, minh, maxh, minc, maxc, mode='val', cmap='rainbow', **kwds):
         """
         Create an mwl_legend instance.
 
@@ -710,6 +711,7 @@ class mwl_legend(object):
             minc: the value (typically depth/strength) mapped to brightness/saturation of 0.
             maxc: the value (typically depth/strength) mapped to brightness/saturation fo 1.
             mode: specifies if minc and maxc refer to brightness ('val', default) or saturation ('sat').
+            cmap: the colormapping to use to determine hue.
             **kwds: Keywords can include:
 
                 - xlab = a custom name for the hue (x) label. Default is 'Wavelength (nm)'
@@ -723,6 +725,7 @@ class mwl_legend(object):
         self.xlab = kwds.get("xlab", 'Wavelength (nm)')
         self.ylab = kwds.get("ylab", 'Strength')
         self.mode = mode
+        self.cmap = cmap
 
     def plot(self, ax, pos='top left', s=(0.3, 0.2)):
         """
@@ -775,8 +778,8 @@ class mwl_legend(object):
             ax.xaxis.set_label_position("top")
 
         # fill axes using imshow
-        if 'swir' in str(self.minh): # again - this is dirty dirty hack... todo - write proper stop-based colour map
-            extent =( 2150.0, 2380.0, self.minc, self.maxc)
+        if 'swir' in str(self.cmap):  # again - this is dirty dirty hack...
+            extent = (2150.0, 2380.0, self.minc, self.maxc)
 
             # calculate hue
             h = np.linspace(2150., 2380., num=int(2000 * s[0]))
@@ -797,11 +800,17 @@ class mwl_legend(object):
             idx[idx < 0] = 0
             idx[idx > 254] = 254
             x = lookup[idx]
-
+        elif 'rainbow' in self.cmap:
+            extent = (self.minh, self.maxh, self.minc, self.maxc)
+            x = np.linspace(0, 1, num=int(2000 * s[0]))
         else:
             extent = (self.minh, self.maxh, self.minc, self.maxc)
             x = np.linspace(0, 1, num=int(2000 * s[0]))
+            cm = mpl.cm.get_cmap(self.cmap)
+            rgba = cm(x)  # compute color from cmap
+            x = mpl.colors.rgb_to_hsv(rgba[:, :3])[:, 0]  # update hue value accordingly
 
+        # build image grid
         y = np.linspace(0, 1, num=int(2000 * s[1]))
         xx, yy = np.meshgrid(x, y)
         zz = np.full(xx.shape, 0.8)
@@ -818,7 +827,8 @@ class mwl_legend(object):
         ax.set_yticks([])
         return ax
 
-def colourise_mwl(mwl, mode='p-d', **kwds):
+
+def colourise_mwl(mwl, mode='p-d', cmap='rainbow', **kwds):
     """
     Takes a HyData instance containing minimum wavelength bands (pos, depth, width and strength) and creates
     a RGB composite such that hue ~ pos, sat ~ width and val ~ strength or depth.
@@ -827,11 +837,14 @@ def colourise_mwl(mwl, mode='p-d', **kwds):
         mwl: the HyData instance containing minimum wavelength data.
         mode: the mapping from position (p), width (w) and depth and (d) to hsv. Default is 'pwd', though other options
               are 'p-d' (constant saturation of 80%), 'pdw' and 'pd-' (constant brightness of 85%).
+        cmap: the colour mapping to use. Default is to map position to hue ('rainbow'), but any matplotlib
+              colormap string can be provided here. Note that colours output by this colormap will be scaled in brightness
+              and saturation according to the mode argument. Alternatively use 'swir' for customised
+              rainbow-like colour stretch optimised for clay, mica and chlorite absorbtion features in the SWIR.
         **kwds: Keywords can include:
 
               - hue_map = Wavelengths (xxx.x, yyy.y) or percentiles (x,y) to use when converting wavelength to hue.
-                            Default is (0,100). Alternatively use 'SWIR' for customised colour stretch optimised for
-                            clay, mica and chlorite absorbtion features.
+                            Default is (0,100).
               - sat_map = Widths (xxx.x, yyy.y) or percentiles (x,y) to use when converting width to saturation.
                             Default is (0,100).
               - val_map = Strengths/depths (xxx.x, yyy.y) or percentiles (x,y) to use when converting strength to brightness.
@@ -845,11 +858,12 @@ def colourise_mwl(mwl, mode='p-d', **kwds):
     """
 
     # extract data
-    assert (mwl.band_count() == 4) or (mwl.band_count() == 3), "Error - HyData instance does not contain minimum wavelength data?"
+    assert (mwl.band_count() == 4) or (
+                mwl.band_count() == 3), "Error - HyData instance does not contain minimum wavelength data?"
 
-    h = mwl.get_raveled()[..., 1].copy()  # pos
-    s = mwl.get_raveled()[..., 2].copy()  # width
-    v = mwl.get_raveled()[..., 0].copy()  # depth
+    h = mwl.X()[..., 1].copy()  # pos
+    s = mwl.X()[..., 2].copy()  # width
+    v = mwl.X()[..., 0].copy()  # depth
 
     # normalise to range 0 - 1
     stretch = ['hue_map', 'sat_map', 'val_map']
@@ -862,11 +876,11 @@ def colourise_mwl(mwl, mode='p-d', **kwds):
         mn, mx = kwds.get(stretch[i], (0, 100))
         if i == 2:  # use different default stretch for value (as these tend to be heavily skewed)
             mn, mx = kwds.get(stretch[i], (0, 75))
+
         if isinstance(mn, int):  # convert percentiles to values
             mn = np.nanpercentile(b, mn)
         if isinstance(mx, int):  # convert percentiles to values
             mx = np.nanpercentile(b, mx)
-
         ranges.append((mn, mx))  # store data ranges for colour map
 
         # apply stretch
@@ -888,9 +902,10 @@ def colourise_mwl(mwl, mode='p-d', **kwds):
     v[mask] = 0
     s[mask] = 0
 
-    # map wavelength using custom map if specified
-    # N.B. this is a filthy hack.... todo - write proper stop-based colour map sometime?
-    if 'swir' in str(kwds.get('hue_map', '')).lower():
+    # calculate hue value from colormap
+    if 'rainbow' in cmap.lower():
+        h = h  # no change to hue
+    elif 'swir' in cmap.lower():  # use SWIR customised colormap
         _x = np.array([0, 2150,
                        2175, 2190, 2220,  # white mica
                        2245, 2254, 2261,  # chlorite/biotite/epidote
@@ -908,6 +923,10 @@ def colourise_mwl(mwl, mode='p-d', **kwds):
         idx[idx < 0] = 0
         idx[idx > 254] = 254
         h = lookup[idx]
+    else:  # use matplotlib colormap
+        cm = mpl.cm.get_cmap(cmap)
+        rgba = cm(h)
+        h = mpl.colors.rgb_to_hsv(rgba[:, :3])[:, 0]  # update hue value accordingly
 
     # convert to rgb based on mapping mode
     if 'pwd' in mode.lower():  # pos, width, depth (default)
@@ -921,13 +940,15 @@ def colourise_mwl(mwl, mode='p-d', **kwds):
         rgb = matplotlib.colors.hsv_to_rgb(np.array([h, v, np.full(len(h), 0.8)]).T)
 
     # add nans back in
-    rgb[ mask, : ] = np.nan
+    rgb[mask, :] = np.nan
 
     # create a colourbar object
     if 'pdw' in mode.lower() or 'pd-' in mode.lower():
-        cbar = mwl_legend(ranges[0][0], ranges[0][1], ranges[2][0], ranges[2][1], mode='sat')
+        cbar = mwl_legend(ranges[0][0], ranges[0][1],
+                          ranges[2][0], ranges[2][1], mode='sat', cmap=cmap)
     else:
-        cbar = mwl_legend(ranges[0][0], ranges[0][1], ranges[2][0], ranges[2][1], mode='val')
+        cbar = mwl_legend(ranges[0][0], ranges[0][1],
+                          ranges[2][0], ranges[2][1], mode='val', cmap=cmap)
     if 'swir' in str(kwds.get('hue_map', '')).lower():
         cbar.minh = 'swir'
         cbar.maxh = 'swir'

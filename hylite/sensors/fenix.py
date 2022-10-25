@@ -60,7 +60,7 @@ class Fenix(Sensor):
             verbose (bool): true if updates/progress should be printed to the console. Default is False.
             **kwds: Optional arguments include:
 
-                 - rad = true if image should be converted to radiance by applying dark reference. Default is True.
+                 - rad = true if image should be converted to reflectance by applying white and dark reference. Default is True.
                  - bpr = replace bad pixels (only for raw data). Default is True.
                  - shift = shift bands to account for time-delay between their acquisitions.
                            Only use for near-field sensing (e.g. drill-core scans). Default is False.

@@ -69,7 +69,7 @@ def PCA(hydata, bands=20, band_range=None, step=5):
 
     # and eigens (sorted from biggest to smallest)
     eigval, eigvec = np.linalg.eig(cov)
-    idx = np.argsort(eigval)[::-1]
+    idx = np.argsort(np.abs(eigval))[::-1]
     eigvec = eigvec[:, idx]
     eigval = np.abs(eigval[idx])
 

@@ -23,7 +23,7 @@ class Panel( HyData ):
     by, e.g., empirical line calibration procedures.
     """
 
-    def __init__(self, material, radiance, **kwds):
+    def __init__(self, material, radiance, strict=True, **kwds):
         """
         Generic constructor. Can be of the following forms:
 
@@ -31,6 +31,8 @@ class Panel( HyData ):
             material: a hylite.reference.Target instance containing target reflectance data for this panel.
             radiance: either a HyImage object (which contains some reference pixels) or a
                         NxM numpy array containing radiance values for N pixels across M bands.
+            strict: True if measured radiance wavelengths must be entirely within the range of the reference material
+                    spectra. Default is True. Use with care!
             **kwds: Keywords can include the following:
 
                  - wavelengths = wavelengths corresponding to the radiance values (if radiance is an array rather than a HyImage
@@ -193,14 +195,15 @@ class Panel( HyData ):
 
         # extract reflectance data from target
         target_bands = material.get_wavelengths()
-        assert np.nanmin(target_bands) <= np.nanmin(
-            self.get_wavelengths()), "Error - calibration range does not cover pixel range. " \
-                                     "Radiance data starts at %.1f nm but calibration data starts %.1f nm." % (
-                                         np.nanmin(self.get_wavelengths()), np.nanmin(target_bands))
-        assert np.nanmax(target_bands) >= np.nanmax(
-            self.get_wavelengths()), "Error - calibration range does not cover pixel range. " \
-                                     "Radiance data ends at %.1f nm but calibration data ends %.1f nm." % (
-                                         np.nanmax(self.get_wavelengths()), np.nanmax(target_bands))
+        if strict:
+            assert np.nanmin(target_bands) <= np.nanmin(
+                self.get_wavelengths()), "Error - calibration range does not cover pixel range. " \
+                                         "Radiance data starts at %.1f nm but calibration data starts %.1f nm." % (
+                                             np.nanmin(self.get_wavelengths()), np.nanmin(target_bands))
+            assert np.nanmax(target_bands) >= np.nanmax(
+                self.get_wavelengths()), "Error - calibration range does not cover pixel range. " \
+                                         "Radiance data ends at %.1f nm but calibration data ends %.1f nm." % (
+                                             np.nanmax(self.get_wavelengths()), np.nanmax(target_bands))
         idx = [np.argmin(np.abs(target_bands - w)) for w in self.get_wavelengths()]  # matching wavelengths
         self.reflectance = material.get_reflectance()[idx]
         self.material = material
