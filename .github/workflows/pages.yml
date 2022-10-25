@@ -25,7 +25,7 @@ jobs:
       - run: pip install pdoc
       - run: pip install .
       # build documentation with pdoc into docs/
-      - run: pdoc hylite -o docs/
+      - run: pdoc hylite --docformat google -o docs/
 
       - uses: actions/upload-pages-artifact@v1
         with:
