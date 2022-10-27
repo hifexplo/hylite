@@ -207,49 +207,80 @@ def label_blocks(image, fg=None, s=8, epad=20, boost=3, erode=3, bands=hylite.RG
 
     return cls
 
-def extract_tiles( image, labels ):
+
+# do extraction
+def extract_tiles(image, labels, connected=False, ids=None, erode=0):
     """
     Extract tiles that each contain a single contiguous block based on the specified classification. Useful for
     extracting individual samples from core-scanner imagery.
 
     Args:
         image: the hyperspectral image to extract blocks from
-        labels: a HyImage instance with different samples labelled as non-0 values.
+        labels: a HyImage instance or numpy array with different samples labelled as non-0 values.
+        connected: True if separate groups of pixels with the same label should be split
+                   into different tiles using cv2.connectedComponents. Default is True.
+        ids: a list of label ids to extract. If None (default), all non-zero classes will
+             be extracted.
+        erode: number of pixels to erode from mask before extracting tiles. Default is 0.
     """
 
-    # extract connected components
-    components = cv2.connectedComponents( (labels.data[:,:,0] != 0).astype(np.uint8) )
+    # get labels array
+    if isinstance(labels, hylite.HyImage):
+        labels = labels.data[..., 0]
+
+    # get ids
+    if ids is None:
+        ids = np.unique(labels)
+        ids = ids[ids != 0]  # remove zero
 
     # extract tiles
     tiles = []
     sampleID = []
-    for i in range(1, components[0]): # loop through connected components
-        # extract bounding box of this sample
-        mask = components[1] == i
-        bounds = cv2.boundingRect(mask.astype(np.uint8))
+    for i in ids:  # loop through labels
 
-        # extract tile and remove pixels not related to this sample
-        data = image.data[bounds[1]:(bounds[1] + bounds[3]),
-               bounds[0]:(bounds[0] + bounds[2]), :].copy()
-        mask = mask[bounds[1]:(bounds[1] + bounds[3]),
-               bounds[0]:(bounds[0] + bounds[2])].copy()
-        label = np.nanmax(labels.data[bounds[1]:(bounds[1] + bounds[3]),
-                          bounds[0]:(bounds[0] + bounds[2]), :])
+        # get mask
+        mask = labels == i
+        if not mask.any():
+            continue  # can be the case if erode removed entire labels
 
-        # remove pixels not related to this tile
-        if image.is_float():
-            data[np.logical_not(mask)] = np.nan
+        if erode > 0:
+            mask = cv2.erode(mask.astype(np.uint8), np.ones((erode, erode,))) == 1
+
+        if not connected:
+            # easy - don't bother to separate
+            pixels = np.argwhere(mask)  # get valid pixels
+            local = pixels - np.min(pixels, axis=0)[None, :]  # translate to get pixels in tile
+
+            tile = hylite.HyImage(np.full((np.max(local[:, 0] + 1),
+                                           np.max(local[:, 1] + 1), image.band_count()), np.nan))
+            tile[local[:, 0], local[:, 1], :] = image.data[pixels[:, 0], pixels[:, 1], :]
+            tile.set_wavelengths(image.get_wavelengths())
+
+            # store label and tile
+            sampleID.append(i)
+            tiles.append(tile)
         else:
-            data[np.logical_not(mask)] = 0
+            # check connected components first
+            nc, cl = cv2.connectedComponents(mask.astype(np.uint8))
+            for n in range(nc):  # loop through components
+                comp_mask = cl == n
+                if not mask[comp_mask].all():
+                    continue  # this component is background
 
-        t = hylite.HyImage(data)
-        if image.has_wavelengths():
-            t.set_wavelengths(image.get_wavelengths())
-        if image.has_band_names():
-            t.set_wavelengths(image.get_wavelengths())
+                mask2 = mask & comp_mask
 
-        tiles.append( t )
-        sampleID.append(label)
+                # extact pixels
+                pixels = np.argwhere(mask2)  # get valid pixels
+                local = pixels - np.min(pixels, axis=0)[None, :]  # translate to get pixels in tile
+
+                tile = hylite.HyImage(np.full((np.max(local[:, 0] + 1),
+                                               np.max(local[:, 1] + 1), image.band_count()), np.nan))
+                tile[local[:, 0], local[:, 1], :] = image.data[pixels[:, 0], pixels[:, 1], :]
+                tile.set_wavelengths(image.get_wavelengths())
+
+                # store label and tile
+                sampleID.append(i)
+                tiles.append(tile)
 
     return tiles, sampleID
 
