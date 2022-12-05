@@ -143,5 +143,19 @@ class TestHyData(unittest.TestCase):
             data.fill_gaps() # remove them again!
             self.assertTrue(np.isfinite(data.data).all() ) # check they were removed
 
+            # test reshaping to feature vectors
+            data.data[..., 5] = np.nan  # add some nans
+            self.assertSequenceEqual( data.X().shape, np.reshape(data.data, (-1, data.band_count())).shape ) # check shape is unchanged
+            self.assertNotEquals(data.X(True).shape[0], np.reshape(data.data, (-1, data.band_count())).shape[0] ) # check nans are removed
+            self.assertTrue( np.isfinite( data.X(True).all()) )
+
+            data.set_raveled( np.zeros_like( data.X(True)), onlyFinite=True ) # set with nan-mask
+            self.assertFalse( np.isfinite(data.data ).all() ) # check nans persist
+
+            data.set_raveled(np.zeros_like(data.X()), onlyFinite=False)  # set without nan-mask
+            self.assertTrue(np.isfinite(data.data).all())  # check nans are gone
+
+            # N.B. data.data is now all zero!
+
 if __name__ == '__main__':
     unittest.main()

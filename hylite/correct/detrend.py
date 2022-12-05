@@ -40,7 +40,7 @@ def polynomial(data, degree = 1, method='div'):
     return y.reshape(data.shape), t.reshape(data.shape)
 
 
-def get_hull_corrected(data, band_range=None, method='div', vb=True):
+def get_hull_corrected(data, band_range=None, method='div', hull='upper', vb=True):
     """
     Apply a hull correction to an entire HyData instance (HyImage, HyCloud or HyLibrary). Returns a corrected copy of
     the input dataset. Note that noise can greatly effect hull corrections, so you should consider denoising first (see
@@ -51,6 +51,7 @@ def get_hull_corrected(data, band_range=None, method='div', vb=True):
         band_range: Tuple containing the (min,max) band indices or wavelengths to run the correction between. If None
                      (default) then the correction is run of the entire range. Only works if data is a HyData instance.
         method: Trend removal method: 'divide' or 'subtract'. Default is 'divide'.
+        hull: 'upper' if a hull should be fitted to the top of the data (default), or 'lower' if it should be fit to the bottom of the data.
         vb: True if this should print output.
 
     Returns:
@@ -93,7 +94,12 @@ def get_hull_corrected(data, band_range=None, method='div', vb=True):
         return corrected  # quick exit for empty images
 
     # do hull correction
-    X = remove_hull( D[valid],upper=True, div=('div' in method), vb=vb)
+    if 'upper' in hull.lower():
+        X = remove_hull( D[valid],upper=True, div=('div' in method), vb=vb)
+    elif 'lower' in hull.lower():
+        X = remove_hull(np.max(D[valid]) - D[valid], upper=True, div=('div' in method), vb=vb)
+    else:
+        assert False, "Error = 'hull' should be 'upper' or 'lower', not %s." % hull
     D[valid] = X  # copy data back into original array
 
     # do housekeeping and return

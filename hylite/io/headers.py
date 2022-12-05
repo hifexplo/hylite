@@ -94,7 +94,8 @@ def loadHeader(path):
             # Split line on first equals sign
             if (re.search("=", currentline) is not None):
                 linesplit = re.split("=", currentline, 1)
-                key = str.lower(linesplit[0].strip())
+                # key = str.lower(linesplit[0].strip())
+                key = linesplit[0].strip()
                 value = linesplit[1].strip()
 
                 # If value starts with an open brace, it's the start of a block - strip the brace off and read the rest of the block
@@ -194,7 +195,9 @@ def matchHeader(path):
 
                 image = m  # store matching image file
                 break
-
+            elif (os.path.splitext(m)[0] == path) and (image is None):
+                image = m # .png files can be valid, but should be lower priority, so store but continue looking
+                          # in case there is e.g., a .dat file also.
     # we have an image file, find associated header file
     else:
         image = path + ext

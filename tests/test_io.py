@@ -85,6 +85,18 @@ class TestIO(unittest.TestCase):
                         self.assertAlmostEquals(np.nanmax(np.abs(data.data - data2.data)), 0,
                                                 6)  # check values are the same
 
+                # test saving 3-band images to png files
+                rgb = self.img.export_bands(hylite.RGB) # get 3-band image
+                rgb.percent_clip(1,99,per_band=True,clip=True) # scale to range 0 - 1
+                rgb.data = (rgb.data * 255).astype(np.uint8) # convert to uint8
+                io.save(os.path.join(pth, "rgb.hdr"), rgb )
+                print(os.listdir(pth))
+                self.assertTrue(os.path.exists(os.path.join(pth,'rgb.png')))
+
+                # test loading png image from header file
+                img = io.load(os.path.join(pth,'rgb.hdr'))
+                self.assertTrue( img is not None)
+
                 # test saving camera objects
                 cam = Camera( np.ones(3), np.ones(3), 'pano', 32.2, (100,100), step=0.1 ) # build test camera
                 track = Pushbroom( np.ones((1000,3)), np.ones((1000,3)), 0.05, 30.04, (100,1000)) # test pushbroom camera

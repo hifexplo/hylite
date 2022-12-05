@@ -436,13 +436,20 @@ class HyData(object):
 
         return self.data.reshape(-1, self.data.shape[-1])
 
-    def X(self):
+    def X(self, onlyFinite = False):
         """
         A shorthand way of writing get_raveled(), as X is conventionally used for a vector of spectra.
-        """
-        return self.get_raveled()
 
-    def set_raveled(self, pix, shape=None):
+        Args:
+            onlyFinite (bool): True if data points containing nan bands should be removed from the feature vector. Default is False.
+        """
+        X = self.get_raveled()
+        if onlyFinite:
+            return X[ np.isfinite(X).all(axis=-1) ]
+        else:
+            return X
+
+    def set_raveled(self, pix, shape=None, onlyFinite = False, strict=True ):
         """
         Fills the image/dataset from a list of pixels of the format returned by get_pixel_list(...). Note that this does not
         copy the list, but simply stores a view of it in this image.
@@ -450,11 +457,28 @@ class HyData(object):
         Args:
             pix (list, ndarray): a list such that pixel[n][band] gives the spectra of the nth pixel.
             shape (tuple): the reshaped data dimensions. Defaults to the shape of the current dataset, except with auto-shape for the last dimension.
+            onlyFinite (bool): True if pix contains only pixel values corresponding to non-nan pixels in self.data (as returned by self.X( True ) ).
+            strict (bool): True if set_raveled should not change the number of bands in this image. Default is True.
         """
         if shape is None:
             shape = list( self.data.shape )
             shape[-1] = -1
-        self.data = pix.reshape(shape)
+
+        if strict: # number of bands cannot change
+            assert self.data.shape[-1] == pix.shape[-1], \
+                "Error: image and pix array have different number of bands. To allow changes to band count please specify strict=False."
+            if onlyFinite:
+                self.data[ np.isfinite(self.data).all(axis=-1), : ] = pix
+            else:
+                self.data = pix.reshape(shape)
+        else:
+            newdata = np.full( self.data.shape[:-1] + (pix.shape[-1],), np.nan, )
+            if onlyFinite:
+                if onlyFinite:
+                    newdata[np.isfinite(self.data).all(axis=-1), :] = pix
+                else:
+                    newdata = pix.reshape( self.data.shape[:-1] + (pix.shape[-1],) )
+            self.data = newdata
 
     def get_band_index(self, w, **kwds):
         """
@@ -663,8 +687,8 @@ class HyData(object):
         if chunk:
             C, w = self.contiguous_chunks(min_size=window)
         else:
-            C = [self.data]
-            w = [self.get_wavelengths()]
+            C = [self.data.copy()]
+            w = [self.get_wavelengths().copy()]
 
         # do smoothing
         kwds['window_length'] = window

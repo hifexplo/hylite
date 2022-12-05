@@ -91,13 +91,16 @@ class OWL(Sensor):
                 # calculate white reference radiance
                 white = np.nanmean(cls.white.data.astype(np.float32),
                                    axis=1) - dref  # average each line and subtract dark reference
+                # also estimate noise per-band (useful for eg., MNFs)
+                noise = np.nanstd(white, axis=0)
 
                 refl = np.ones(white.shape[1])  # assume pure white
 
                 # apply white reference
                 cfac = refl[None, :] / white
                 image.data[:, :, :] *= cfac[:, None, :lim]
-
+                noise *= np.nanmean(cfac, axis=0)
+                image.header['band_noise'] = noise
             if verbose: print("DONE.")
 
         ##############################################################
@@ -128,7 +131,7 @@ class OWL(Sensor):
         # rotate image so that scanning direction is horizontal rather than vertical)
         image.data = np.rot90(image.data)  # np.transpose(remap, (1, 0, 2))
         image.data = np.flip(image.data, axis=1)
-
+        image.set_band_names(None)  # delete band names as they get super annoying
     @classmethod
     def correct_folder(cls, path, **kwds):
 

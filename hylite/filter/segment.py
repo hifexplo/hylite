@@ -199,9 +199,9 @@ def label_blocks(image, fg=None, s=8, epad=20, boost=3, erode=3, bands=hylite.RG
     n = int(np.max(fg))
     cls.header['classes'] = n
     names = image.header.get_class_names()
-    if len(names) == 0:
+    if names is not None and len(names) == 0:
         names = [str(i) for i in range(1, n + 1)]
-    cls.header['class names'] = ['background'] + names
+        cls.header['class names'] = ['background'] + names
     cmap = mpl.cm.get_cmap('viridis')
     cls.header['class lookup'] = (np.array([cmap(i)[:3] for i in np.linspace(0, 1, n)]).ravel() * 255).astype(np.uint8)
 

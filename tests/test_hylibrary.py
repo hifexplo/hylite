@@ -41,11 +41,12 @@ class TestAlign(unittest.TestCase):
             lib.quick_plot(color=['r','g','b'], clip=(0,50,100))
             lib.quick_plot(color=['r', 'g', 'b'], clip=50)
 
-        # test copy
+        # test copy functions (well... run them)
         lib2 = lib.copy(data=False)
         lib2 = lib.copy(data=True)
 
-        # test access
+        # test merging / splitting
+        lib.set_sample_names(['A','B','C'])
         lib2 = lib[['A','A','B']] # check merging of names
         self.assertEqual( lib2.data.shape[0], 2 )
         self.assertEqual(lib2.data.shape[1], 6)

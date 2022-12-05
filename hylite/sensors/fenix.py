@@ -183,6 +183,10 @@ class Fenix(Sensor):
                 cfac = refl[None, :] / white
                 image.data[:, :, :] *= cfac[:, None, :]
 
+                # also compute noise model (as this can come in handy during analyses)
+                noise = np.sqrt( np.nanmean( (refl - white * (refl / np.nanmean(white,axis=0)))**2, axis=0 ) )
+                image.header['band noise'] = noise
+
             if verbose: print("DONE.")
 
         ##############################################################
@@ -321,7 +325,7 @@ class Fenix(Sensor):
         # rotate image so that scanning direction is horizontal rather than vertical)
         image.data = np.rot90(image.data)  # np.transpose(remap, (1, 0, 2))
         image.data = np.flip(image.data, axis=1)
-
+        image.set_band_names(None) # delete band names as they get super annoying
     @classmethod
     def correct_folder(cls, path, **kwds):
 

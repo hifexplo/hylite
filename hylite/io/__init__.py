@@ -15,6 +15,7 @@ from hylite.project import PMap, Camera, Pushbroom
 from hylite.analyse.mwl import MWL
 from distutils.dir_util import copy_tree
 
+
 # check if gdal is installed
 try:
     from osgeo import gdal
@@ -42,15 +43,25 @@ def save(path, data, **kwds):
         ext = os.path.splitext(path)[1].lower()
         if 'jpg' in ext or 'bmp' in ext or 'png' in ext or 'pdf' in ext:
             if data.band_count() == 1 or data.band_count() == 3 or data.band_count == 4:
-                from matplotlib.pyplot import imsave
                 rgb = np.transpose( data.data, (1,0,2) )
                 if not ((data.is_int() and np.max(rgb) <= 255)): # handle normalisation
                     vmin = kwds.get("vmin", np.nanpercentile(rgb, 1 ) )
                     vmax = kwds.get("vmax", np.nanpercentile(rgb, 99) )
                     rgb = (rgb - vmin) / (vmax-vmin)
                     rgb = (np.clip(rgb, 0, 1) * 255).astype(np.uint8) # convert to 8 bit image
-                imsave( path, rgb ) # save the image
+                #from matplotlib.pyplot import imsave
+                # imsave( path, rgb )
+                from skimage import io as skio
+                skio.imsave( path, rgb ) # save the image
                 return
+        elif ((data.band_count() == 3) or (data.band_count() == 4)) and (data.data.dtype == np.uint8):
+            # save 3 and 4 band uint8 arrays as png files
+            # from matplotlib.pyplot import imsave
+            # imsave( os.path.splitext(path)[0]+".png", data.data)  # save the image
+            from skimage import io as skio
+            skio.imsave(os.path.splitext(path)[0]+".png", data.data)  # save the image
+            save( os.path.splitext(path)[0] + ".hdr", data.header ) # save header
+            return
         else: # save hyperspectral image
             if usegdal:
                 from osgeo import gdal  # is gdal installed?
@@ -91,7 +102,7 @@ def save(path, data, **kwds):
                 #    shutil.copytree( outdir+"."+ext, os.path.splitext(path)[0]+"."+ext ) # will fail if directory already exists unfortunately.
                 copy_tree(outdir+"."+ext, os.path.splitext(path)[0]+"."+ext)
 
-    elif isinstance(data, np.ndarray):
+    elif isinstance(data, np.ndarray) or isinstance(data, list):
         save_func = np.save
         ext = 'npy'
     else:
@@ -128,7 +139,7 @@ def load(path):
 
     # file (should/could) have header - look for it
     header, data = matchHeader( path )
-    assert os.path.exists(data), "Error - data file %s does not exist." % path
+    assert os.path.exists(str(data)), "Error - data file %s does not exist." % path
     ext = os.path.splitext(data)[1].lower()
     if ext == '':
         assert os.path.isfile(data), "Error - %s is a directory not a file." % data
@@ -154,8 +165,15 @@ def load(path):
         # load conventional images with PIL
         if 'png' in ext or 'jpg' in ext or 'bmp' in ext:
             # load image with matplotlib
-            from matplotlib.pyplot import imread
-            out = HyImage(np.transpose(imread(path), (1, 0, 2)))
+            #from matplotlib.pyplot import imread
+            #im = imread(path)
+            from skimage import io as skio
+            im = skio.imread(data)
+            if len(im.shape) == 2:
+                im = im[:,:,None] # add last dimension if greyscale image is loaded
+            out = HyImage(np.transpose(im, (1, 0, 2)))
+            if header is not None:
+                out.header = loadHeader(header)
         else:
             if usegdal:
                 from osgeo import gdal # is gdal installed?
@@ -177,6 +195,7 @@ def _saveCollection(path, collection):
     dirmap = collection.get_file_dictionary(root=os.path.dirname(path),
                                             name=os.path.splitext(os.path.basename(path))[0])
     # save files
+    os.makedirs(collection.getDirectory(), exist_ok=True) # make output directory
     for p, o in dirmap.items():
         os.makedirs(os.path.dirname(p), exist_ok=True)
         save(p, o)  # save each path and item [ n.b. this includes the header file! :-) ]
@@ -196,6 +215,6 @@ def _loadCollection(path):
     elif 'mwl' in os.path.splitext(directory)[1]:
         C = MWL(name, root, header=loadHeader(header))
     else:
-        print(header, directory )
+        # print(header, directory )
         assert False, "Error - %s is an invalid collection." % directory
     return C

@@ -6,7 +6,8 @@ import os
 import hylite
 import numpy as np
 import shutil
-
+import re
+from natsort import natsorted
 class External(object):
     """
     Small wrapper class for storing external objects in HyCollections.
@@ -142,14 +143,14 @@ class HyCollection(object):
         if 'header' == attr or '__' in attr:  # ignore headers and private (__x__) variables.
             return
 
-        # no file associated with this HyCollection - raise attribute error.
-        if not os.path.exists(self.getDirectory(makedirs=False)):
-            raise AttributeError
-
         # check if attribute is in the header file
-        if attr in self.header:
+        attr = attr.strip().replace(' ', '_')
+        if (attr in self.header) or (attr.replace('_', ' ') in self.header):
             # get value from header file
-            val = self.header[attr]
+            if attr in self.header:
+                val = self.header[attr] # no spaces
+            else:
+                val = self.header[attr.replace('_', ' ')] # possibly has spaces
 
             # parse strings if needed
             if isinstance(val,str):
@@ -180,6 +181,10 @@ class HyCollection(object):
 
         # attribute not in header; must be loaded from disk.
         else:
+            # no file associated with this HyCollection - raise attribute error.
+            if not os.path.exists(self.getDirectory(makedirs=False)):
+                raise AttributeError
+
             # solve path from attribute name
             path = None
             for f in os.listdir(self.getDirectory(makedirs=False)):
@@ -194,7 +199,7 @@ class HyCollection(object):
                 print("Loading %s from %s" % (attr, path))
             self.__setattr__(attr, hylite.io.load(path))  # load and update HyCollection attribute
 
-    def getDirectory(self, root=None, name=None, makedirs=True):
+    def getDirectory(self, root=None, name=None, makedirs=False):
         """
         Return the directory files associated with the HyCollection are stored in.
 
@@ -203,7 +208,7 @@ class HyCollection(object):
                   this HyCollection was initialised, but this can be overriden for e.g. saving in a new location.
             name (str): the name to use for the HyCollection in the file dictionary. If None (default) then this instance's
                   name will be used, but this can be overriden for e.g. saving in a new location.
-            makedirs (bool): True if this directory should be created if it doesn't exist. Default is True.
+            makedirs (bool): True if this directory should be created if it doesn't exist. Default is False.
         """
         if root is None:
             root = self.root
@@ -216,19 +221,129 @@ class HyCollection(object):
             os.makedirs(p, exist_ok=True)  # ensure directory actually exists!
         return p
 
-    def getAttributes(self):
+    def getAttributes(self, ram_only=True, file_formats=False):
         """
         Return a list of available attributes in this HyCollection.
+
+        Args:
+         - ram = True if only attributes loaded in RAM should be included. Default is True.
+         - file_formats = True if the file extensions of attributes stored on disk should be retained. Default is False.
         """
         # get potential attributes
-        attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root', 'name', 'ext', 'vb']))
+        attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root', 'file type','name', 'ext', 'vb']))
 
         # loop through and remove all functions
         out = []
+        known = []
         for a in attr:
+            if '__' in a:
+                continue # ignore private variables
             if not type(super().__getattribute__(a)) == type(self.getAttributes): # ignore methods
-                out.append(a)
+                if file_formats:
+                    out.append((a,type(self.get(a)).__name__))
+                else:
+                    out.append(a)
+                known.append(a)
+
+        # add elements in header
+        for a,v in self.header.items():
+            if a not in known:
+                if file_formats:
+                    if file_formats:
+                        out.append((a, type(self.get(a)).__name__))
+                    else:
+                        out.append(a)
+                    known.append(a)
+
+        # also add attributes on disk
+        if not ram_only:
+            if os.path.exists(self.getDirectory()):
+                for f in os.listdir(self.getDirectory()):
+                    name, ext = os.path.splitext(f)
+                    if name not in known and ext != '.hdr' and ext != '':
+                        if file_formats:
+                            out.append((name,ext))
+                        else:
+                            out.append(name)
+                        known.append(name)
         return out
+
+    def query(self, *, name_pattern=None, ext_pattern=None, recurse=False, recurse_matches=False, ram_only=False):
+        """
+        Finds attributes of this HyCollection with names or types matching the specified patterns. Note that (1)
+        if both name_pattern and ext_pattern are provided then attributes must match both filters to be included in the
+        results, and (2)
+
+        Args:
+         - name_pattern (list, str) = A regex pattern (string) or list of regex pattern strings to match against. If an attribute name
+                          matches against any of the provided patterns then it will be included in the output.
+                          Default is None (match all attributes).
+         - ext_pattern (list, str) = A regex pattern (string) or list of regex pattern strings to match against. Matches will be evaluated
+                         against file extensions for attributes on the disk (e.g., ".hdr") and type names (e.g., "HyImage") for
+                         attributes loaded in RAM (as we cannot guess what their file extension may be). Note that class inheritance
+                         is not considered during this matching, so e.g., "HyData" will not match with "HyImage".
+                         Default is None (match all attributes).
+         - recurse (bool) = True if (all) child HyCollections should also be queried to search the entire HyCollection tree for
+                     matches. Default is False.
+         - recurse_matches (bool) = True if HyCollections that match the provided filters should also be queried recursively. Default
+                    is False.
+         - ram_only (bool) = True if only attributes already loaded into memory should be queried. Default is False.
+        """
+
+        def match(value, pattern):
+            """
+            Quick function for matching against list or regex.
+            """
+            if pattern is None:
+                return True
+            if not isinstance(pattern, list) or isinstance(pattern, tuple) or isinstance(pattern, np.ndarray):
+                pattern = [pattern]
+            for p in pattern:
+                assert isinstance(p,str), "Error - %s is an invalid pattern [ should be string ]" % p
+                if re.search(p, value) is not None:
+                    return True  # we have a match!
+            return False
+
+        attr = self.getAttributes(ram_only=ram_only, file_formats=True)
+        out = []
+        for a,e in attr:
+
+            # do matching
+            if match(a, name_pattern) and match(e, ext_pattern):
+                out.append(a)
+                if not recurse_matches:
+                    continue # skip to next loop
+
+            # recurse if required
+            if recurse:
+                if self.loaded(a): # object already loaded in ram
+                    if isinstance( self.get(a), hylite.HyCollection ):
+                        out += self.get(a).query( name_pattern=name_pattern, ext_pattern=ext_pattern,
+                                                  recurse=recurse, recurse_matches=recurse_matches,
+                                                  ram_only = ram_only )
+                else: # object is on the disk
+                    from hylite.io import _loadCollection
+                    try:
+                        C = _loadCollection(os.path.join(self.getDirectory(), a + e) )
+                        out += C.query( name_pattern=name_pattern, ext_pattern=ext_pattern,
+                                                      recurse=recurse, recurse_matches=recurse_matches,
+                                                      ram_only = ram_only )
+                    except:
+                        pass # continue, this was not a HyCollection
+        return natsorted(out) # sort alphabetically for consistency
+
+    def loaded(self, name):
+        """
+        Return True if the requested attribute is loaded into RAM already, and False if it exists on the disk.
+        Throws an attribute error if the attribute does not exist.
+        """
+        try:  # try getting attribute
+            attr = object.__getattribute__(self, name.strip().replace(' ','_'))
+            return True
+        except:
+            files = self.getAttributes(ram_only=False)
+            assert name in files, "Error - attribute %s does not exist." % name
+            return False
 
     def print(self):
         """
@@ -245,7 +360,7 @@ class HyCollection(object):
         # print header variables
         print("Attributes stored in header:")
         for k,v in self.header.items():
-            if k not in ['file type', 'path'] and k not in attr: # header keys to ignore
+            if k not in ['file type','file_type', 'path'] and k not in attr: # header keys to ignore
                 if isinstance(v,str) or isinstance(v, list) or isinstance(v, np.ndarray):
                     print("\t %s = %s"% (k,type(v))) # print type
                 else:
@@ -314,7 +429,7 @@ class HyCollection(object):
         if self.root is None: # no path defined
             S = HyCollection(name,'')
         else:
-            S = HyCollection(name, self.getDirectory())
+            S = HyCollection(name, self.getDirectory(makedirs=False))
         self.__setattr__(name, S)
         return S
 
@@ -337,10 +452,11 @@ class HyCollection(object):
         """
         # attribute has not yet been loaded - do so now
         try:  # try getting attribute
-            attr = object.__getattribute__(self, name)
+            attr = object.__getattribute__(self, name.strip().replace(' ', '_'))
         except AttributeError:  # no attribute found
             self._loadAttribute_(name)  # load the attribute from disk
-            attr = object.__getattribute__(self, name)
+            assert hasattr(self,name), "Error: HyCollection %s has no attribute %s." % (self.name, name.replace(' ', '_'))
+            attr = object.__getattribute__(self, name.strip().replace(' ', '_') )
 
         # resolve external links if necessary
         if isinstance(attr, External):
@@ -351,18 +467,21 @@ class HyCollection(object):
 
     def __setattr__(self, name, value):
         """
-        Override __setattr__ to throw an error when dodgy data types are added to this collection.
+        Override __setattr__ to throw an error when dodgy data types are added to this collection. Note that private
+        attributes (with __ in their name, such as __foo__) are allowed to have any type, but will not be written to
+        disk.
         """
-        valid = type(value) in [ int, str, bool, float, list ] # accept primitive types
-        valid = valid or isinstance( value, np.ndarray) # accept numpy arrays
-        valid = valid or isinstance( value, hylite.HyData ) # accept hydata types
-        valid = valid or isinstance(value, hylite.HyHeader)  # accept hydata types
-        valid = valid or isinstance( value, hylite.HyCollection ) # accept HyCollection instances (nesting)
-        valid = valid or isinstance(value, hylite.project.Camera ) # accept Camera instances
-        valid = valid or isinstance(value, hylite.project.Pushbroom)  # accept Pushbroom instances
-        valid = valid or isinstance(value, hylite.project.PMap)  # accept Pushbroom instances
-        valid = valid or isinstance(value, External ) # accept external links
-        valid = valid or isinstance(value, list) and np.array( [isinstance(d, hylite.HyData) ] for d in value ).all() # multimwl maps
-        valid = valid or value is None # also accept None
-        assert valid, "Error - %s is an invalid attribute type for HyCollection." % type(value)
-        object.__setattr__(self, name, value)
+        if '__' not in name:
+            valid = type(value) in [ int, str, bool, float, list ] # accept primitive types
+            valid = valid or isinstance( value, np.ndarray) # accept numpy arrays
+            valid = valid or isinstance( value, hylite.HyData ) # accept hydata types
+            valid = valid or isinstance(value, hylite.HyHeader)  # accept hydata types
+            valid = valid or isinstance( value, hylite.HyCollection ) # accept HyCollection instances (nesting)
+            valid = valid or isinstance(value, hylite.project.Camera ) # accept Camera instances
+            valid = valid or isinstance(value, hylite.project.Pushbroom)  # accept Pushbroom instances
+            valid = valid or isinstance(value, hylite.project.PMap)  # accept Pushbroom instances
+            valid = valid or isinstance(value, External ) # accept external links
+            valid = valid or isinstance(value, list) and np.array( [isinstance(d, hylite.HyData) ] for d in value ).all() # multimwl maps
+            valid = valid or value is None # also accept None
+            assert valid, "Error - %s is an invalid attribute type for HyCollection." % type(value)
+        object.__setattr__(self, name.strip().replace(' ', '_'), value)
