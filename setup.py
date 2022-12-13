@@ -27,7 +27,7 @@ setuptools.setup(
     install_requires=["scipy>=1.4", "matplotlib>=3", "numpy",
                       "imageio","opencv-python>=4.5", "opencv-contrib-python>=4.5",
                       "scikit-image", "tqdm", "roipoly", "spectral", "utm","pytz",
-                      "laspy","plyfile","astral","piexif","gfit","numba"],
+                      "laspy","plyfile","astral","piexif","gfit","numba","natsort"],
 
     # List additional URLs that are relevant to your project as a dict.
     #
