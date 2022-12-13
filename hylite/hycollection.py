@@ -139,12 +139,13 @@ class HyCollection(object):
             attr (str): the attribute name to load.
         """
 
-        # edge case - the attribute being requested is the header file!
-        if 'header' == attr or '__' in attr:  # ignore headers and private (__x__) variables.
-            return
-
         # check if attribute is in the header file
         attr = attr.strip().replace(' ', '_')
+
+        # edge case - the attribute being requested is the header file!
+        if 'header' == attr or '__' in attr:  # ignore headers and private (__x__) variables.
+            raise AttributeError(attr)
+
         if (attr in self.header) or (attr.replace('_', ' ') in self.header):
             # get value from header file
             if attr in self.header:
@@ -455,8 +456,10 @@ class HyCollection(object):
             attr = object.__getattribute__(self, name.strip().replace(' ', '_'))
         except AttributeError:  # no attribute found
             self._loadAttribute_(name)  # load the attribute from disk
-            assert hasattr(self,name), "Error: HyCollection %s has no attribute %s." % (self.name, name.replace(' ', '_'))
-            attr = object.__getattribute__(self, name.strip().replace(' ', '_') )
+            if not hasattr(self, name):
+                raise AttributeError(name)
+            else:
+                attr = object.__getattribute__(self, name.strip().replace(' ', '_') )
 
         # resolve external links if necessary
         if isinstance(attr, External):

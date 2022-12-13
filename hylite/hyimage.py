@@ -555,8 +555,11 @@ class HyImage( HyData ):
         #map individual band using colourmap
         if isinstance(band, str) or isinstance(band, int) or isinstance(band, float):
             #get band
-            data = self.data[:, :, self.get_band_index(np.abs(band))]
-            if band < 0:
+            if isinstance(band, str):
+                data = self.data[:, :, self.get_band_index(band)]
+            else:
+                data = self.data[:, :, self.get_band_index(np.abs(band))]
+            if not isinstance(band, str) and band < 0:
                 data = np.nanmax(data) - data # flip
 
             #mask nans (and apply custom mask)
@@ -591,7 +594,10 @@ class HyImage( HyData ):
             #get band indices and range
             rgb = []
             for b in band:
-                rgb.append( self.get_band_index( np.abs(b) ) )
+                if isinstance(b, str):
+                    rgb.append(self.get_band_index(b))
+                else:
+                    rgb.append(self.get_band_index(np.abs(b)))
 
             #slice image (as copy) and map to 0 - 1
             img = np.array(self.data[:, :, rgb]).copy()
@@ -601,7 +607,7 @@ class HyImage( HyData ):
 
             # invert if needed
             for i,b in enumerate(band):
-                if b < 0:
+                if not isinstance(b, str) and (b < 0):
                     img[..., i] = np.nanmax(img[..., i]) - img[..., i]
 
             # do scaling
