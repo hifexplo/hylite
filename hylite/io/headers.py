@@ -122,6 +122,9 @@ def loadHeader(path):
 
     #convert default things like wavelength data to numeric form
     #N.B. wavelength should ALWAYS be stored as nanometres
+    if 'Wavelength' in header: # drop upper case wavelength for some files
+        header['wavelength'] = header['Wavelength']
+        del header['Wavelength']
     if "wavelength" in header:
         units = header.get("wavelength units", "nm").lower()
         if "nm" in units or "nano" in units: #units in nanometers
