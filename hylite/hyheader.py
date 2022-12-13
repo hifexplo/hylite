@@ -26,7 +26,7 @@ class HyHeader( dict ):
         """
         Return true if wavelengths are defined.
         """
-        return 'wavelength' in self
+        return ('wavelength' in self) or ('Wavelength' in self)
 
     def has_fwhm(self):
         """
@@ -65,8 +65,13 @@ class HyHeader( dict ):
         """
         Get list of band wavelengths from header file.
         """
-        assert 'wavelength' in self, "Error - header file has no wavelength information."
-        return self['wavelength'].copy()
+        if 'wavelength' in self:
+            return self['wavelength'].copy()
+        elif 'Wavelength' in self: # some sensors use caps
+            return self['Wavelength'].copy()
+        else:
+            assert False, "Error - header file has no wavelength information."
+
 
     def get_bbl(self):
         """
@@ -107,6 +112,8 @@ class HyHeader( dict ):
         if wavelengths is None:
             if 'wavelength' in self:
                 del self['wavelength']
+            if 'Wavelength' in self:
+                del self['Wavelength']
         else:
             assert isinstance(wavelengths, list) or isinstance(wavelengths, np.ndarray) or isinstance(wavelengths, tuple), "Error - wavelengths must be list, tuple or numpy array."
             self['wavelength'] = np.array(wavelengths).astype(np.float)
