@@ -940,9 +940,12 @@ class HyData(object):
         else:
             minv, maxv = np.nanpercentile(self.data, (minv, maxv))
 
+        # ensure dtype is a float
+        if np.issubdtype(self.data.dtype, np.integer):
+            self.data = self.data.astype(np.float32)
+
         # apply normalisation
-        self.data -= minv
-        self.data /= maxv
+        self.data = (self.data - minv) / (maxv-minv)
 
         # apply clipping
         if clip:
