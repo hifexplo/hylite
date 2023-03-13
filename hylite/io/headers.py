@@ -83,8 +83,9 @@ def loadHeader(path):
     try:
         hdrfile = open(path, "r")
     except:
-        print("Could not open hdr file %s" % str(path))
-        return
+        if path is not None: # no header file exists. This is not necessarily an issue.
+            print("Could not open hdr file %s" % str(path))
+        return None
 
     # Read line, split it on equals, strip whitespace from resulting strings and add key/value pair to output
     currentline = hdrfile.readline()

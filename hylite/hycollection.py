@@ -200,6 +200,17 @@ class HyCollection(object):
                 print("Loading %s from %s" % (attr, path))
             self.__setattr__(attr, hylite.io.load(path))  # load and update HyCollection attribute
 
+    def get_path(self, name: str):
+        """
+        Return the path of the specified attribute. Note that this file may or may not exist, depending
+        on if this HyCollection has been saved previously. Also note that this path will exclude the file extension.
+        """
+        if name == 'header' or name in self.header:
+            return os.path.splitext( self.getDirectory() )[0]
+        else:
+            name = name.strip().replace(' ', '_')
+            return os.path.join( self.getDirectory(), name )
+
     def getDirectory(self, root=None, name=None, makedirs=False):
         """
         Return the directory files associated with the HyCollection are stored in.
@@ -382,6 +393,16 @@ class HyCollection(object):
         from hylite import io # occasionally io doesn't seem to get loaded unless we call this ... strange?
         hylite.io.save(os.path.splitext(self.getDirectory())[0], self)
 
+    def save_attr(self, attr):
+        """
+        Save a single attribute in this HyCollection.
+        """
+        from hylite import io  # occasionally io doesn't seem to get loaded unless we call this ... strange?
+        if attr in self.header:
+            hylite.io.saveHeader( os.path.splitext(self.getDirectory())[0] + '.hdr', self.header )
+        else:
+            hylite.io.save( self.get_path(attr), self.get(attr) )
+
     def free(self):
         """
         Free all attributes in RAM. To avoid losing data, be sure to save this HyCollection first (e.g. using
@@ -441,11 +462,20 @@ class HyCollection(object):
         """
         return self.__getattribute__(name)
 
-    def set(self, name, value):
+
+
+    def set(self, name, value, save=False):
         """
         Set an attribute in this collection.
+
+        Args:
+         - name = the name of the variable to set.
+         - value = the value to set this variable too.
+         - save = True if the variable should immediately be saved to disk.
         """
-        return self.__setattr__(name, value)
+        self.__setattr__(name, value)
+        if save:
+            self.save_attr(name)
 
     def __getattribute__(self, name):
         """

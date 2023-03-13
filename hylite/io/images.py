@@ -5,7 +5,7 @@ Read common image formats, including ENVI format hyperspectral data.
 import sys, os
 import numpy as np
 import spectral
-from hylite.hyimage import HyImage
+from hylite.hyimage import HyImage, HyData
 from .headers import matchHeader, makeDirs, loadHeader, saveHeader
 
 # spectral python throws depreciation warnings - ignore these!
@@ -158,7 +158,6 @@ def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32, mask_zero=Tr
         except:
             img = spectral.open_image(header)  # load unknown image type
 
-
         if bands is not None:  # get bands and put in HyImage
             data = np.dstack( [ img.read_band( b ).T for b in bands ] )
             out = HyImage( data, projection=None, affine=None, header=imageheader, dtype=dtype)
@@ -166,8 +165,9 @@ def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32, mask_zero=Tr
             if out.has_band_names():
                 out.set_band_names( imageheader.get_band_names()[bands])
         if pixels is not None:  # get pixels and put in HyCloud
-            assert False, "Error - this has not yet been implemented."
-            data = np.array( [ img.read_pixel( *p ) for p in pixels ] )
+            data = np.array( [ img.read_pixel( *p[::-1] ) for p in pixels ] )
+            out = HyData( data )
+            out.header=imageheader
         return out
 
 

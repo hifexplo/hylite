@@ -70,7 +70,9 @@ class MyTestCase(unittest.TestCase):
             # test loaded function
             self.assertTrue( C.loaded('image2'), "Error in loaded(...) function.")
             # test save
-            C.save()
+            C.save_attr('image2') # save image attribute
+            C.set('image3', image, save=True) # save on set
+            C.save() # save all attributes
 
             ### Reload it
             C2 = io.load( os.path.join(pth,'test.hdr'))

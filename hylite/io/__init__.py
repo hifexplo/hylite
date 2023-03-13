@@ -14,7 +14,7 @@ from hylite import HyImage, HyCloud, HyLibrary, HyCollection, HyScene, HyData
 from hylite.project import PMap, Camera, Pushbroom
 from hylite.analyse.mwl import MWL
 from distutils.dir_util import copy_tree
-
+import os
 
 # check if gdal is installed
 try:
@@ -59,7 +59,7 @@ def save(path, data, **kwds):
             # from matplotlib.pyplot import imsave
             # imsave( os.path.splitext(path)[0]+".png", data.data)  # save the image
             from skimage import io as skio
-            skio.imsave(os.path.splitext(path)[0]+".png", data.data)  # save the image
+            skio.imsave(os.path.splitext(path)[0]+".png", np.transpose( data.data, (1,0,2) ))  # save the image
             save( os.path.splitext(path)[0] + ".hdr", data.header ) # save header
             return
         else: # save hyperspectral image
@@ -115,6 +115,7 @@ def save(path, data, **kwds):
         path += '.%s'%ext
 
     # save!
+    os.makedirs( os.path.dirname(path), exist_ok=True)  # make output directory
     save_func( path, data )
 
 def load(path):

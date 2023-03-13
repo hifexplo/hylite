@@ -23,8 +23,11 @@ def PCA(hydata, bands=20, band_range=None, step=5):
     Returns:
         A tuple containing:
 
-        - bands = Bands transformed into PCA space, ordered from highest to lowest variance.
+        - bands = A HyData instance containing the PCA components, ordered from highest to lowest variance.
         - factors = the factors (vector) each band is multiplied with to give the corresponding PCA band.
+
+        Additional info (including loadings and the per-band means) are stored in the header file of the returned HyData
+        instance.
     """
 
     # get numpy array
@@ -82,20 +85,18 @@ def PCA(hydata, bands=20, band_range=None, step=5):
     # compute variance percentage of each eigenvalue
     eigval /= np.sum(eigval)  # sum to 1
 
-    # filter wavelengths for return
-    if not wav is None:
-        wav = wav[minb:maxb]
     # compress?
     if decomp:
         hydata.compress()
 
     # prepare output
-    outobj = hydata.copy(data=False)
-    outobj.header.drop_all_bands()  # drop band specific attributes
-    outobj.data = out[..., 0:bands]
+    outobj = HyData( out[..., 0:bands] )
     outobj.set_wavelengths(np.cumsum(eigval[0:bands]))  # wavelengths are % of explained variance
-    outobj.push_to_header()
+    outobj.header['mean'] = mean
+    for n in range(bands):
+        outobj.header['L_%d'%n] = eigvec[:, n]
     return outobj, eigvec[:, :bands ].T
+
 
 def MNF(hydata, bands=20, band_range=None, denoise=False):
     """
@@ -174,7 +175,7 @@ def MNF(hydata, bands=20, band_range=None, denoise=False):
     X = deltas.reshape(-1, deltas.shape[-1]).T
     X = X[:, np.isfinite(np.sum(X, axis=0))]  # drop columns containing nans
     X = X[:, np.sum(X, axis=0) > 0]  # drop columns containing all zeros
-    X = X[:, np.sum(X, axis=0) < np.nanpercentile( np.sum(X,axis=0), 50) ] #drop high noise data (these relate to edges)
+    X = X[:, np.sum(X, axis=0) < np.nanpercentile( np.sum(X,axis=0), 50) ] # drop high noise data (these relate to edges)
     mean = np.mean(X, axis=1)
     cov = np.cov(X)
     n = X.shape[1]
@@ -216,31 +217,35 @@ def MNF(hydata, bands=20, band_range=None, denoise=False):
     return out, factors
 
 
-def from_loadings(data, L):
+def from_loadings(data, L, m=None):
     """
-    Transform a dataset using a precomputed loading vector.  This allows PCA or MNF
+    Transform a dataset using a precomputed loading vector.  This allows PCA
     transforms to be computed on one dataset and then applied to another.
 
     Args:
        data: A dataset (HyData instance or numpy array) with b bands in the last axis.
        L: the loadings vector of shape (k,b), such that data is projected into a
                  k-dimensional space.
-
+       m: the mean of each dimension. Default is None ( do not apply mean offset ).
     Returns:
        a hydata instance or numpy array containing the transformed data.
     """
     # get relevant data
     if isinstance(data, HyData):
         X = data.X()
-        outshape = data.data.shape[:-1] + (L.shape[0],)
+        outshape = data.data.shape[:-1] + (L.shape[1],)
     else:
         X = data.reshape((-1, data.shape[-1]))
-        outshape = data.shape[:-1] + (L.shape[0],)
+        outshape = data.shape[:-1] + (L.shape[1],)
 
     # project data
-    out = np.zeros((X.shape[0], L.shape[0]))
-    for b in range(L.shape[0]):
-        out[..., b] = np.dot(X, L[b, :])
+    out = np.dot(X, L)
+
+    # add mean
+    if m is not None:
+        out += m
+
+    # reshape
     out = out.reshape(outshape)
 
     # return HyData or numpy array

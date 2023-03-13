@@ -562,6 +562,14 @@ class HyImage( HyData ):
             if not isinstance(band, str) and band < 0:
                 data = np.nanmax(data) - data # flip
 
+            # convert integer vmin and vmax values to percentiles
+            if 'vmin' in kwds:
+                if isinstance(kwds['vmin'], int):
+                    kwds['vmin'] = np.nanpercentile( data, kwds['vmin'] )
+            if 'vmax' in kwds:
+                if isinstance(kwds['vmax'], int):
+                    kwds['vmax'] = np.nanpercentile( data, kwds['vmax'] )
+
             #mask nans (and apply custom mask)
             mask = np.isnan(data)
             if not np.isnan(self.header.get_data_ignore_value()):
@@ -571,14 +579,6 @@ class HyImage( HyData ):
                 del kwds['mask']
             data = np.ma.array(data, mask = mask > 0 )
 
-            # convert integer vmin and vmax values to percentiles
-            if 'vmin' in kwds:
-                if isinstance(kwds['vmin'], int):
-                    kwds['vmin'] = np.nanpercentile( data, kwds['vmin'] )
-            if 'vmax' in kwds:
-                if isinstance(kwds['vmax'], int):
-                    kwds['vmax'] = np.nanpercentile( data, kwds['vmax'] )
-
             # apply rotations and flipping
             if rot:
                 data = data.T
@@ -587,7 +587,15 @@ class HyImage( HyData ):
             if flipY:
                 data = data[:, ::-1]
 
-            ax.cbar = ax.imshow(data.T, interpolation=kwds.pop('interpolation', 'none'), **kwds)
+            # save?
+            if 'path' in kwds:
+                path = kwds.pop('path')
+                from matplotlib.pyplot import imsave
+                if not os.path.exists(os.path.dirname(path)):
+                    os.makedirs(os.path.dirname(path)) # ensure output directory exists
+                imsave(path, data.T, **kwds)  # save the image
+
+            ax.cbar = ax.imshow(data.T, interpolation=kwds.pop('interpolation', 'none'), **kwds) # change default interpolation to None
 
         #map 3 bands to RGB
         elif isinstance(band, tuple) or isinstance(band, list):
