@@ -423,13 +423,13 @@ class Rikola(Sensor):
             band1 = raster.GetRasterBand(23).ReadAsArray()
             band2 = raster.GetRasterBand(7).ReadAsArray()
             band3 = raster.GetRasterBand(1).ReadAsArray()
-            arr1 = band1.astype(np.float)
+            arr1 = band1.astype(np.float32)
             maxim = np.nanmax(band1)
             band1_255 = np.uint8(arr1 / maxim * 255)
-            arr1 = band2.astype(np.float)
+            arr1 = band2.astype(np.float32)
             maxim = np.nanmax(arr1)
             band2_255 = np.uint8(arr1 / maxim * 255)
-            arr1 = band3.astype(np.float)
+            arr1 = band3.astype(np.float32)
             maxim = np.nanmax(arr1)
             band3_255 = np.uint8(arr1 / maxim * 255)
 
@@ -466,7 +466,7 @@ class Rikola(Sensor):
                              6: (abs(int(altitude * 100)), 100),  # Altitude
                              7: (
                              (int((time.split(' ')[2]).split(':')[0]), 1), (int((time.split(' ')[2]).split(':')[1]), 1),
-                             (int((np.float((time.split(' ')[2]).split(':')[2])) * 100), 10)),
+                             (int((float((time.split(' ')[2]).split(':')[2])) * 100), 10)),
                              29: date},  # timestamp
                          'Interop': {},
                          'thumbnail': None}

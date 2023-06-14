@@ -164,7 +164,7 @@ def label_blocks(image, fg=None, s=8, epad=20, boost=3, erode=3, bands=hylite.RG
 
     # extract contours and create label mask
     contours,_ = cv2.findContours(mask.astype(np.uint8) * 255, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    labels = np.zeros(mask.shape, dtype=np.int)
+    labels = np.zeros(mask.shape, dtype=int)
     xx, yy = np.meshgrid(np.arange(mask.shape[0]), np.arange(mask.shape[1]))
     xx = xx.flatten()
     yy = yy.flatten()

@@ -128,7 +128,7 @@ class PMap(object):
         pp = pp[vis]
 
         # convert pixel indices to flat indices
-        pix = np.ravel_multi_index(pp[:,[0,1]].astype(np.int).T, dims=(self.xdim, self.ydim), order='F')
+        pix = np.ravel_multi_index(pp[:,[0,1]].astype(int).T, dims=(self.xdim, self.ydim), order='F')
 
         # set data values
         self.set_flat( pid, pix, pp[:,2] )

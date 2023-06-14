@@ -22,7 +22,7 @@ def decision_tree( layers, labels ):
          an output labels array of the sampe shape as each layer array but containing 0 ... n class labels.
     """
 
-    out = np.zeros( layers[0].shape, dtype=np.int )
+    out = np.zeros( layers[0].shape, dtype=int )
     names = ["Unknown"]
     for k in labels.items():
         key, value = k

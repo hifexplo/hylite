@@ -42,7 +42,7 @@ def saveCloudCSV(path, cloud, delimeter=' ', fmt='%.3f', writeHeader=True):
         if cloud.rgb.dtype == np.uint8:
             data.append(cloud.rgb)
         elif cloud.rgb.dtype == np.float64 or cloud.rgb.dtype == np.float32:
-            data.append((cloud.rgb * 255).astype(np.int))
+            data.append((cloud.rgb * 255).astype(int))
         else:
             print("Warning - unknown data type for RGB colours (%s)" % cloud.rgb.dtype)
 
@@ -191,9 +191,9 @@ def saveCloudLAS(path, cloud):
             outfile.green = cloud.rgb[:, 1]
             outfile.blue = cloud.rgb[:, 2]
         elif cloud.rgb.dtype is np.float64 or cloud.rgb.dtype is np.float32: #RGB is 0-1
-            outfile.red = (cloud.rgb[:, 0] * 255).astype(np.int)
-            outfile.green = (cloud.rgb[:, 1] * 255).astype(np.int)
-            outfile.blue = (cloud.rgb[:, 2] * 255).astype(np.int)
+            outfile.red = (cloud.rgb[:, 0] * 255).astype(int)
+            outfile.green = (cloud.rgb[:, 1] * 255).astype(int)
+            outfile.blue = (cloud.rgb[:, 2] * 255).astype(int)
         else:
             print("Warning - unknown data type for RGB colours (%s)" % cloud.rgb.dtype)
 
@@ -330,7 +330,7 @@ def saveCloudPLY(path, cloud, sfmt=None):
         elif 'f4' in sfmt.lower():
             if cloud.data.dtype == np.float32:
                 data = cloud.data  # no need to do any mapping :)
-            elif cloud.data.dtype == np.float:
+            elif cloud.data.dtype == np.float64:
                 data = cloud.data.astype(np.float32)
             else:
                 cloud.decompress()

@@ -112,7 +112,7 @@ class HyHeader( dict ):
                 del self['wavelength']
         else:
             assert isinstance(wavelengths, list) or isinstance(wavelengths, np.ndarray) or isinstance(wavelengths, tuple), "Error - wavelengths must be list, tuple or numpy array."
-            self['wavelength'] = np.array(wavelengths).astype(np.float)
+            self['wavelength'] = np.array(wavelengths).astype(float)
 
     def set_fwhm(self, fwhm):
         """
@@ -126,7 +126,7 @@ class HyHeader( dict ):
                 del self['fwhm']
         else:
             assert isinstance(fwhm, list) or isinstance(fwhm, np.ndarray), "Error - fwhm must be list or numpy array."
-            self['fwhm'] = np.array(fwhm).astype(np.float)
+            self['fwhm'] = np.array(fwhm).astype(float)
 
     def set_bbl(self, bbl):
         """
@@ -244,7 +244,7 @@ class HyHeader( dict ):
     ############################################################
     ## Functions related to other data we store in header files
     ############################################################
-    def get_list(self, name, dtype=np.float):
+    def get_list(self, name, dtype=float):
         """
         Get generic list data from the header as a numpy array.
 

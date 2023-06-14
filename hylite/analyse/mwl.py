@@ -796,7 +796,7 @@ class mwl_legend(object):
                            1.0, 1.0])
             wav = np.linspace(2150.0, 2380.0, 255)
             lookup = np.interp(wav, _x, 1 - _y)
-            idx = (((h - 2150.0) / (2380.0 - 2150.0)) * lookup.shape[0]).astype(np.int)
+            idx = (((h - 2150.0) / (2380.0 - 2150.0)) * lookup.shape[0]).astype(int)
             idx[idx < 0] = 0
             idx[idx > 254] = 254
             x = lookup[idx]
@@ -919,7 +919,7 @@ def colourise_mwl(mwl, mode='p-d', cmap='rainbow', **kwds):
                        1.0, 1.0])
         wav = np.linspace(2150.0, 2380.0, 255)
         lookup = np.interp(wav, _x, 1 - _y)
-        idx = (((h - 2150.0) / (2380.0 - 2150.0)) * lookup.shape[0]).astype(np.int)
+        idx = (((h - 2150.0) / (2380.0 - 2150.0)) * lookup.shape[0]).astype(int)
         idx[idx < 0] = 0
         idx[idx > 254] = 254
         h = lookup[idx]

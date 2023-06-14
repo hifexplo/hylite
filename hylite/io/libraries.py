@@ -182,7 +182,7 @@ def saveLibraryCSV(path, library):
 def loadLibraryCSV(path):
     with open(path, 'r') as f:
         header = f.readline()
-        wav = np.array( header.split(",")[1:], dtype=np.float)
+        wav = np.array( header.split(",")[1:], dtype=float)
 
         # parse spectra
         names = []
@@ -191,7 +191,7 @@ def loadLibraryCSV(path):
         while l:
             l = l.split(",")
             names.append( l[0] )
-            refl.append( np.array(l[1:],dtype=np.float) )
+            refl.append( np.array(l[1:],dtype=float) )
             l = f.readline()
     return HyLibrary( np.array(refl), names, wav=wav )
 

@@ -25,7 +25,7 @@ def QAQC(image, method, dim=0, fit="minmax", checklines=[]):
         checklines (list): define custom features to check for (list of ints or floats).
     """
 
-    image.data = image.data.astype(np.float)
+    image.data = image.data.astype(np.float32)
 
     # define indicative feature lines
     if method == "FT":

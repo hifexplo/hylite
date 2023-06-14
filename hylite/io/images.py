@@ -117,7 +117,7 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
     # spectral python automatically applies reflectance scale factor, so we must set this to 1.0 to avoid future nightmares...
     img.header['reflectance scale factor'] = 1.0
 
-    if mask_zero and img.dtype == np.float:
+    if mask_zero and img.dtype == float:
         img.data[img.data == 0] = np.nan  # note to self: np.nan is float...
 
     return img

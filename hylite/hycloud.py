@@ -611,7 +611,7 @@ class HyCloud( HyData ):
         for i, b in enumerate(bands):
             bands[i] = self.get_band_index(b)
 
-        self.rgb = self.data[:, bands].astype(np.float)
+        self.rgb = self.data[:, bands].astype(float)
 
         # normalise bands
         for i, b in enumerate(bands):
@@ -739,10 +739,10 @@ class HyCloud( HyData ):
             # mask occluded points
             if occ_tol != 0:  # occlusion is enabled
                 vis[vis == True] = np.abs(
-                    _d[pp[vis, 0].astype(np.int), pp[vis, 1].astype(np.int)] - pp[vis, 2]) <= occ_tol
+                    _d[pp[vis, 0].astype(int), pp[vis, 1].astype(int)] - pp[vis, 2]) <= occ_tol
 
             # extract pixels
-            pixels = _image.data[pp[vis, 0].astype(np.int), pp[vis, 1].astype(np.int)][:, bid]
+            pixels = _image.data[pp[vis, 0].astype(int), pp[vis, 1].astype(int)][:, bid]
             valid = np.zeros(pixels.shape, dtype=count.dtype) + 1  # valid pixels
 
             #deal with nans/missing data

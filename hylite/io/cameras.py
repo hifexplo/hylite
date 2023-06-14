@@ -62,7 +62,7 @@ def loadCameraTXT( path ):
             ori = np.fromstring( lines[2], sep=',')
             proj = lines[3]
             fov = float(lines[4])
-            dims = tuple( np.fromstring( lines[5], sep=',').astype(np.int))
+            dims = tuple( np.fromstring( lines[5], sep=',').astype(int))
             step  = None
             if len(lines) > 6:
                 step = float( lines[6] )
@@ -70,7 +70,7 @@ def loadCameraTXT( path ):
         elif 'pushbroom' in lines[0].lower():
 
             xfov, lfov = np.fromstring( lines[1], sep=',')
-            dims = tuple( np.fromstring( lines[2], sep=',').astype(np.int))
+            dims = tuple( np.fromstring( lines[2], sep=',').astype(int))
             cp = np.array([ np.fromstring(lines[3+i], sep=',') for i in range(3)]).T
             co = np.array([ np.fromstring(lines[6+i], sep=',') for i in range(3)]).T
 
