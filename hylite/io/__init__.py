@@ -94,6 +94,7 @@ def save(path, data, **kwds):
         save_func = _saveCollection
         ext = data.ext[1:]
         outdir = os.path.join(data.root, os.path.splitext(data.name)[0])
+        os.makedirs( os.path.splitext(path)[0] +"."+ ext, exist_ok=True ) # make output directory (even if empty)
         if os.path.splitext(path)[0] != outdir:
             if os.path.exists( outdir+"."+ext): # if it exists...
                 #if sys.version_info[1] >= 8: # python 3.8 or greater
@@ -101,6 +102,7 @@ def save(path, data, **kwds):
                 #else:
                 #    shutil.copytree( outdir+"."+ext, os.path.splitext(path)[0]+"."+ext ) # will fail if directory already exists unfortunately.
                 copy_tree(outdir+"."+ext, os.path.splitext(path)[0]+"."+ext)
+
 
     elif isinstance(data, np.ndarray) or isinstance(data, list):
         save_func = np.save
@@ -195,10 +197,9 @@ def _saveCollection(path, collection):
     # generate file paths
     dirmap = collection.get_file_dictionary(root=os.path.dirname(path),
                                             name=os.path.splitext(os.path.basename(path))[0])
-    # save files
-    os.makedirs(collection.getDirectory(), exist_ok=True) # make output directory
+    # print(dirmap)
     for p, o in dirmap.items():
-        os.makedirs(os.path.dirname(p), exist_ok=True)
+        os.makedirs(os.path.dirname(p), exist_ok=True) # make output directory if needed
         save(p, o)  # save each path and item [ n.b. this includes the header file! :-) ]
 
 def _loadCollection(path):

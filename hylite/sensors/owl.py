@@ -89,23 +89,20 @@ class OWL(Sensor):
             # apply white reference (if specified)
             if not cls.white is None:
                 # calculate white reference radiance
-                white = np.nanmean(cls.white.data.astype(np.float32),
-                                   axis=1) - dref  # average each line and subtract dark reference
-                # also estimate noise per-band (useful for eg., MNFs)
-                noise = np.nanstd(white, axis=0)
-
-                refl = np.ones(white.shape[1])  # assume pure white
+                white = cls.white.data.astype(np.float32) - dref[:, None, :]
+                refl = np.ones(white.shape[-1])  # assume pure white
 
                 # apply white reference
-                cfac = refl[None, :] / white
+                cfac = refl[None, :] / np.nanmean( white, axis=1 )
                 image.data[:, :, :] *= cfac[:, None, :lim]
-                noise *= np.nanmean(cfac, axis=0)
-                image.header['band_noise'] = noise
+                white = white[:,:,:lim] * cfac[:, None, :lim]
+
+
             if verbose: print("DONE.")
 
-        ##############################################################
-        # replace bad pixels with an average of the surrounding ones
-        ##############################################################
+        ####################################################################
+        # replace bad (nan) pixels with an average of the surrounding ones
+        ####################################################################
         if bpr:
             if verbose: print("Filtering bad pixels... ", end="", flush="True")
             invalids = np.argwhere(np.isnan(image.data) | np.isinf(image.data))  # search for bad pixels
@@ -127,11 +124,17 @@ class OWL(Sensor):
 
         # Denoise LWIR along sensor plane
         image.data = median_filter(image.data, size=(3, 1, 3), mode="mirror")
+        white = median_filter(white, size=(3,1,3), mode='mirror') # also apply to white panel for noise estimation
+
+        # also estimate noise per-band (useful for eg., MNFs)
+        noise = np.nanstd(white, axis=(0, 1))
+        image.header['band noise'] = noise
 
         # rotate image so that scanning direction is horizontal rather than vertical)
         image.data = np.rot90(image.data)  # np.transpose(remap, (1, 0, 2))
         image.data = np.flip(image.data, axis=1)
         image.set_band_names(None)  # delete band names as they get super annoying
+
     @classmethod
     def correct_folder(cls, path, **kwds):
 

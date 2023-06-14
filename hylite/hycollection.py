@@ -188,10 +188,16 @@ class HyCollection(object):
 
             # solve path from attribute name
             path = None
-            for f in os.listdir(self.getDirectory(makedirs=False)):
-                if os.path.splitext(f)[0] == attr:  # we have found the right file
-                    path = os.path.join(self.getDirectory(makedirs=False), f)
-                    break
+            if (attr + '.hdr') in os.listdir(self.getDirectory(makedirs=False)):
+                # look for header files first
+                # (in case e.g. attr.hdr, attr.png and attr.dat all exist)!
+                path = os.path.join(self.getDirectory(makedirs=False), attr + '.hdr')
+            else:
+                # no header file; search for any extension
+                for f in os.listdir(self.getDirectory(makedirs=False)):
+                    if os.path.splitext(f)[0] == attr:  # we have found the right file
+                        path = os.path.join(self.getDirectory(makedirs=False), f)
+                        break
             assert path is not None and os.path.exists(path), \
                 "Error - could not load attribute %s from disk (%s)." % ( attr, self.getDirectory(makedirs=False))
 

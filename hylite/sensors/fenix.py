@@ -2,6 +2,7 @@ import numpy as np
 from pathlib import Path
 import cv2
 import numpy.ma as ma
+import hylite
 import hylite.io as io
 from .sensor import Sensor
 
@@ -75,7 +76,7 @@ class Fenix(Sensor):
         bpr = kwds.get("bpr", True)
         shift = kwds.get("shift", False)
         lens = kwds.get("lens", True)
-
+        noise = kwds.get("noise", False) # true if noise info should be calculated and returned.
         if rad:
             if verbose: print("Converting to radiance... ", end="", flush="True")
 
@@ -158,13 +159,12 @@ class Fenix(Sensor):
             if not cls.white is None:
 
                 # calculate white reference radiance
-                white = np.nanmean(cls.white.data.astype(np.float32),
-                                   axis=1) - dref  # average each line and subtract dark reference
-                white *= cal  # apply laboratory calibration to white reference
+                white = cls.white.data.astype(np.float32) - dref[:,None,:]  # subtract dark current
+                white *= cal[:,None,:]  # apply laboratory calibration to white reference
 
                 # extract white (or grey) reference reflectance
                 if cls.white_spectra is None:
-                    refl = np.zeros(white.shape[1]) + 1.0  # assume pure white
+                    refl = np.zeros(white.shape[-1]) + 1.0  # assume pure white
                 else:
                     # get known target spectra
                     refl = cls.white_spectra.get_reflectance()
@@ -179,13 +179,20 @@ class Fenix(Sensor):
                 white[..., :r ]  /= exp_vnir
                 white[..., r: ] /= exp_swir
 
-                # apply white reference
-                cfac = refl[None, :] / white
+                # divide by white value to get reflectance
+                cfac = refl[None, :] / np.nanmean( white, axis=1 )
                 image.data[:, :, :] *= cfac[:, None, :]
 
                 # also compute noise model (as this can come in handy during analyses)
-                noise = np.sqrt( np.nanmean( (refl - white * (refl / np.nanmean(white,axis=0)))**2, axis=0 ) )
-                image.header['band noise'] = noise
+                if noise:
+                    X = hylite.HyImage(white*cfac[:,None,:]).X(onlyFinite=True)
+                    mean = np.mean(X, axis=0)
+                    X = X - mean[None, :]
+
+                    # calculate covariance
+                    noise_std = np.std(X, axis=0 )
+                    noise_cov = np.cov(X.T)
+                    image.header['band noise'] = noise_std
 
             if verbose: print("DONE.")
 
@@ -326,6 +333,9 @@ class Fenix(Sensor):
         image.data = np.rot90(image.data)  # np.transpose(remap, (1, 0, 2))
         image.data = np.flip(image.data, axis=1)
         image.set_band_names(None) # delete band names as they get super annoying
+        if noise:
+            return noise_std, noise_cov
+
     @classmethod
     def correct_folder(cls, path, **kwds):
 
@@ -362,7 +372,7 @@ class Fenix(Sensor):
         if len(imgs) > 1 or len(
             dark) > 1: assert False, "Error - multiple scenes found in folder. Double check file path..."
         if len(imgs) == 0 or len(
-            dark) == 0: assert False, "Error - no image or dark calibration found in folder. Double check file path... %s" % path
+            dark) == 0: assert False, ("Error - no image or dark calibration found in folder. Double check file path... %s"%path)
 
         if verbose: print('\nLoading image %s' % imgs[0])
 
@@ -373,7 +383,10 @@ class Fenix(Sensor):
             Fenix.set_white_ref(white[0])
 
         # correct
-        Fenix.correct_image(image, **kwds)
+        noise = Fenix.correct_image(image, **kwds)
 
         # return corrected image
-        return image
+        if noise is not None:
+            return image, noise[0], noise[1]
+        else:
+            return image

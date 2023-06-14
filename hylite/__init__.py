@@ -66,12 +66,16 @@ import numpy as np
 import warnings
 
 #disable annoying warnings
-np.warnings.filterwarnings('ignore')
-warnings.filterwarnings("ignore", category=DeprecationWarning)
+#np.warnings.filterwarnings('ignore')
+#warnings.filterwarnings("ignore", category=DeprecationWarning)
 # ignore all warnings
-def _warn(*args, **kwargs):
-    pass
-warnings.warn = _warn
+#def _warn(*args, **kwargs):
+#    pass
+#warnings.warn = _warn
+
+import warnings
+warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 ###########################################
 ## Define useful preset band combinations

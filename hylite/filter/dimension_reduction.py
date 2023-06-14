@@ -90,7 +90,12 @@ def PCA(hydata, bands=20, band_range=None, step=5):
         hydata.compress()
 
     # prepare output
-    outobj = HyData( out[..., 0:bands] )
+    bands = min(bands, out.shape[-1])
+    if isinstance(hydata, HyData):
+        outobj = hydata.copy(data=False)
+        outobj.data = out[..., 0:bands]
+    else:
+        outobj = HyData( out[..., 0:bands] )
     outobj.set_wavelengths(np.cumsum(eigval[0:bands]))  # wavelengths are % of explained variance
     outobj.header['mean'] = mean
     for n in range(bands):
@@ -98,7 +103,7 @@ def PCA(hydata, bands=20, band_range=None, step=5):
     return outobj, eigvec[:, :bands ].T
 
 
-def MNF(hydata, bands=20, band_range=None, denoise=False):
+def MNF(hydata, bands=20, band_range=None, noise=None, denoise=False):
     """
     Apply a minimum noise filter to a hyperspectral image.
 
@@ -109,6 +114,9 @@ def MNF(hydata, bands=20, band_range=None, denoise=False):
                     min/max band IDs, if (float,float) is passed then values are treated as wavelenghts (in nm). If None is
                     passed (default) then the MNF is computed using all bands. Note that wavelengths can only be passed
                     if image is a hyImage object.
+        noise: The noise model to use. If None (default) then the 'band noise' parameter will be retrieved from the headerinfo,
+                and if this does not exist then, this it is crudely estimated by comparing adjacent pixels / points.
+                This estimation can be forced by setting noise to 'diff'.
         denoise: True if a MNF denoised image should be returned (rather than the MNF bands). Default is False.
     Returns:
         A tuple containing:
@@ -161,24 +169,31 @@ def MNF(hydata, bands=20, band_range=None, denoise=False):
     n = X.shape[1]
     signal = spectral.GaussianStats(mean, cov, n)
 
-    # calculate noise as per spectral.noise_from_diffs (but allowing for nans)
-    if len(data.shape) == 3:  # estimate noise by subtracting adjacent pixels
-        if data.shape[0] == 1:  # special case - 1-D image
-            deltas = data[:, :-1, :] - data[:, 1:, :]
-        elif data.shape[1] == 1:
-            deltas = data[:-1, :, :] - data[1:, :, :]
-        else:
-            deltas = data[:-1, :-1, :] - data[1:, 1:, :]
-    elif len(data.shape) == 2:  # point cloud data. N.B. this assumes that adjacent points are close in space!
-        deltas = data[:-1, :] - data[1:, :]
+    if (noise is None) and 'band noise' in hydata.header:  # get noise from header?
+        noise = np.array( hydata.header.get_list('band noise') )
+    if (noise is not None) and (noise != 'diff'): # we have noise info - use it
+        assert noise.shape[0] == hydata.band_count(), "Error - noise provided for %d bands but data has %d" % (noise.shape[0], hydata.band_count())
+        mean = noise[valid_bands] # easy
+        cov = np.full( (mean.shape[0], mean.shape[0]), 0. ) # assume noise is de-corellated
+    else: # we need to guesstimate the noise model from the data
+        if len(data.shape) == 3:  # estimate noise by subtracting adjacent pixels
+            if data.shape[0] == 1:  # special case - 1-D image
+                deltas = data[:, :-1, :] - data[:, 1:, :]
+            elif data.shape[1] == 1:
+                deltas = data[:-1, :, :] - data[1:, :, :]
+            else:
+                deltas = data[:-1, :-1, :] - data[1:, 1:, :]
+        elif len(data.shape) == 2:  # point cloud data. N.B. this assumes that adjacent points are close in space!
+            deltas = data[:-1, :] - data[1:, :]
 
-    X = deltas.reshape(-1, deltas.shape[-1]).T
-    X = X[:, np.isfinite(np.sum(X, axis=0))]  # drop columns containing nans
-    X = X[:, np.sum(X, axis=0) > 0]  # drop columns containing all zeros
-    X = X[:, np.sum(X, axis=0) < np.nanpercentile( np.sum(X,axis=0), 50) ] # drop high noise data (these relate to edges)
-    mean = np.mean(X, axis=1)
-    cov = np.cov(X)
-    n = X.shape[1]
+        X = deltas.reshape(-1, deltas.shape[-1]).T
+        X = X[:, np.isfinite(np.sum(X, axis=0))]  # drop columns containing nans
+        X = X[:, np.sum(X, axis=0) > 0]  # drop columns containing all zeros
+        X = X[:, np.sum(X, axis=0) < np.nanpercentile( np.sum(X,axis=0), 50) ] # drop high noise data (these relate to edges)
+        mean = np.mean(X, axis=1)
+        cov = np.cov(X)
+        #n = X.shape[1]
+
     noise = spectral.GaussianStats(mean, cov, n)
 
     mnfr = spectral.mnf(signal, noise)

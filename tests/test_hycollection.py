@@ -34,6 +34,7 @@ class MyTestCase(unittest.TestCase):
             self.assertEquals(C.file_type, 'Hylite Collection') # check "file type" key is loaded as file_type
             self.assertEquals(C.file_type, C.header['file type'])  # check "file type" key is loaded as file_type
             C.save()
+
             C2 = io.load(os.path.join(pth,'test.hdr'))
             self.assertEquals(C.attr, "foo")
             self.assertEquals(C2.file_type, 'Hylite Collection')  # check "file type" key is loaded as file_type

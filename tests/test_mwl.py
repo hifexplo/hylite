@@ -106,7 +106,6 @@ class MyTestCase(unittest.TestCase):
     def testIO(self):
         image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
         M = minimum_wavelength(image, minw=2100., maxw=2400., sym=False, method='gauss', n=2, vb=True)
-
         pth = mkdtemp()
 
         # do save and load
@@ -114,6 +113,7 @@ class MyTestCase(unittest.TestCase):
         df = np.inf
         try:
             io.save(pth+'/test', M)
+            print("MWL: ", os.path.exists('/Users/thiele67/Documents/Python/public/hylite/tests/M.mwl'))
             eq0 = os.path.exists(os.path.join(pth,'test.mwl')) # save worked?
             M2 = io.load(os.path.join(pth,'test.hdr'))
 
@@ -124,11 +124,13 @@ class MyTestCase(unittest.TestCase):
         except:
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error..." )
+
         shutil.rmtree(pth)  # delete temp directory
 
         self.assertTrue(eq0) # fail here if something went wrong
         self.assertTrue(eq1)
         self.assertTrue(df < 1e-2) # difference should be very small
+
     def test_TPT(self):
         from hylite.filter import TPT
         image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
