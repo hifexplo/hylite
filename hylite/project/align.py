@@ -71,7 +71,7 @@ def align_to_cloud_manual( cloud, cam, points, pixels, **kwds ):
     kxyz = cloud.xyz[ points, : ]
 
     # get pixel coordinates array
-    kxy = np.array( pixels ).astype(np.float) - 0.5 # must be float for OpenCV. - 0.5 transforms to pixel centers.
+    kxy = np.array( pixels ).astype(float) - 0.5 # must be float for OpenCV. - 0.5 transforms to pixel centers.
 
     # solve pnp problem
     if 'pano' in cam.proj.lower():

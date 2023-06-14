@@ -53,7 +53,7 @@ def get_feature_vectors(data, labels, ignore=[]):
     F = []
     c = []
     for i, lab in enumerate(labels):
-        mask = lab.reshape(data.shape[0]).astype(np.bool)
+        mask = lab.reshape(data.shape[0]).astype(bool)
         F.append(data[mask])
         c.append(np.sum(mask))
 

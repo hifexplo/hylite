@@ -3,6 +3,7 @@ PCA and MNF methods for dimensionality reduction.
 """
 
 import numpy as np
+
 import spectral
 from hylite import HyData
 
@@ -193,9 +194,7 @@ def MNF(hydata, bands=20, band_range=None, noise=None, denoise=False):
         mean = np.mean(X, axis=1)
         cov = np.cov(X)
         #n = X.shape[1]
-
     noise = spectral.GaussianStats(mean, cov, n)
-
     mnfr = spectral.mnf(signal, noise)
 
     # reduce bands

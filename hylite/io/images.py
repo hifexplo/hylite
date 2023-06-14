@@ -62,7 +62,7 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
     gt = raster.GetGeoTransform()
     img = HyImage(data, projection=pj, affine=gt, header=header, dtype=dtype)
 
-    if mask_zero and img.dtype == np.float:
+    if mask_zero and (img.dtype == np.float32 or img.dtype == np.float64):
             img.data[img.data == 0] = np.nan #note to self: np.nan is float...
 
     return img
@@ -219,7 +219,7 @@ def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
     dtype = gdal.GDT_Float32
     image.header["data type"] = 4
     image.header["interleave"] = str.lower(interleave)
-    if image.data.dtype == np.int or image.data.dtype == np.int32:
+    if image.data.dtype == np.intc or image.data.dtype == np.int32:
         dtype = gdal.GDT_Int32
         image.header["data type"] = 3
     if image.data.dtype == np.int16:
@@ -281,5 +281,5 @@ def saveWithSPy( path, image, writeHeader=True, interleave='BSQ'):
 
     image.push_to_header()
     spectral.envi.save_image( path + ".hdr", np.transpose(image.data,(1,0,2)),
-                                dtype=image.data.dtype, force=True,
-                                ext=ext, byteorder=byteorder, metadata=image.header)
+                                    dtype=image.data.dtype, force=True,
+                                    ext=ext, byteorder=byteorder, metadata=image.header)

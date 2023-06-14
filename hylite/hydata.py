@@ -256,7 +256,7 @@ class HyData(object):
 
         # calculate bands to remove
         mask = np.full( self.band_count(), True )
-        if isinstance(bands, np.ndarray) and bands.dtype == np.bool:
+        if isinstance(bands, np.ndarray) and bands.dtype == bool:
             # mask is a numpy array containing True for bands to keep, so flip it to get bands to remove.
             mask = np.logical_not(bands)
         elif isinstance(bands, tuple) and len(bands) == 2:

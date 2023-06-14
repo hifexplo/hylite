@@ -155,7 +155,7 @@ class HyHeader( dict ):
 
         # create boolean mask
         mask = np.array(mask)
-        if mask.dtype == np.bool:
+        if mask.dtype == bool:
             keep = np.logical_not(mask)  # flip so we have array with True for bands to keep
         elif issubclass(mask.dtype, np.integer):
             keep = np.full(nbands, True)

@@ -31,7 +31,7 @@ def proj_persp( xyz, C, a, fov, dims, normals=None):
     xyz = xyz - C[None,:]
 
     # backface culling
-    vis = np.full(xyz.shape[0],True,dtype=np.bool)
+    vis = np.full(xyz.shape[0],True,dtype=bool)
     if not normals is None:
         ndv = np.einsum('ij, ij->i', normals, xyz) #calculate dot product between each normal and vector from camera to point
                                                    #(which is the point position vector in this coordinate system)
@@ -85,7 +85,7 @@ def proj_pano(xyz, C, a, fov, dims, step=None, normals=None):
     xyz = xyz - C[None, :]
 
     # backface culling
-    vis = np.full(xyz.shape[0], True, dtype=np.bool)
+    vis = np.full(xyz.shape[0], True, dtype=bool)
     if not normals is None:
         ndv = np.einsum('ij, ij->i', normals,
                         xyz)  # calculate dot product between each normal and vector from camera to point

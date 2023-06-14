@@ -41,7 +41,7 @@ def saveCloudCSV(path, cloud, delimeter=' ', fmt='%.3f', writeHeader=True):
         format += ['%d', '%d', '%d']
         if cloud.rgb.dtype == np.uint8:
             data.append(cloud.rgb)
-        elif cloud.rgb.dtype == np.float or cloud.rgb.dtype == np.float32:
+        elif cloud.rgb.dtype == np.float64 or cloud.rgb.dtype == np.float32:
             data.append((cloud.rgb * 255).astype(np.int))
         else:
             print("Warning - unknown data type for RGB colours (%s)" % cloud.rgb.dtype)
@@ -190,7 +190,7 @@ def saveCloudLAS(path, cloud):
             outfile.red = cloud.rgb[:, 0]
             outfile.green = cloud.rgb[:, 1]
             outfile.blue = cloud.rgb[:, 2]
-        elif cloud.rgb.dtype is np.float or cloud.rgb.dtype is np.float32: #RGB is 0-1
+        elif cloud.rgb.dtype is np.float64 or cloud.rgb.dtype is np.float32: #RGB is 0-1
             outfile.red = (cloud.rgb[:, 0] * 255).astype(np.int)
             outfile.green = (cloud.rgb[:, 1] * 255).astype(np.int)
             outfile.blue = (cloud.rgb[:, 2] * 255).astype(np.int)

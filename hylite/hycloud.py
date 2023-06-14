@@ -208,7 +208,7 @@ class HyCloud( HyData ):
             else:
                 msk = np.logical_and(self.data[..., b] >= val[0], self.data[..., b] <= val[1])
         elif isinstance(val, np.ndarray):
-            assert val.dtype == np.bool, "Error - only boolean arrays can be used as point masks."
+            assert val.dtype == bool, "Error - only boolean arrays can be used as point masks."
             msk = val
         else:
             msk = self.data[..., b] == val

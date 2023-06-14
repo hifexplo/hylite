@@ -62,9 +62,6 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
-import numpy as np
-import warnings
-
 #disable annoying warnings
 #np.warnings.filterwarnings('ignore')
 #warnings.filterwarnings("ignore", category=DeprecationWarning)
