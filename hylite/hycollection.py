@@ -44,6 +44,8 @@ class HyCollection(object):
 
     def __init__(self, name, root, header=None, vb=False):
         """
+        Create a new HyCollection.
+
         Args:
             name (str): a name for this HyCollection. Names of HyCollections stored in any given directory must be
                   be unique to avoid conflicts.
@@ -244,8 +246,8 @@ class HyCollection(object):
         Return a list of available attributes in this HyCollection.
 
         Args:
-         - ram = True if only attributes loaded in RAM should be included. Default is True.
-         - file_formats = True if the file extensions of attributes stored on disk should be retained. Default is False.
+            ram = True if only attributes loaded in RAM should be included. Default is True.
+            file_formats = True if the file extensions of attributes stored on disk should be retained. Default is False.
         """
         # get potential attributes
         attr = list(set(dir(self)) - set(dir(HyCollection)) - set(['header', 'root', 'file type','name', 'ext', 'vb']))
@@ -293,19 +295,19 @@ class HyCollection(object):
         results, and (2)
 
         Args:
-         - name_pattern (list, str) = A regex pattern (string) or list of regex pattern strings to match against. If an attribute name
+            name_pattern (list, str) = A regex pattern (string) or list of regex pattern strings to match against. If an attribute name
                           matches against any of the provided patterns then it will be included in the output.
                           Default is None (match all attributes).
-         - ext_pattern (list, str) = A regex pattern (string) or list of regex pattern strings to match against. Matches will be evaluated
+            ext_pattern (list, str) = A regex pattern (string) or list of regex pattern strings to match against. Matches will be evaluated
                          against file extensions for attributes on the disk (e.g., ".hdr") and type names (e.g., "HyImage") for
                          attributes loaded in RAM (as we cannot guess what their file extension may be). Note that class inheritance
                          is not considered during this matching, so e.g., "HyData" will not match with "HyImage".
                          Default is None (match all attributes).
-         - recurse (bool) = True if (all) child HyCollections should also be queried to search the entire HyCollection tree for
+            recurse (bool) = True if (all) child HyCollections should also be queried to search the entire HyCollection tree for
                      matches. Default is False.
-         - recurse_matches (bool) = True if HyCollections that match the provided filters should also be queried recursively. Default
+            recurse_matches (bool) = True if HyCollections that match the provided filters should also be queried recursively. Default
                     is False.
-         - ram_only (bool) = True if only attributes already loaded into memory should be queried. Default is False.
+            ram_only (bool) = True if only attributes already loaded into memory should be queried. Default is False.
         """
 
         def match(value, pattern):
@@ -430,9 +432,9 @@ class HyCollection(object):
         Add an external link (that is saved/loaded by this HyCollection instance, but not stored in its data folder).
 
         Args:
-         - name: the name of the attribute to add.
-         - path: the path to the object to add.
-         - relative: True if the path should be converted to a relative one. Default is True.
+            name: the name of the attribute to add.
+            path: the path to the object to add.
+            relative: True if the path should be converted to a relative one. Default is True.
         """
 
         assert os.path.exists(path), "Error - %s is not a valid file or folder." % path
@@ -475,9 +477,9 @@ class HyCollection(object):
         Set an attribute in this collection.
 
         Args:
-         - name = the name of the variable to set.
-         - value = the value to set this variable too.
-         - save = True if the variable should immediately be saved to disk.
+            name = the name of the variable to set.
+            value = the value to set this variable too.
+            save = True if the variable should immediately be saved to disk.
         """
         self.__setattr__(name, value)
         if save:
