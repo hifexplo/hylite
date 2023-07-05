@@ -1,9 +1,14 @@
 import unittest
 import numpy as np
 from tests import genImage
+import hylite
 
 class TestHyImage(unittest.TestCase):
     def test_image(self):
+
+        # test constructor
+        image = hylite.HyImage(np.zeros((25,25,5)), wav=np.arange(5)*100)
+        self.assertListEqual(list(image.get_wavelengths()), list(np.arange(5)*100))
 
         # create test image
         image = genImage(dimx = 1464, dimy=401, nbands=10)

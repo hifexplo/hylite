@@ -28,12 +28,11 @@ class HyImage( HyData ):
         Args:
             data (ndarray): a numpy array such that data[x][y][band] gives each pixel value.
             **kwds:
-
+                wav = A numpy array containing band wavelengths for this image.
                 affine = an affine transform of the format returned by GDAL.GetGeoTransform().
                 projection = string defining the project. Default is None.
                 sensor = sensor name. Default is "unknown".
                 header = path to associated header file. Default is None.
-
         """
 
         #call constructor for HyData
@@ -50,6 +49,10 @@ class HyImage( HyData ):
         #load any additional project information (specific to images)
         self.set_projection(kwds.get("projection",None))
         self.affine = kwds.get("affine",[0,1,0,0,0,1])
+
+        # wavelengths
+        if 'wav' in kwds:
+            self.set_wavelengths(kwds['wav'])
 
         #special header formatting
         self.header['file type'] = 'ENVI Standard'

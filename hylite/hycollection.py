@@ -148,42 +148,8 @@ class HyCollection(object):
         if 'header' == attr or '__' in attr:  # ignore headers and private (__x__) variables.
             raise AttributeError(attr)
 
-        if (attr in self.header) or (attr.replace('_', ' ') in self.header):
-            # get value from header file
-            if attr in self.header:
-                val = self.header[attr] # no spaces
-            else:
-                val = self.header[attr.replace('_', ' ')] # possibly has spaces
-
-            # parse strings if needed
-            if isinstance(val,str):
-                # load as a list
-                if '{' in val and '}' in val:
-                    val = self.header.get_list(val)
-                elif '<' in val and '>' in val: # load as an external path
-                    val = self.header[val].strip()[1:-1]
-                    if os.path.exists(val): # absolute path!
-                        val = External( val, None) # wrap in absolute External class
-                    else:
-                        val = External( val, self.root ) # wrap in relative External class
-                else:  # is it an integer or a float?
-                    try:
-                        val = int(val)
-                    except:
-                        try:
-                            val = float(val)
-                        except:
-                            # finally, try converting boolean types
-                            if val.lower() == 'true':
-                                val = True
-                            elif val.lower() == 'false':
-                                val = False
-
-            # done
-            self.__setattr__(attr, val)  # easy!
-
-        # attribute not in header; must be loaded from disk.
-        else:
+        # try loading attribute from disk
+        try:
             # no file associated with this HyCollection - raise attribute error.
             if not os.path.exists(self.getDirectory(makedirs=False)):
                 raise AttributeError
@@ -200,14 +166,54 @@ class HyCollection(object):
                     if os.path.splitext(f)[0] == attr:  # we have found the right file
                         path = os.path.join(self.getDirectory(makedirs=False), f)
                         break
-            assert path is not None and os.path.exists(path), \
-                "Error - could not load attribute %s from disk (%s)." % ( attr, self.getDirectory(makedirs=False))
+            if (path is None) or not os.path.exists(path):
+                raise AttributeError # couldn't find on disk
+
+            #assert path is not None and os.path.exists(path), \
+            #    "Error - could not load attribute %s from disk (%s)." % ( attr, self.getDirectory(makedirs=False))
 
             # load attribute
             if self.vb:
                 print("Loading %s from %s" % (attr, path))
             self.__setattr__(attr, hylite.io.load(path))  # load and update HyCollection attribute
+        except AttributeError:
 
+            # last chance - look in header data
+            if (attr in self.header) or (attr.replace('_', ' ') in self.header):
+                # get value from header file
+                if attr in self.header:
+                    val = self.header[attr]  # no spaces
+                else:
+                    val = self.header[attr.replace('_', ' ')]  # possibly has spaces
+
+                # parse strings if needed
+                if isinstance(val, str):
+                    # load as a list
+                    if '{' in val and '}' in val:
+                        val = self.header.get_list(val)
+                    elif '<' in val and '>' in val:  # load as an external path
+                        val = self.header[val].strip()[1:-1]
+                        if os.path.exists(val):  # absolute path!
+                            val = External(val, None)  # wrap in absolute External class
+                        else:
+                            val = External(val, self.root)  # wrap in relative External class
+                    else:  # is it an integer or a float?
+                        try:
+                            val = int(val)
+                        except:
+                            try:
+                                val = float(val)
+                            except:
+                                # finally, try converting boolean types
+                                if val.lower() == 'true':
+                                    val = True
+                                elif val.lower() == 'false':
+                                    val = False
+
+                # done
+                self.__setattr__(attr, val)  # easy!
+            else:
+                raise AttributeError
     def get_path(self, name: str):
         """
         Return the path of the specified attribute. Note that this file may or may not exist, depending
@@ -470,8 +476,6 @@ class HyCollection(object):
         """
         return self.__getattribute__(name)
 
-
-
     def set(self, name, value, save=False):
         """
         Set an attribute in this collection.
@@ -525,4 +529,5 @@ class HyCollection(object):
             valid = valid or isinstance(value, list) and np.array( [isinstance(d, hylite.HyData) ] for d in value ).all() # multimwl maps
             valid = valid or value is None # also accept None
             assert valid, "Error - %s is an invalid attribute type for HyCollection." % type(value)
+
         object.__setattr__(self, name.strip().replace(' ', '_'), value)

@@ -122,7 +122,7 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
 
     return img
 
-def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32, mask_zero=True):
+def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32):
     """
     Load either specific bands (bands!=None) or pixels (pixels != None) from an ENVI file using spy to facilitate e.g. out-of-core
     processing routines.
@@ -132,7 +132,6 @@ def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32, mask_zero=Tr
         bands: a list of hyperspectral band indices or wavelengths to extract, or None.
         pixels: a list of [(x1,y1),(x2,y2)] pixels to extract spectra for, or None. Either bands or pixels must be defined (but not both).
         dtype: the output data type. Default is float32.
-        mask_zero: True if zero values should be replaced with nans. Default is True.
     """
     assert os.path.exists(path), "Error - %s does not exist." % path
     assert (pixels is not None) or (bands is not None), "Error - either pixels OR bands must be specified"
@@ -149,7 +148,8 @@ def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32, mask_zero=Tr
         # load header and convert bands to band indices
         imageheader = loadHeader(header)
         if bands is not None:
-            bands = [ HyImage( np.zeros((3,3)), header=imageheader ).get_band_index(b) for b in bands ]
+            bands = [ HyImage( np.zeros((3,3,imageheader.band_count())),
+                        header=imageheader, wav=imageheader.get_wavelengths() ).get_band_index(b) for b in bands ]
 
         # load image with SPy
         assert os.path.exists(image), "Error - %s does not exist." % image
