@@ -123,6 +123,14 @@ class TestHyData(unittest.TestCase):
             data.percent_clip(5,95,per_band=False,clip=True)
             data.percent_clip(5, 95, per_band=True, clip=True)
 
+            # expression evaluation
+            out = data.eval('b2:b5 + b8')
+            w0 = data.get_wavelengths()[1]
+            w1 = data.get_wavelengths()[3]
+            self.assertEqual(out.data.shape[-1], 1 ) # should have 1 band
+            out = data.eval('b2:b5 + b8 | %d/(%d+$1)**$2'%(w0, w1))
+            self.assertEqual(out.data.shape[-1], 2 ) # should have 2 bands
+
             # normalise
             data.normalise()
 

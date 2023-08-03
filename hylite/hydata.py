@@ -6,7 +6,7 @@ import numpy as np
 import numpy.ma as ma
 import matplotlib.pyplot as plt
 from scipy import ndimage, signal
-
+import re
 import hylite
 from hylite import HyHeader
 import hylite.reference.features as ref
@@ -448,6 +448,80 @@ class HyData(object):
             return X[ np.isfinite(X).all(axis=-1) ]
         else:
             return X
+
+    def eval(self, op : str, print=False ):
+        """
+        Evaluate an arithmetic expression on the data array of this HyData instance.
+
+        Args:
+            op: The operation string to evaluate. This should follow the following syntax:
+                - all numbers are treated as wavelengths (and are passed as floats to get_band_index(...).
+                - band indices should be prefixed by `b`. E.g., `b10`.
+                - constants should be prefixed by the `$` character, e.g., `$2`.
+                - standard python syntax should be used for basic arithmetic (`+`, `-`, `*`, `/`/, `**`).
+                - the `:` operator can be used to average values over a band range, e.g., `b10:b15 or `2190:2210`.
+                - the `|` operator can be used to include multiple operations that are evaluated to different output
+                  bands (e.g. ` b10+b9 | b12:b15 | b5/b6` will result in a 3-band output.
+            print: Optionally print the python expression(s) that is/are generated for debugging or other reference. Default is False.
+
+            N.B. This function works by converting the operation string into python code including numpy operations
+            on the data array (`a`). Hence other python or numpy (`np`) syntax may (but is not guaranteed to) also work.
+
+        Returns:
+            A copy of this HyData instance but with an updated (single-band) data array.
+        """
+
+        # strip spaces (but keep one at start)
+        op = ' ' + op.strip()
+        if '|' in op:
+            ops = op.split('|')
+            out = [self.eval(o, print=print) for o in ops]
+            if self.is_image():
+                out[0].data = np.dstack([o.data for o in out])
+            else:
+                out[0].data = np.hstack([o.data for o in out])
+            return out[0]
+        else:
+            # convert non-constants to band indices
+            bidx = re.findall('.[0-9.]+', op)
+            for s in bidx:
+                if s[0] == 'b':  # specified as band index already
+                    continue
+                if s[0] == '$':  # constant - skip for now
+                    continue
+                else:
+                    ix = self.get_band_index(float(s[1:]))
+                    op = op.replace(s[1:], 'b' + str(ix))
+
+            # replace all ':' operators with np.mean operations
+            bidx = re.findall('[b][0-9]+[:][b][0-9]*[0-9]', op)
+            for s in bidx:
+                ix0 = int(s.split(':')[0][1:])
+                ix1 = int(s.split(':')[1][1:])
+                op = op.replace(s, 'np.nanmean( a[..., %d:%d] )' % (ix0, ix1))
+
+            # replace all remaining bands with relevant slices
+            bidx = re.findall('[b][0-9]+', op)
+            for s in bidx:
+                ix = int(s[1:])
+                op = op.replace(s, 'a[..., %d]' % ix)
+
+            # finally, remove any $ from constants
+            const = re.findall('[$][0-9]+', op)
+            for s in const:
+                op = op.replace(s, s[1:])
+
+            if print:
+                print("Evaluating expression: %s" % op )
+
+            out = self.copy(data=False)
+            out.data = eval(op, {'np': np, 'a': self.data})
+            if len(out.data.shape) != len(self.data.shape):
+                out.data = out.data[..., None] # add extra dim if needed
+            out.set_wavelengths(np.arange(out.band_count()))
+
+            return out
+
 
     def set_raveled(self, pix, shape=None, onlyFinite = False, strict=True ):
         """

@@ -68,7 +68,11 @@ class HyHeader( dict ):
         if 'wavelength' in self:
             return self['wavelength'].copy()
         else:
-            assert False, "Error - header file has no wavelength information."
+            bc = self.band_count()
+            if bc > 0:
+                return np.arange(bc)
+            else:
+                assert False, "Error - header file has no wavelength information."
 
 
     def get_bbl(self):
