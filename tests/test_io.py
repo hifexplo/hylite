@@ -132,6 +132,11 @@ class TestIO(unittest.TestCase):
                 self.assertTrue( (np.abs( self.lib.get_wavelengths() - lib2.get_wavelengths()) < 1e-5).all() )
                 self.assertTrue((np.abs(self.lib.data - lib2.data) < 1e-5).all())
 
+                # test save legend
+                from hylite.analyse import saveLegend
+                saveLegend('Red stuff', 'Green stuff', 'Blue stuff', os.path.join(pth, 'legend.png'))
+                self.assertTrue(os.path.exists( os.path.join(pth, 'legend.png') ))
+
             except:
                 shutil.rmtree(pth)  # delete temp directory
                 self.assertFalse(True, "Error - could not save data of type %s" % str(type(data)))

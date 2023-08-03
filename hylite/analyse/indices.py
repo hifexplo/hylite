@@ -1,5 +1,5 @@
 import numpy as np
-
+import matplotlib.pyplot as plt
 
 def band_ratio(data, num, den):
     """
@@ -94,6 +94,7 @@ def band_ratio(data, num, den):
 
     # return HyData instance
     return out
+
 
 def NDVI(data):
     """

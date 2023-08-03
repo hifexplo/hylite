@@ -471,6 +471,9 @@ class HyData(object):
             A copy of this HyData instance but with an updated (single-band) data array.
         """
 
+        if 'import' in op: # don't let people do anything toooo wild!
+            assert False, "Don't be naughty now!"
+
         # strip spaces (but keep one at start)
         op = ' ' + op.strip()
         if '|' in op:
