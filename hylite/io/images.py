@@ -97,6 +97,9 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
             img = spectral.open_image(header) # load unknown image type
 
         data = np.transpose( np.array(img.load()), (1,0,2) )
+        if (data.dtype == np.float32) or (data.dtype == np.float64):
+            # Spy still divides float values by scale factor. We don't want it to, so undo this.
+            data *= img.scale_factor
 
         # load header
         if not header is None:
