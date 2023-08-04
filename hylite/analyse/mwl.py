@@ -727,6 +727,24 @@ class mwl_legend(object):
         self.mode = mode
         self.cmap = cmap
 
+    def quick_plot(self, path : str = '', dpi : int = 300 ):
+        """
+        Quickly plot this MWL legend.
+
+        Args:
+            path: a path to save the legend to (as a .png). If None (default) then the file will not be written.
+            dpi: the DPI to save the legend with
+        Returns:
+            The matplotlib figure and axes that the plot was drawn to.
+        """
+
+        fig, ax = plt.subplots(figsize=(7, 2))
+        self.plot(ax, pos=(0.1, 0.1), s=(0.8, 0.8))
+        ax.axis('off')
+        if path != '':
+            fig.savefig( path, dpi=dpi)
+        return fig, ax
+
     def plot(self, ax, pos='top left', s=(0.3, 0.2)):
         """
         Add this legend to the specified figure.
