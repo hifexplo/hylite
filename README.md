@@ -11,7 +11,7 @@ can also be integrated and used to perform supervised classifications using mach
 
 #### Tutorial:
 
-Try *hylite* [here](https://mybinder.org/v2/gh/samthiele/hylite_demo2/HEAD)! These example notebooks can alse be [downloaded](https://github.com/samthiele/hylite_demo2).
+Try *hylite* [here](https://drive.google.com/drive/folders/1hkr4gtP1OY_PIK7cynl3dWd3sYi_9s5F?usp=drive_link)! These example notebooks can alse be [downloaded](https://github.com/samthiele/hylite_demo2).
 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/samthiele/hylite_demo2/HEAD)
 
