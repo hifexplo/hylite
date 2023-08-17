@@ -1,11 +1,7 @@
 hylite
 ----------
 
-*hylite* is an open-source python package for preprocessing imagery from a variety of hyperspectral sensors
-and fusing the results with high-resolution point-cloud data to generate seamless and radiometrically corrected
-hyperclouds.  A variety of analysis techniques are also implemented, including multi-feature gaussian minimum wavelength mapping,
-dimensionality reduction and spectral angle mapping. Reference spectra from spectral libraries, ground or laboratory measurements
-can also be integrated and used to perform supervised classifications using machine learning techniques.
+*hylite* is an open-source python package for loading and preprocessing imagery from a variety of hyperspectral sensors, applying various analyses (e.g., multi-feature minimum wavelength maps, dimensionality reduction, band ratios), and/or fusing HSI imagery with high-resolution point-cloud data to generate seamless and radiometrically corrected hyperclouds. Reference spectra from spectral libraries, ground or laboratory measurements can also be integrated and used to perform supervised classifications using machine learning techniques.
 
 --------
 
