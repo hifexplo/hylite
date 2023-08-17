@@ -7,7 +7,7 @@ import numpy as np
 import spectral
 from hylite import HyData
 
-def PCA(hydata, bands=20, band_range=None, step=5):
+def PCA(hydata, bands=20, band_range=None, step=5, mask : np.ndarray = None):
     """
     Apply a PCA dimensionality reduction to the hyperspectral dataset using singular vector decomposition (SVD).
 
@@ -21,6 +21,7 @@ def PCA(hydata, bands=20, band_range=None, step=5):
         step: subsample the dataset during SVD for performance reason. step = 1 will include all pixels in the calculation,
               step = n includes every nth pixel only. Default is 5 (as most images contain more than enough pixels to
               accurately estimate variance etc.).
+        mask: A mask containing pixels to ignore during the fitting of this PCA. Default is None (consider all pixels).
     Returns:
         A tuple containing:
 
@@ -58,7 +59,11 @@ def PCA(hydata, bands=20, band_range=None, step=5):
             maxb = hydata.get_band_index(band_range[1])
 
     # prepare feature vectors
-    X = data[..., :].reshape(-1, data.shape[-1])
+    if mask is not None:
+        X = data[mask, : ]
+    else:
+        X = data[..., :].reshape(-1, data.shape[-1])
+
     # print(minb,maxb)
     X = X[::step, minb:maxb]  # subsample
     X = X[np.isfinite(np.sum(X, axis=1)), :]  # drop vectors containing nans
@@ -104,7 +109,7 @@ def PCA(hydata, bands=20, band_range=None, step=5):
     return outobj, eigvec[:, :bands ].T
 
 
-def MNF(hydata, bands=20, band_range=None, noise=None, denoise=False):
+def MNF(hydata, bands=20, band_range=None, noise='diff', noise_thresh=50, denoise=False, mask : np.ndarray =None):
     """
     Apply a minimum noise filter to a hyperspectral image.
 
@@ -118,7 +123,9 @@ def MNF(hydata, bands=20, band_range=None, noise=None, denoise=False):
         noise: The noise model to use. If None (default) then the 'band noise' parameter will be retrieved from the headerinfo,
                 and if this does not exist then, this it is crudely estimated by comparing adjacent pixels / points.
                 This estimation can be forced by setting noise to 'diff'.
+        noise_thresh: The threshold percentile used when estimating noise with 'diff'.
         denoise: True if a MNF denoised image should be returned (rather than the MNF bands). Default is False.
+        mask: A boolean mask containing pixels to ignore during the fitting of this PCA. Default is None (consider all pixels).
     Returns:
         A tuple containing:
 
@@ -162,7 +169,11 @@ def MNF(hydata, bands=20, band_range=None, noise=None, denoise=False):
         print("Warning - image contains negative pixels. This can cause unstable behaviour...")
 
     # calculate signal stats (as in spectral.calc_stats(...) but allowing for nans)
-    X = data.reshape(-1, data.shape[-1]).T  # reshape to 1D list of pixels for each band
+    if mask is not None:
+        X = data[mask, : ].T
+    else:
+        X = data.reshape(-1, data.shape[-1]).T  # reshape to 1D list of pixels for each band
+
     X = X[:, np.isfinite(np.sum(X, axis=0))]  # drop columns containing nans
     X = X[:, np.sum(X, axis=0) > 0 ] #drop columns containing all zeros
     mean = np.mean(X, axis = 1)
@@ -171,11 +182,14 @@ def MNF(hydata, bands=20, band_range=None, noise=None, denoise=False):
     signal = spectral.GaussianStats(mean, cov, n)
 
     if (noise is None) and 'band noise' in hydata.header:  # get noise from header?
+        assert False, "Error - this is not yet implemented! [ hopefully soon! ]"
         noise = np.array( hydata.header.get_list('band noise') )
     if (noise is not None) and (noise != 'diff'): # we have noise info - use it
+        assert False, "Error - this is not yet implemented! [ hopefully soon! ]"
         assert noise.shape[0] == hydata.band_count(), "Error - noise provided for %d bands but data has %d" % (noise.shape[0], hydata.band_count())
         mean = noise[valid_bands] # easy
         cov = np.full( (mean.shape[0], mean.shape[0]), 0. ) # assume noise is de-corellated
+        noise = spectral.GaussianStats(mean, cov, n)
     else: # we need to guesstimate the noise model from the data
         if len(data.shape) == 3:  # estimate noise by subtracting adjacent pixels
             if data.shape[0] == 1:  # special case - 1-D image
@@ -190,11 +204,13 @@ def MNF(hydata, bands=20, band_range=None, noise=None, denoise=False):
         X = deltas.reshape(-1, deltas.shape[-1]).T
         X = X[:, np.isfinite(np.sum(X, axis=0))]  # drop columns containing nans
         X = X[:, np.sum(X, axis=0) > 0]  # drop columns containing all zeros
-        X = X[:, np.sum(X, axis=0) < np.nanpercentile( np.sum(X,axis=0), 50) ] # drop high noise data (these relate to edges)
+        X = X[:, np.sum(X, axis=0) < np.nanpercentile( np.sum(X,axis=0), noise_thresh ) ] # drop high noise data (these relate to edges)
+        assert np.isfinite(X).all(), "Error - the nans snuck into our data!"
         mean = np.mean(X, axis=1)
         cov = np.cov(X)
         #n = X.shape[1]
-    noise = spectral.GaussianStats(mean, cov, n)
+
+        noise = spectral.GaussianStats(mean, cov, n)
     mnfr = spectral.mnf(signal, noise)
 
     # reduce bands

@@ -620,7 +620,7 @@ class MWL(HyCollection):
         return fig, ax
 
 def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
-                       sym=False, minima=True, k=4, nthreads=1, vb=True, **kwds):
+                       sym=False, minima=True, k=4, hthresh=0.025, nthreads=1, vb=True, **kwds):
     """
     Perform minimum wavelength mapping to map the position of absorbtion features.
 
@@ -640,6 +640,7 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
         sym: True if symmetric gaussian fitting should be used. Default is False.
         k: the number of adjacent measurements to look at during detection of local minima. Default is 10. Larger numbers ignore smaller features as noise.
         nthreads: the number of threads to use for the computation. Default is 1 (no multithreading).
+        hthresh: the minimum feature depth before we bother fitting gaussians. Avoids wasting time / effort on flat spectra.
         vb: True if graphical progress updates should be created.
         **kwds: Keywords are passed to gfit.gfit( ... ).
 
@@ -667,6 +668,7 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
     S = hc.X()
     mask = np.isfinite(S).all(axis=-1)  # drop nans
     mask = mask & (S != S[:, 0][:, None]).any(axis=1)  # drop flat spectra (e.g. all zeros)
+    #mask = mask & (np.min(S, axis=-1) < (1. - hthresh))
     X = S[mask]
 
     if mask.any():  # if no valid spectra, skip to end

@@ -214,6 +214,7 @@ class HyCollection(object):
                 self.__setattr__(attr, val)  # easy!
             else:
                 raise AttributeError
+
     def get_path(self, name: str):
         """
         Return the path of the specified attribute. Note that this file may or may not exist, depending
