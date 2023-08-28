@@ -27,6 +27,7 @@ def PCA(hydata, bands=20, band_range=None, step=5, mask : np.ndarray = None):
 
         - bands = A HyData instance containing the PCA components, ordered from highest to lowest variance.
         - factors = the factors (vector) each band is multiplied with to give the corresponding PCA band.
+        - means = the means for each band that are subtracted before applying the PCA transform.
 
         Additional info (including loadings and the per-band means) are stored in the header file of the returned HyData
         instance.
@@ -84,9 +85,10 @@ def PCA(hydata, bands=20, band_range=None, step=5, mask : np.ndarray = None):
 
     # project data
     data = data[..., minb:maxb] - mean
-    out = np.zeros_like(data)
-    for b in range(min(bands, data.shape[-1])):
-        out[..., b] = np.dot(data, eigvec[:, b])
+    #out = np.zeros_like(data)
+    #for b in range(min(bands, data.shape[-1])):
+    #    out[..., b] = np.dot(data, eigvec[:, b])
+    out = np.dot(data, eigvec)
 
     # compute variance percentage of each eigenvalue
     eigval /= np.sum(eigval)  # sum to 1
@@ -106,7 +108,7 @@ def PCA(hydata, bands=20, band_range=None, step=5, mask : np.ndarray = None):
     outobj.header['mean'] = mean
     for n in range(bands):
         outobj.header['L_%d'%n] = eigvec[:, n]
-    return outobj, eigvec[:, :bands ].T
+    return outobj, eigvec[:, :bands ].T, mean
 
 
 def MNF(hydata, bands=20, band_range=None, noise='diff', noise_thresh=50, denoise=False, mask : np.ndarray =None):
@@ -132,6 +134,7 @@ def MNF(hydata, bands=20, band_range=None, noise='diff', noise_thresh=50, denois
         - mnf = a HyData instance containing the MNF bands or denoised image.
         - factors = A 2D numpy array containing the factors applied to the input datset. Useful
                      for plotting/interpreting the regions each MNF band is sensitive too.
+        - means = the means for each band that are subtracted before applying the MNF transform.
     """
 
     # prepare data for MNF
@@ -176,10 +179,10 @@ def MNF(hydata, bands=20, band_range=None, noise='diff', noise_thresh=50, denois
 
     X = X[:, np.isfinite(np.sum(X, axis=0))]  # drop columns containing nans
     X = X[:, np.sum(X, axis=0) > 0 ] #drop columns containing all zeros
-    mean = np.mean(X, axis = 1)
+    dmean = np.mean(X, axis = 1)
     cov = np.cov(X)
     n = X.shape[1]
-    signal = spectral.GaussianStats(mean, cov, n)
+    signal = spectral.GaussianStats(dmean, cov, n)
 
     if (noise is None) and 'band noise' in hydata.header:  # get noise from header?
         assert False, "Error - this is not yet implemented! [ hopefully soon! ]"
@@ -244,7 +247,7 @@ def MNF(hydata, bands=20, band_range=None, noise='diff', noise_thresh=50, denois
     for i in range(factors.shape[0]):
         out.header['mnf weights %d' % i] = factors[i, :]
 
-    return out, factors
+    return out, factors, dmean
 
 
 def from_loadings(data, L, m=None):
@@ -263,17 +266,19 @@ def from_loadings(data, L, m=None):
     # get relevant data
     if isinstance(data, HyData):
         X = data.X()
-        outshape = data.data.shape[:-1] + (L.shape[1],)
+        outshape = data.data.shape[:-1] + (L.shape[0],)
     else:
         X = data.reshape((-1, data.shape[-1]))
-        outshape = data.shape[:-1] + (L.shape[1],)
+        outshape = data.shape[:-1] + (L.shape[0],)
 
     # project data
-    out = np.dot(X, L)
+    if m is not None:
+        X = X - m
+    out = np.dot(X, L.T)
 
     # add mean
-    if m is not None:
-        out += m
+    #if m is not None:
+    #    out += m
 
     # reshape
     out = out.reshape(outshape)

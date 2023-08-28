@@ -10,8 +10,7 @@ class MyTestCase(unittest.TestCase):
         cloud = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"), "hypercloud.hdr"))
 
         # run mnf on clouds and images
-        from hylite.filter import MNF
-        from hylite.filter import PCA
+        from hylite.filter import MNF, PCA, from_loadings
         img_mask = np.full( (image.xdim(), image.ydim()), False )
         cld_mask = np.full( (cloud.point_count()), False )
         img_mask[:, :int(img_mask.shape[1]/2) ] = True
@@ -19,15 +18,19 @@ class MyTestCase(unittest.TestCase):
         for data, mask  in zip( [image, cloud], [img_mask, cld_mask]):
 
             # test PCA
-            pca, w = PCA( data, bands=10, mask=mask)
+            pca, w, m = PCA( data, bands=10, mask=mask)
+            pca2 = from_loadings( data, w, m )
             self.assertEqual(pca.band_count(), 10)
+            self.assertLess( np.nanmax( np.abs( pca.data - pca2.data ) ), 1e-4 )
 
             # run MNF
-            mnf, w = MNF( data, bands=10, mask=mask)
+            mnf, w, m = MNF( data, bands=10, mask=mask)
+            mnf2 = from_loadings(data, w, m)
             self.assertEqual( mnf.band_count(), 10 )
+            self.assertLess(np.nanmax(np.abs(mnf.data - mnf2.data)), 1e-4)
 
             # run MNF denoising
-            denoise, w = MNF( data, bands=10, denoise=True )
+            denoise, w, m = MNF( data, bands=10, denoise=True )
             self.assertEqual(denoise.band_count(), data.band_count())
 
         # test hull correction
