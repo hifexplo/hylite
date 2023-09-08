@@ -228,20 +228,6 @@ class MWL(HyCollection):
         valid_depth = (self[:, 'depth'] > depth_cutoff)
         return (valid_pos & valid_depth).any(axis=-1)
 
-    def getHyFeature(self, idx, source ):
-        """
-        Return a HyFeature instance based on the specified point or pixel index. Useful for plotting fitted results
-        vs actual spectra.
-
-        Args:
-            idx (int, tuple): the index of the point or pixel to be retrieved.
-            source (HyData): the source dataset, for plotting original spectra. Default is None.
-
-        Returns:
-            a HyFeature instance containing the modelled minimum wavelength data at this point.
-        """
-        pass
-
     def evaluate(self):
         """
         Evaluate this model and return the result as a HyData instance.

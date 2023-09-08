@@ -31,7 +31,6 @@ def spectral_angles(reference, spectra):
 def SAM(data, ref_spec):
     """
     Apply a spectral angle classification based on reference spectra.
-
     Args:
         data: the HyData instance (e.g. image or cloud) to apply the classification to.
         ref_spec: a list containing lists of spectra for each class. i.e.:
@@ -45,10 +44,8 @@ def SAM(data, ref_spec):
         for s in S:
             L.append(i)  # label of this spectra
             R.append(s)  # append spectra
-
     # calculate angles
     ang = spectral_angles(np.array(R), data.X())
-
     # extract classifications
     sam = np.take(L, np.argmin(ang, axis=0)).astype(np.float32)  # find best matching class
     ang = np.rad2deg(np.min(ang, axis=0)).astype(np.float32)  # calculate spectral angle
@@ -58,8 +55,8 @@ def SAM(data, ref_spec):
     ang[np.isnan(data.X()).all(axis=-1)] = np.nan
 
     # reshape and return
-    out = data.copy(data=False)
-    out.set_raveled(np.array([sam, ang]).T, shape=data.data.shape[:-1] + (2,))
+    out = data.copy( data = False)
+    out.data = np.reshape(  np.array([sam, ang]).T,  data.data.shape[:-1] + (2,) )
     out.set_wavelengths(None)
     out.set_band_names(["Class", "Angle"])
     return out
