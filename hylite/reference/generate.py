@@ -57,7 +57,7 @@ def genImage(wav: np.ndarray = np.linspace(2100., 2400., 200),
     :return: The synthetic hyperspectral image
     """
 
-    np.random.seed(42)
+    np.random.seed(seed)
 
     # Define two latent variables
     lA = (255 - np.clip(2 * skdata.brick(), 0, 255)) / 255.
@@ -68,7 +68,10 @@ def genImage(wav: np.ndarray = np.linspace(2100., 2400., 200),
     ab = np.dstack([lA, lB, 1.0 - (lA + lB)])
     ab[ab < 0] = 0.01
     ab = ab ** 2  # enhance contrast a little
-    ab /= np.sum(ab, axis=-1)[..., None]
+    ab /= np.sum(ab, axis=-1)[..., None] # ensure abundances sum to 1
+    ab = ab[:-2, :, :] # adjust abundance so that it isn't square (test data should never be square!)
+    if flip:
+        ab = ab[:,:,::-1]
 
     # Sample endmember spectra
     eA = randomSpectra(wav, **A)  # Phase A
@@ -76,7 +79,7 @@ def genImage(wav: np.ndarray = np.linspace(2100., 2400., 200),
     eC = randomSpectra(wav, **C)  # Phase C
 
     # mix to generate fake HSI data
-    hsi = (ab.reshape(-1, 3) @ np.array([eA, eB, eC])).reshape((lA.shape) + (len(wav),))
+    hsi = (ab.reshape(-1, 3) @ np.array([eA, eB, eC])).reshape((ab.shape[:-1]) + (len(wav),))
     hsi += np.random.rand(*hsi.shape) * noise
     # put image and abundances in a HyImage object and return
     hsi = hylite.HyImage(hsi)

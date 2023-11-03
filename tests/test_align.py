@@ -20,7 +20,7 @@ class TestAlign(unittest.TestCase):
 
         # test align with method=affine
         # n.b. there's not really any way to check if the align actually worked... so just try a bunch of combinations
-        np.warnings.filterwarnings('ignore') # supress warnings when comparing to nan
+        # np.warnings.filterwarnings('ignore') # supress warnings when comparing to nan
         align_images( image1, image2, image_bands=(30, 50), target_bands=(30, 50),
                                 warp=True, features='sift', method='affine' )
         align_images(image1, image2, image_bands=(450., 600.), target_bands=(450., 600.),
