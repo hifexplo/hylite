@@ -2,11 +2,12 @@ import os
 import numpy as np
 import matplotlib
 from hylite.correct.detrend import get_hull_corrected
-from gfit import initialise, gfit,evaluate, refine
+from gfit import initialise, gfit,evaluate
 from hylite import HyCollection, HyCloud, HyImage, HyData
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from tqdm import tqdm
 
 class MWL(HyCollection):
     """
@@ -605,6 +606,54 @@ class MWL(HyCollection):
         ax.set_xlabel("Wavelength (nm)")
         return fig, ax
 
+def _refine(x, X, x0, n=3, vb=False):
+    """
+    Use a best-fit quadratic parabola to refine estimates of absorption feature position (as returned by init(...).
+    N.B. this is much faster than gaussian fitting!
+
+    :param x: = a (n,) array containing the x-values of the spectra / signals.
+    :param X: = a (m,n) array containing corresponding y-values for m different spectra / signals.
+    :param x0: = an array of estimated gaussian functions based on local peak detection as returned by init(...).
+    :param n: = the number of bands on either side of the minima to use for fitting. Default is 5. Must be > 2.
+    :param vb: = True if a progress bar should be created. Default is False.
+    """
+
+    # init output
+    x1 = x0.copy()
+
+    # loop through n maxima
+    loop = range(1, x0.shape[-1], 4)
+    if vb:
+        loop = tqdm(loop, desc="Refining features", leave=False )
+    for j in loop:
+        # get fitting interval
+        b = np.argmin(np.abs(x0[:, j, None] - x[None, :]), axis=1)
+        b0 = np.clip(b - n, 0, x.shape[0] - 1)
+        b1 = np.clip(b + n, 0, x.shape[0] - 1)
+
+        # do polyfit on unique sized intervals (performance hack allowing optimisation)
+        size = b1 - b0
+        for s in np.unique(size):
+            msk = (size == s)
+            bnds = np.array(
+                [(x[b0[i]], x[b1[i]]) for i in range(len(b0)) if msk[i]])  # get wavelength range of each interval
+            XX = np.array([X[i, b0[i]:b1[i]+1] for i in range(len(b0)) if msk[i]])  # get spectral data
+            xx = np.linspace(0, 1, s+1)  # use this as our x-variable so we can fit multiple regressions in one hit!
+
+            # fit regressions
+            _a, _b, _c = np.polyfit(xx, XX.T, deg=2)
+
+            # compute turning point (position in x and height)
+            p = (-_b / (2 * _a)) * ((bnds[:, 1] - bnds[:, 0])) + bnds[:,
+                                                                 0]  # refine position [ and scale it back to wavelength range ]
+            h = _c - (_b ** 2 / (4 * _a))  # refine height [ n.b. this doesn't need to be scaled!]
+
+            # store
+            x1[msk, j - 1] = h
+            x1[msk, j] = np.clip(p, bnds[:,0], bnds[:,1]) # clip to possible domain in case of bad fitting
+            x1[msk, j - 1][_a > 0] = 0  # this was a minima not a maxima!
+    return x1
+
 def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, log=False,
                        sym=False, minima=True, k=4, hthresh=0.025, nthreads=1, vb=True, **kwds):
     """
@@ -627,8 +676,7 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, l
         minima: True if features should fit minima. If False then 'maximum wavelength mapping' is performed.
         sym: True if symmetric gaussian fitting should be used. Default is False.
         k: the number of adjacent measurements to look at during detection of local minima. Default is 4. Larger numbers ignore smaller features as noise.
-        ntnthreads: the number of threads to use for the computation. Default is 1 (no multithreading).
-        hthresh: the minimum feature depth before we bother fitting gaussians. Avoids wasting time / effort on flat spectra.hreads: the number of threads to use for the computation. Default is 1 (no multithreading).
+        nthreads: the number of threads to use for the computation. Default is 1 (no multithreading).
         hthresh: the minimum feature depth before we bother fitting gaussians. Avoids wasting time / effort on flat spectra.
         vb: True if graphical progress updates should be created.
         **kwds: Keywords are passed to gfit.gfit( ... ).
@@ -657,7 +705,6 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, l
     S = hc.X()
     mask = np.isfinite(S).all(axis=-1)  # drop nans
     mask = mask & (S != S[:, 0][:, None]).any(axis=1)  # drop flat spectra (e.g. all zeros)
-    #mask = mask & (np.min(S, axis=-1) < (1. - hthresh))
     X = S[mask]
 
     if mask.any():  # if no valid spectra, skip to end
@@ -674,7 +721,14 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, l
         if 'minmax' in method:
             out[mask, :] = x0  # just use x0 as output
         elif 'gauss' in method:
-            out[mask, :] = gfit(x, X, x0, n, sym=sym, nthreads=nthreads, vb=vb, **kwds)  # fit gaussians
+            # drop low-amplitude features
+            mask2 = x0[:,0] > hthresh
+
+            # fit gaussians (and update x0 to make masking / reshaping easier)
+            x0[ mask2, : ]= gfit(x, X[mask2,:], x0[mask2,:], n, sym=sym, nthreads=nthreads, vb=vb, **kwds)  # fit gaussians
+
+            # store
+            out[mask, :] = x0
         elif 'quad' in method:
             ii = np.arange(X.shape[0])
             for i in range(1, x0.shape[-1], 4):
@@ -692,7 +746,7 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, l
                 out[mask, :] = x0 # use minmax method for most things
                 out[mask, i ] = m # update position
         elif 'poly' in method:
-            out[mask, :] = refine(x, X, x0, n=k, vb=vb)
+            out[mask, :] = _refine(x, X, x0, n=k, vb=vb)
         else:
             assert False, "Error - %s is an unsupported fitting method." % method
 

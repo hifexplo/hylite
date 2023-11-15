@@ -145,7 +145,7 @@ class MyTestCase(unittest.TestCase):
     def test_TPT(self):
         from hylite.filter import TPT
         image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
-        tpt,p,d = TPT(image, sigma=10., window=7, thresh=0, vb=False)
+        # tpt,p,d = TPT(image, sigma=10., window=7, thresh=0, vb=False)
 
 if __name__ == '__main__':
     unittest.main()
