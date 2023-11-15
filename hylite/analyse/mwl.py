@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib
 from hylite.correct.detrend import get_hull_corrected
-from gfit import initialise, gfit,evaluate
+from gfit import initialise, gfit,evaluate, refine
 from hylite import HyCollection, HyCloud, HyImage, HyData
 
 import matplotlib.pyplot as plt
@@ -605,7 +605,7 @@ class MWL(HyCollection):
         ax.set_xlabel("Wavelength (nm)")
         return fig, ax
 
-def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
+def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, log=False,
                        sym=False, minima=True, k=4, hthresh=0.025, nthreads=1, vb=True, **kwds):
     """
     Perform minimum wavelength mapping to map the position of absorbtion features.
@@ -617,15 +617,18 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
         method: the method/model used to quantify the feature. Options are:
 
          - "minmax" - Identifies the n most prominent local minima to approximately resolve absorbtion feature positions. Fast but inaccurate.
-         - "poly" - Applies the minmax method but then interpolates feature position between bands using a polynomial function. TODO.
+         - "quad" - Applies the quadratic method to interpolate absorption depth using 3-bands adjacent to the local minima. See https://doi.org/10.1016/j.rse.2011.11.025 .
+         - "poly" - Fits a quadratic to k bands on either side of the local minima. Similar to "quad" but with more than 3 points constraining the fitting. Hence, slower than quad but faster than gauss.
          - "gaussian" - fits n gaussian absorbtion features to the detrended spectra. Slow but most accurate.
 
         trend: the method used to detrend the spectra. Can be 'hull' or None. Default is 'hull'.
+        log: If True, absorptions are modelled to log-spectra rather than inverted spectra.
         n: the number of features to fit. Note that this is not compatible with method = 'tpt'.
         minima: True if features should fit minima. If False then 'maximum wavelength mapping' is performed.
         sym: True if symmetric gaussian fitting should be used. Default is False.
-        k: the number of adjacent measurements to look at during detection of local minima. Default is 10. Larger numbers ignore smaller features as noise.
-        nthreads: the number of threads to use for the computation. Default is 1 (no multithreading).
+        k: the number of adjacent measurements to look at during detection of local minima. Default is 4. Larger numbers ignore smaller features as noise.
+        ntnthreads: the number of threads to use for the computation. Default is 1 (no multithreading).
+        hthresh: the minimum feature depth before we bother fitting gaussians. Avoids wasting time / effort on flat spectra.hreads: the number of threads to use for the computation. Default is 1 (no multithreading).
         hthresh: the minimum feature depth before we bother fitting gaussians. Avoids wasting time / effort on flat spectra.
         vb: True if graphical progress updates should be created.
         **kwds: Keywords are passed to gfit.gfit( ... ).
@@ -660,7 +663,10 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
     if mask.any():  # if no valid spectra, skip to end
 
         # flip hull corrected spectra as gfit only fits maxima
-        X = 1 - X
+        if log:
+            X = -np.log(X)
+        else:
+            X = 1 - X
 
         # get initial values
         x = hc.get_wavelengths()
@@ -669,8 +675,24 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1,
             out[mask, :] = x0  # just use x0 as output
         elif 'gauss' in method:
             out[mask, :] = gfit(x, X, x0, n, sym=sym, nthreads=nthreads, vb=vb, **kwds)  # fit gaussians
+        elif 'quad' in method:
+            ii = np.arange(X.shape[0])
+            for i in range(1, x0.shape[-1], 4):
+                ix1 = np.array([hc.get_band_index(b) for b in x0[..., i]])
+                ix0 = np.clip(ix1 - 1, 0, hc.band_count() - 1)
+                ix2 = np.clip(ix1 + 1, 0, hc.band_count() - 1)
+
+                # do some funky math (cf. https://doi.org/10.1016/j.rse.2011.11.025 )
+                an = (X[ii, ix1] - X[ii, ix0]) * (x[ix0] - x[ix2]) + (X[ii, ix2] - X[ii, ix1]) * (x[ix1] - x[ix0])
+                ad = (x[ix0] - x[ix2]) * (x[ix1] ** 2 - x[ix0] ** 2) + (x[ix1] - x[ix0]) * (x[ix2] ** 2 - x[ix0] ** 2)
+                a = an / ad
+                b = ((X[ii, ix1] - X[ii, ix0]) - a * (x[ix1] ** 2 - x[ix0] ** 2)) / (x[ix1] - x[ix0])
+
+                m = -b / (2 * a)  # this is our adjusted minima :-)
+                out[mask, :] = x0 # use minmax method for most things
+                out[mask, i ] = m # update position
         elif 'poly' in method:
-            assert False, "Error - polynomial mwl mapping is not yet implemented."  # todo
+            out[mask, :] = refine(x, X, x0, n=k, vb=vb)
         else:
             assert False, "Error - %s is an unsupported fitting method." % method
 

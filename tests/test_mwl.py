@@ -51,6 +51,16 @@ class MyTestCase(unittest.TestCase):
                                      n=1, nthreads=1, vb=False, xtol=0.1, ftol=0.1)
             self.assertGreater(np.nanmax(mwl.model.data[..., 1]), 2100.)  # check some valid features were identified
 
+            mwl = minimum_wavelength(D, 2100., 2380., trend='hull', method='quad', n=2, nthreads=1, vb=True, xtol=0.1,
+                                     ftol=0.1)
+
+            self.assertGreater(np.nanmax(mwl.model.data[..., 1]), 2100.)  # check some valid features were identified
+
+            mwl = minimum_wavelength(D, 2100., 2380., trend='hull', method='poly', n=2, nthreads=1, vb=True, xtol=0.1,
+                                     ftol=0.1)
+
+            self.assertGreater(np.nanmax(mwl.model.data[..., 1]), 2100.)  # check some valid features were identified
+
             mwl = minimum_wavelength(D, 2100., 2380., trend='hull', method='gauss', n=1, nthreads=1, vb=True, xtol=0.1, ftol=0.1)
             self.assertGreater(np.nanmax(mwl.model.data[..., 1]), 2100.)  # check some valid features were identified
 
