@@ -722,7 +722,7 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, l
             out[mask, :] = x0  # just use x0 as output
         elif 'gauss' in method:
             # drop low-amplitude features
-            mask2 = x0[:,0] > hthresh
+            mask2 = x0[:,0] > hthresh # N.B. x0[:,0] will contain the deepest depth of each spectra
 
             # fit gaussians (and update x0 to make masking / reshaping easier)
             x0[ mask2, : ]= gfit(x, X[mask2,:], x0[mask2,:], n, sym=sym, nthreads=nthreads, vb=vb, **kwds)  # fit gaussians

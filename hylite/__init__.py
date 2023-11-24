@@ -8,13 +8,14 @@ An open-source python toolbox for hyperspectral data preprocessing, correction, 
 A variety of interactive notebook tutorials are available for *hylite*:
 
 Basic:
-- Introduction tutorial: https://github.com/samthiele/hylite_demo2
-- Another introduction: https://tinyurl.com/drt2022
+- [Introduction tutorial using GoogleColab](https://drive.google.com/drive/folders/1hkr4gtP1OY_PIK7cynl3dWd3sYi_9s5F?usp=drive_link)
+- [Another introduction from the DRT workshop](https://tinyurl.com/drt2022)
+- [Yet another introduction from the VGC conference](https://drive.google.com/drive/folders/1_gDRMrccNG3OMyIPYy0mkpkbN6nn92OW?usp=sharing)
 
 Advanced:
-- Building corrected hyperclouds: https://tinyurl.com/Maamorilik01
-- Minimum wavelength mapping: https://tinyurl.com/Maamorilik02
-- Visualising hyperclouds: https://tinyurl.com/Maamorilik03
+- [Building corrected hyperclouds](https://tinyurl.com/Maamorilik01)
+- [Minimum wavelength mapping](https://tinyurl.com/Maamorilik02)
+- [Visualising hyperclouds](https://tinyurl.com/Maamorilik03)
 
 ----------
 
@@ -25,7 +26,11 @@ If you use hylite for your work then please cite:
 * Thiele, S. T., Lorenz, S., et al., (2021). Multi-scale, multi-sensor data integration for automated 3-D geological
 mapping using hylite. *Ore Geology Reviews*. https://doi.org/10.1016/j.oregeorev.2021.104252
 
-Other relevant papers include
+Other relevant papers include:
+
+* Thiele, S.T., Bnoulkacem, Z., Lorenz, S., Bordenave, A., Menegoni, N., Madriz, Y., Dujoncquoy, E., Gloaguen, R. and Kenter, J., 2021.
+Mineralogical Mapping with Accurately Corrected Shortwave Infrared Hyperspectral Data Acquired Obliquely from UAVs.
+*Remote Sensing*, 14(1), p.5. https://doi.org/10.3390/rs14010005
 
 * Thiele, S. T., Lorenz, S., Kirsch, M., & Gloaguen, R. (2021).
 A Novel and Open-Source Illumination Correction for Hyperspectral Digital Outcrop Models. *IEEE Transactions on
@@ -39,9 +44,9 @@ Mineralization at Black Angel Mountain, Greenland. *Data*, 7(8), p.104. https://
 Unravelling the Deformation of Paleoproterozoic Marbles and Zn-Pb Ore Bodies by Combining 3D-Photogeology and
 Hyperspectral Data (Black Angel Mine, Central West Greenland). *Minerals*, 12(7), p.800. https://doi.org/10.3390/min12070800
 
-* Thiele, S.T., Bnoulkacem, Z., Lorenz, S., Bordenave, A., Menegoni, N., Madriz, Y., Dujoncquoy, E., Gloaguen, R. and Kenter, J., 2021.
-Mineralogical Mapping with Accurately Corrected Shortwave Infrared Hyperspectral Data Acquired Obliquely from UAVs.
-*Remote Sensing*, 14(1), p.5. https://doi.org/10.3390/rs14010005
+* Kirsch, M., Mavroudi, M., Thiele, S., Lorenz, S., Tusa, L., Booysen, R., Herrmann, E., Fatihi, A., Möckel, R., Dittrich, T. and Gloaguen, R.,
+2023. Underground hyperspectral outcrop scanning for automated mine‐face mapping: The lithium deposit of Zinnwald/Cínovec.
+The Photogrammetric Record, 38(183), pp.408-429. https://doi.org/10.1111/phor.12457
 
 -------
 
