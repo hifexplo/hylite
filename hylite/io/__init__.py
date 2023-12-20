@@ -54,12 +54,19 @@ def save(path, data, **kwds):
                 from skimage import io as skio
                 skio.imsave( path, rgb ) # save the image
                 return
-        elif ((data.band_count() == 3) or (data.band_count() == 4)) and (data.data.dtype == np.uint8):
-            # save 3 and 4 band uint8 arrays as png files
+        elif ((data.band_count() == 1) or (data.band_count() == 3) or (data.band_count() == 4)) and (data.data.dtype == np.uint8):
+            # save 1, 3 and 4 band uint8 arrays as png files
             # from matplotlib.pyplot import imsave
             # imsave( os.path.splitext(path)[0]+".png", data.data)  # save the image
-            from skimage import io as skio
-            skio.imsave(os.path.splitext(path)[0]+".png", np.transpose( data.data, (1,0,2) ))  # save the image
+            #from skimage import io as skio
+            #skio.imsave(os.path.splitext(path)[0]+".png", np.transpose( data.data, (1,0,2) ))  # save the image
+            from PIL import Image
+            if (data.band_count() == 1):
+                img = Image.fromarray(data.data[..., 0].T)  # single-band PNG
+            else:
+                img = Image.fromarray(np.transpose(data.data, (1, 0, 2)))  # ternary PNG
+
+            img.save(os.path.splitext(path)[0]+".png", "PNG")
             save( os.path.splitext(path)[0] + ".hdr", data.header ) # save header
             return
         else: # save hyperspectral image

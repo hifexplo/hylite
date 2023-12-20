@@ -1173,14 +1173,14 @@ def plot_ternary(F1, F2, F3, bounds, weights=[1., 1., 1.], subsample=1, depth_th
         a = np.zeros(3)
         a[i] = 1 - label_offset
         off = co - np.array(baryToCC(*a))
-        ax.text(*(co + off), labels[i], fontsize='xx-large', ha='center', va='top', color=colors[i])
+        ax.text(*(co + off), s=labels[i], fontsize='xx-large', ha='center', va='top', color=colors[i])
 
     # plot edge labels
     for i, (e, a) in enumerate(zip('abc', [-60, 0, 60])):
         mn = edgeToCC(e, 0.05, 0.15)
-        ax.text(*mn, str(edge_bounds[i][0]), ha='center', va='center', rotation=a)
+        ax.text(*mn, s=str(edge_bounds[i][0]), ha='center', va='center', rotation=a)
         mx = edgeToCC(e, 0.05, 0.85)
-        ax.text(*mx, str(edge_bounds[i][1]), ha='center', va='center', rotation=a)
+        ax.text(*mx, s=str(edge_bounds[i][1]), ha='center', va='center', rotation=a)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_axis_off()

@@ -947,6 +947,140 @@ class HyData(object):
         # set nans
         self.set_as_nan(nan)
 
+    def getQuantized(self, n=255, cmeth='KMeans', vthresh=10, smooth=5, subsample=50, mask=None, normalise=False):
+        """
+        Get a lossy compressed version of this hyperspectral dataset using the "quantisation" method.
+        This uses a combination of PCA and K-means to cluster the image into n classes, for which a
+        spectral library containing the minimum, median and maximum spectra is derived. This can be used
+        to e.g., run computationally expensive operations on relatively few spectra or store lossy compressed
+        versions of the hyperspectral data.
+
+        Args:
+         n (int): The number of quanta (discrete spectral classes) to use. Default is class 1 to 255, + 0 for background.
+         cmeth (str): Method used for clustering. Options are 'Birch' (default), 'KMeans' or 'MiniBatch' (KMeans).
+         vthresh (int,float): A float variance threshold (0-1) used to determine the number of PCA bands to use, or an integer
+                        to use n-bands. Default is 10 (bands).
+         smooth (int): The window width of a Savgol filter used to denoise spectra before fitting the PCA and K-means. Default is 5. Must be an odd integer. Set to 0 to disable.
+         subsample (int): The stride used to subsample pixels when fitting the PCA and k-means. Higher values are faster but
+                    less accurate. Default is 50.
+         mask (ndarray): A binary mask to apply before fitting the PCA and k-means. Masked data will be put in their own
+                     class. Data flagged with True in the mask will be retained, while those flagged as False will be removed.
+         normalise (bool): If True, PCA components are normalised before k-means clustering. Default is False.
+        Returns: An index dataset (HyData) containing the class IDs, and a spectral library containing the minimum, median,
+                  and maximum spectra of each class.
+        """
+        # get data
+        if mask is None:
+            mask = np.isfinite(self.data).all(axis=-1)  # keep only pixels that are all finite
+        else:
+            mask = mask & np.isfinite(self.data).all(axis=-1)  # use provided mask & ensure finite
+        X = hylite.HyData(self.data[mask, :])
+        if smooth > 1:
+            X.smooth_savgol(smooth)
+
+        # check subsample makes sense
+        if n > (X.data.shape[0] / subsample):
+            subsample = 1 # don't do it - this will only happen for small datasets where it's not needed anyway
+
+        # run a PCA
+        from hylite.filter import PCA
+        nbands = int(self.band_count() / 2)
+        if vthresh > 1:
+            nbands = int(vthresh)
+        pca, _, _ = PCA(X, bands=nbands, step=subsample)
+
+        # normalise and extract bands
+        if normalise:
+            pca.percent_clip(1, 99, per_band=True, clip=False )
+        if vthresh > 1:
+            ix = int(vthresh)
+        else:
+            ix = np.argmax(pca.get_wavelengths() > vthresh)  # get our noise cutoff
+        # print(ix)
+
+        # fit k-means, subsampling our pixels for speed
+        from sklearn.cluster import KMeans, Birch, MiniBatchKMeans
+        if 'birch' in cmeth.lower():
+            km = Birch(n_clusters=n).fit(pca.X()[::subsample, :ix])
+        elif 'minibatch' in cmeth.lower():
+            km = MiniBatchKMeans(n_clusters=n).fit(pca.X()[::subsample, :ix])
+        else:
+            km = KMeans(n_clusters=n).fit(pca.X()[::subsample, :ix])
+
+        # predict for all valid pixels
+        C = km.predict(pca.X()[:, :ix])
+
+        # reshape into original shape
+        out = np.zeros(mask.shape + (1,))
+        out[mask, 0] = C + 1 # N.B. +1 leaves index 0 free for nans / mask
+
+        # put in relevant type and copy metadata
+        index = self.copy(data=False)
+        index.data = out.astype(int)
+        index.set_band_names(['index'])
+        index.set_wavelengths([0])
+
+        # build spectral library
+        minHC = []
+        medHC = []
+        maxHC = []
+        counts = []
+        for i in range(n+1):
+            mask = index.data[..., 0] == i
+            X = self.data[mask, :]  # get spectra
+            counts.append(X.shape[0])
+            if (len(X) > 0):
+                mn, md, mx = np.percentile(X, (1, 50, 99), axis=0)  # get min, median and max value in each class
+                minHC.append(mn)
+                medHC.append(md)
+                maxHC.append(mx)
+            else:
+                minHC.append(np.full( X.shape[-1], np.nan ))
+                medHC.append(np.full( X.shape[-1], np.nan ))
+                maxHC.append(np.full( X.shape[-1], np.nan ))
+
+        lib = hylite.HyLibrary(np.transpose(np.dstack([minHC, medHC, maxHC]), (0, 2, 1)), wav=self.get_wavelengths())
+        if self.has_band_names():
+            lib.set_band_names( self.get_band_names() )
+
+        # add class abundances to library header (this can be useful for doing weighted statistics)
+        lib.header['counts'] = np.array(counts)
+
+        return index, lib
+
+    @classmethod
+    def fromQuanta(cls, index, library ):
+        """
+        Reconstruct a HyData instance from an index and spectral library, as returned by `HyData.getQuantized(...)`.
+
+        Args:
+            index (HyData): A classification index of the same type (e.g., HyImage, HyCloud, etc.) as the desired output.
+            library (HyLibrary): A spectral library containing the spectral information associated with each class. Note
+                                 that this could be a transformed (e.g., by minimum wavelength mapping) version of the
+                                 spectral library created by `getQuantized( ... )`.
+        """
+
+        outdata = np.zeros( index.data.shape[:-1] + (library.data.shape[-1],), dtype=library.data.dtype )
+        for n in np.unique( index.data[...,0].astype(int) ):
+            mask = index.data[...,0] == n
+            if n == 0:
+                continue # this is the background
+            if library.data.shape[1] == 3:
+                outdata[mask, : ] = library.data[n,1,:]
+            elif library.data.shape[1] == 1:
+                outdata[mask, :] = library.data[n, 0, :]
+            else:
+                assert False, "Error - library should contain either one (median) or three (minimum, median, maximum) " \
+                              "samples for each class"
+
+        out = index.copy(data=False)
+        out.data = outdata
+        out.set_wavelengths( library.get_wavelengths() )
+        if (library.has_band_names()):
+            out.set_band_names( library.get_band_names() )
+
+        return out
+
     def normalise(self, minv=None, maxv=None):
         """
         Normalizes individual data points to account for variations in illumination and overall reflectivity. This can be done

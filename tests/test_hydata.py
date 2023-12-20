@@ -1,4 +1,5 @@
 import unittest
+import hylite
 from hylite.project import Camera
 from hylite.reference.spectra import R90
 from hylite.correct.panel import Panel
@@ -112,6 +113,18 @@ class TestHyData(unittest.TestCase):
             data.decompress()
             self.assertEqual(data.data.dtype, np.float32)
             self.assertAlmostEqual(data.data.ravel()[0], tv, 3)
+
+            # check quantize
+            for m in ['kmeans']: # , 'minibatch', 'birch']:
+                index,lib = data.getQuantized(n=255, cmeth=m, vthresh=10, subsample=50, mask=None )
+                self.assertEquals( np.max(index.data), 255 )
+                self.assertEquals( lib.data.shape[0], 256 )
+
+            # check reconstruction from quanta
+            rc = hylite.HyData.fromQuanta( index, lib )
+            self.assertTrue( (np.array(rc.data.shape) == np.array(data.data.shape)).all() )
+            self.assertListEqual( list(rc.get_wavelengths()), list(data.get_wavelengths()) )
+            self.assertListEqual( list(rc.get_band_names()), list(data.get_band_names()) )
 
             # check smoothing works with nan bands
             data.mask_bands(1, 3)
