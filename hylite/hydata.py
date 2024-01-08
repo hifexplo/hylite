@@ -914,7 +914,7 @@ class HyData(object):
 
         #map to range 1 - 65535
         sf = 65535 / np.nanmax(self.data)
-        self.data *= sf
+        self.data = self.data*sf
         self.data[self.data < 0] = 0
 
         #convert data to uint16
@@ -942,7 +942,7 @@ class HyData(object):
 
         # expand data array to float32
         self.data = self.data.astype(np.float32)
-        self.data /= sf
+        self.data = (self.data / sf).astype(np.float32)
 
         # set nans
         self.set_as_nan(nan)
@@ -1041,7 +1041,8 @@ class HyData(object):
 
         lib = hylite.HyLibrary(np.transpose(np.dstack([minHC, medHC, maxHC]), (0, 2, 1)), wav=self.get_wavelengths())
         if self.has_band_names():
-            lib.set_band_names( self.get_band_names() )
+            if ( len(self.get_band_names() ) == lib.band_count() ):
+                lib.set_band_names( self.get_band_names() )
 
         # add class abundances to library header (this can be useful for doing weighted statistics)
         lib.header['counts'] = np.array(counts)

@@ -89,7 +89,7 @@ class HyFeature(object):
         """
         if asym is None:
             asym = np.ones( len(width) )
-        M = np.hstack( [depth[i], pos[i], width[i], width[i]*asym[i]] for i in range(len(depth)) )
+        M = np.hstack( [[depth[i], pos[i], width[i], width[i]*asym[i]] for i in range(len(depth))] )
         y = evaluate( x, M, sym=False )
         return 1 - y
 
