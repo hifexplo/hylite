@@ -1,0 +1,8 @@
+__pycache__/
+sandbox/
+build/
+.vscode/
+.DS_Store
+*.egg-info
+.pytest_cache/
+.pyc
