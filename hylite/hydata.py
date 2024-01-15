@@ -970,11 +970,13 @@ class HyData(object):
                   and maximum spectra of each class.
         """
         # get data
-        if mask is None:
-            mask = np.isfinite(self.data).all(axis=-1)  # keep only pixels that are all finite
-        else:
-            mask = mask & np.isfinite(self.data).all(axis=-1)  # use provided mask & ensure finite
-        X = hylite.HyData(self.data[mask, :])
+        msk = np.isfinite(self.data).all(axis=-1)  # keep only pixels that are all finite
+        if mask is not None:
+            # deal with possible mis-sized masks (e.g. often off by 1 pixel)
+            mx = min(mask.shape[0], self.data.shape[0])
+            my = min(mask.shape[1], self.data.shape[1])
+            msk[:mx,:my] = msk[:mx,:my] & mask[:mx,:my]
+        X = hylite.HyData(self.data[msk, :])
         if smooth > 1:
             X.smooth_savgol(smooth)
 
@@ -1011,8 +1013,8 @@ class HyData(object):
         C = km.predict(pca.X()[:, :ix])
 
         # reshape into original shape
-        out = np.zeros(mask.shape + (1,))
-        out[mask, 0] = C + 1 # N.B. +1 leaves index 0 free for nans / mask
+        out = np.zeros(msk.shape + (1,))
+        out[msk, 0] = C + 1 # N.B. +1 leaves index 0 free for nans / mask
 
         # put in relevant type and copy metadata
         index = self.copy(data=False)
@@ -1046,7 +1048,6 @@ class HyData(object):
 
         # add class abundances to library header (this can be useful for doing weighted statistics)
         lib.header['counts'] = np.array(counts)
-
         return index, lib
 
     @classmethod
