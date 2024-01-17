@@ -137,7 +137,7 @@ Other test functionality is included in the _tests_ directory.
 Next steps
 -------------
 
-1. Download and try the example notebooks / tutorials [here](https://github.com/samthiele/hylite_demo2).
+1. Download and try the example notebooks / tutorials [here](https://drive.google.com/drive/folders/1hkr4gtP1OY_PIK7cynl3dWd3sYi_9s5F?usp=drive_link).
 2. Find and adapt the one closest to what you need.
 3. Happy processing! :D
 
