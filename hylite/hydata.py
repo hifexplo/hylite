@@ -984,6 +984,12 @@ class HyData(object):
         if n > (X.data.shape[0] / subsample):
             subsample = 1 # don't do it - this will only happen for small datasets where it's not needed anyway
 
+        # check we have enough pixels for this many classes...
+        if X.data.shape[0] < n:
+            print("Warning - number of data (%d) < number of quanta (%d). Reducing number of quanta."%(X.data.shape[0], n))
+            n = X.data.shape[0] - 1
+            subsample = 1 # also no point subsampling
+
         # run a PCA
         from hylite.filter import PCA
         nbands = int(self.band_count() / 2)
