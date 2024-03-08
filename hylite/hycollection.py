@@ -518,7 +518,7 @@ class HyCollection(object):
         disk.
         """
         if '__' not in name:
-            valid = type(value) in [ int, str, bool, float, list ] # accept primitive types
+            valid = type(value) in [ int, str, bool, float, list, dict ] # accept primitive types
             valid = valid or isinstance( value, np.ndarray) # accept numpy arrays
             valid = valid or isinstance( value, hylite.HyData ) # accept hydata types
             valid = valid or isinstance(value, hylite.HyHeader)  # accept hydata types

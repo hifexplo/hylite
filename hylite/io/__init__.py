@@ -114,6 +114,14 @@ def save(path, data, **kwds):
     elif isinstance(data, np.ndarray) or isinstance(data, list):
         save_func = np.save
         ext = 'npy'
+    elif isinstance( data, dict ):
+        # try serialising dicts as json files
+        def save_json( path, data ):
+            import json
+            with open(path,'w') as f:
+                json.dump( data, f, **kwds)
+        save_func = save_json
+        ext = 'json'
     else:
         assert False, "Error - data type %s is unsupported by hylite.io.save." % type(data)
 
@@ -146,6 +154,12 @@ def load(path):
         return loadPMap(path)
     elif 'npy' in os.path.splitext( path )[1].lower():
         return np.load( path ) # load numpy
+    elif 'json' in os.path.splitext( path )[1].lower():
+        import json
+        out = {}
+        with open(path,'r') as f:
+            out = json.load( f )
+        return out
 
     # file (should/could) have header - look for it
     header, data = matchHeader( path )

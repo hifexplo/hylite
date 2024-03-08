@@ -91,6 +91,13 @@ class MyTestCase(unittest.TestCase):
             self.assertTrue(np.nanmax(np.abs(C2.image.data - image.data)) < thresh)
             self.assertTrue(np.nanmax(np.abs(C2.cloud.data - cloud.data)) < thresh)
             self.assertTrue(np.nanmax(np.abs(C2.lib.data - lib.data)) < thresh)
+
+            # check add JSON file works too
+            C.mydict = {"Key" : "Value"}
+            C.save()
+            C.free()
+            self.assertTrue("Key" in C.mydict) # will throw an error if save failed or if load failed
+            
         except:
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error - failed basic HyCollection tests")
