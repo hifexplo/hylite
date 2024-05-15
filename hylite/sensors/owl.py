@@ -124,11 +124,12 @@ class OWL(Sensor):
 
         # Denoise LWIR along sensor plane
         image.data = median_filter(image.data, size=(3, 1, 3), mode="mirror")
-        white = median_filter(white, size=(3,1,3), mode='mirror') # also apply to white panel for noise estimation
-
+        
         # also estimate noise per-band (useful for eg., MNFs)
-        noise = np.nanstd(white, axis=(0, 1))
-        image.header['band noise'] = noise
+        if cls.white is not None:
+            white = median_filter(white, size=(3,1,3), mode='mirror') # also apply to white panel for noise estimation
+            noise = np.nanstd(white, axis=(0, 1))
+            image.header['band noise'] = noise
 
         # rotate image so that scanning direction is horizontal rather than vertical)
         image.data = np.rot90(image.data)  # np.transpose(remap, (1, 0, 2))
