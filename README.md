@@ -13,6 +13,10 @@ Try *hylite* [here](https://drive.google.com/drive/folders/1hkr4gtP1OY_PIK7cynl3
 
 Detailed documentation for *hylite* can be found at: https://hifexplo.github.io/hylite/hylite.html.
 
+#### User interface:
+
+We are currently developing a user interface for some *hylite* tools using [napari](https://napari.org/stable/). Still lots to do, but this can be found here: https://github.com/samthiele/napari-hippo. 
+
 --------
 
 A key design feature of *hylite* is polymorphism between different spectral data types, such that spectral libraries,
