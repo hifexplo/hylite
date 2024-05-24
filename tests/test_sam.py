@@ -1,4 +1,5 @@
 import unittest
+import hylite
 from hylite import io
 from pathlib import Path
 import numpy as np
@@ -24,5 +25,14 @@ class MyTestCase(unittest.TestCase):
             sam = SAM(data, [[em3], [em1,em2] ])
             self.assertTrue(np.isfinite(sam.data).any())
             self.assertEquals( int( sam.X( onlyFinite=True )[0,0]), 1 )
+            self.assertEquals(int(sam.X(onlyFinite=True)[-1, 0]), 1 )
+            self.assertEquals(int(sam.X(onlyFinite=True)[-10, 0]), 0 )
+
+            # run SAM with a library
+            arr = np.vstack( [em3,em2] )[:,None,:]
+            print(arr.shape)
+            lib = hylite.HyLibrary( arr, lab=['EM1','EM2'], wav=data.get_wavelengths() )
+            sam = SAM(data, lib)
+            self.assertTrue(np.isfinite(sam.data).any())
             self.assertEquals(int(sam.X(onlyFinite=True)[-1, 0]), 1 )
             self.assertEquals(int(sam.X(onlyFinite=True)[-10, 0]), 0 )
