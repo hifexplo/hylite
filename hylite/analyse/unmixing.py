@@ -17,7 +17,7 @@ def mix( abundances : HyData, endmembers : np.ndarray ):
         endmembers: A numpy array of shape (nendmembers, bands), or HyLibrary instance
                     containing these same endmembers.
     Returns:
-        a HyData instance with the same type as abundances, but containing the forward modelled (linearly mixed) spectra.
+        A HyData instance with the same type as abundances, but containing the forward modelled (linearly mixed) spectra.
     """
 
     # create output object and get data vector to unmix (without nans)
@@ -49,7 +49,7 @@ def unmix( data : HyData, endmembers : np.ndarray, method : str = 'nnls' ):
         method: the unmixing constraints. Options are non-negative ('nnls', default) or fully
                 constrained ('fcls'). 
     Returns:
-        a HyData instance with the same type as data, but containing the estimated endmember abundances.
+        A HyData instance with the same type as data, but containing the estimated endmember abundances.
     """
 
     # create output object and get data vector to unmix (without nans)
@@ -94,8 +94,8 @@ def endmembers( data : HyData, n : int, method : str = 'nfindr', **kwds):
         method: The endmember identification method. These are fully documented in the 
                 pysptools documentation, and can be one of: 'nfindr', '' ...
     Returns:
-        - library: A HyLibrary containing the identified endmembers. 
-        - indices: A numpy array containing the coordinates of the selected endmembers in the input data.
+        library: A HyLibrary containing the identified endmembers. 
+        indices: A numpy array containing the coordinates of the selected endmembers in the input data.
     """
     
     # create data and corresponding index array (and drop nans)

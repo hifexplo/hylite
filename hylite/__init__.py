@@ -9,8 +9,7 @@ A variety of interactive notebook tutorials are available for *hylite*:
 
 Basic:
 - [Introduction tutorial using GoogleColab](https://drive.google.com/drive/folders/1hkr4gtP1OY_PIK7cynl3dWd3sYi_9s5F?usp=drive_link)
-- [Another introduction from the DRT workshop](https://tinyurl.com/drt2022)
-- [Yet another introduction from the VGC conference](https://drive.google.com/drive/folders/1_gDRMrccNG3OMyIPYy0mkpkbN6nn92OW?usp=sharing)
+- [Another introduction from the VGC conference](https://drive.google.com/drive/folders/1_gDRMrccNG3OMyIPYy0mkpkbN6nn92OW?usp=sharing)
 
 Advanced:
 - [Building corrected hyperclouds](https://tinyurl.com/Maamorilik01)

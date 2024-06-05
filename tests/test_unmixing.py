@@ -43,3 +43,6 @@ class MyTestCase(unittest.TestCase):
                 # check that the endmembers are at least similar to the real ones
                 self.assertLess( min( np.mean( np.abs(em1 - em.data[:,0,:]) ),
                                   np.mean( np.abs(em2 - em.data[:,0,:]) ) ), 0.05 ) # average 5% difference
+                
+                # check that we can use these endmembers directly for unmixing
+                # A3 = unmix( X, em, method='nnls') # commented out due to slowness....
