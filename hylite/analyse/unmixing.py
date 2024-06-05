@@ -59,6 +59,8 @@ def unmix( data : HyData, endmembers : np.ndarray, method : str = 'nnls' ):
     # get endmembers as numpy array
     if isinstance( endmembers, HyLibrary):
         E = np.mean( endmembers.data, axis=1 )
+    else:
+        E = endmembers # data is a numpy array?
     assert X.shape[-1] == E.shape[-1], "Endmembers have %d bands, data has %d." % (E.shape[-1], X.shape[-1])
 
     # do unmixing (using pysptools)
