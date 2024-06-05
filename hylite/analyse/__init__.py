@@ -9,6 +9,7 @@ This package implements common analysis methods for hyperspectral datasets, incl
 
 from .indices import *
 from .mwl import *
+from .unmixing import *
 from .sam import *
 from .dtree import *
 

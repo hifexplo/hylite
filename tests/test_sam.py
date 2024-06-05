@@ -10,7 +10,7 @@ class MyTestCase(unittest.TestCase):
         from hylite.analyse.sam import SAM, spectral_angles
 
         image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
-        cloud = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
+        cloud = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"hypercloud.hdr"))
 
         for data in [image, cloud]:
             em1 = data.X(onlyFinite=True)[0]
@@ -30,7 +30,6 @@ class MyTestCase(unittest.TestCase):
 
             # run SAM with a library
             arr = np.vstack( [em3,em2] )[:,None,:]
-            print(arr.shape)
             lib = hylite.HyLibrary( arr, lab=['EM1','EM2'], wav=data.get_wavelengths() )
             sam = SAM(data, lib)
             self.assertTrue(np.isfinite(sam.data).any())
