@@ -5,7 +5,6 @@ Functions for coregistering image and/or point cloud data.
 from hylite import HyImage
 from hylite.project.basic import *
 from hylite.project.camera import Camera
-import cv2
 import numpy as np
 import hylite
 
@@ -25,6 +24,7 @@ def deepWarp(image,target):
          - displacement map of the warp.
 
     """
+    import cv2 # import this here to avoid errors if opencv is not installed properly
 
     #convert images to greyscale uint8
     image = np.uint8(255 * (image - np.nanmin(image)) /
@@ -102,6 +102,8 @@ def refine_alignment(image, cloud, cam, bands=hylite.RGB, s=2,
                      recurse=1, feat_args={}, match_args={}, vb=True, **kwds):
     if 'pano' in cam.proj.lower():
         assert not cam.step is None, "Error - angluar step ('step') must be defined for panoramic cameras."
+    
+    import cv2 # import this here to avoid errors if opencv is not installed properly
 
     # generate rendered view to get matches from
     if vb: print("Projecting scene... ", end='')
@@ -495,6 +497,7 @@ def align_images(image1, image2, warp=True, **kwds):
     """
     print("Warning: align_images is depreciated. Please use piecewise_align, polynomial_align or affine_align instead.")
 
+    import cv2 # import this here to avoid errors if opencv is not installed properly
     assert isinstance(image1,HyImage) and isinstance(image2,HyImage), "Error - images myst be HyImage instances."
 
     #get image features

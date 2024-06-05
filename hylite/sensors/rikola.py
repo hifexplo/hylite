@@ -3,7 +3,6 @@ import hylite.io as io
 from .sensor import Sensor
 import numpy as np
 from pathlib import Path
-import cv2
 from multiprocessing import Pool
 from tqdm import tqdm
 import piexif
@@ -46,6 +45,8 @@ class Rikola(Sensor):
 
         """
 
+        import cv2 # import this here to avoid errors if opencv is not installed properly
+        
         #get keywords
         contrast_thresh = kwds.get("contrast_thresh", 0.01)
         sigma = kwds.get("sigma", 1.5)

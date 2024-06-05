@@ -1,6 +1,5 @@
 import numpy as np
 from pathlib import Path
-import cv2
 import numpy.ma as ma
 import hylite
 import hylite.io as io
@@ -70,7 +69,8 @@ class Fenix(Sensor):
                  - lens = apply GLTX lens correction to remove lens distortion. Default is True.
 
         """
-
+        import cv2 # import this here to avoid errors if opencv is not installed properly
+        
         # get kwds
         rad = kwds.get("rad", True)
         bpr = kwds.get("bpr", True)

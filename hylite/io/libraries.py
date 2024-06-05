@@ -10,6 +10,7 @@ from hylite import HyLibrary
 from hylite.io import makeDirs
 from time import gmtime, strftime
 from hylite.io.images import loadWithGDAL, saveWithGDAL, loadWithSPy, loadWithSPy
+from pathlib import Path
 
 # noinspection PyUnusedLocal
 def _read_sed_file(path):
@@ -285,7 +286,7 @@ def loadLibraryDIR(path, wav=None):
         a HyLibrary spectral library instance.
     """
 
-    files = glob.glob(os.path.join(path, "*/*.txt"))
+    files = glob.glob(str(Path(path)/ "*/*.txt"))
     libs = {}
     for f in files:
         # spectra name

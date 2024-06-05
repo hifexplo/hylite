@@ -9,9 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib import path
 from roipoly import MultiRoi
 import imageio
-import cv2
 import scipy as sp
-from scipy import ndimage
 import hylite
 from hylite.hydata import HyData
 from hylite.hylibrary import HyLibrary
@@ -319,6 +317,7 @@ class HyImage( HyData ):
         Args:
             n (int): the dimensions of the gaussian kernel to convolve. Default is 3. Increase for more blurry results.
         """
+        import cv2 # import this here to avoid errors if opencv is not installed properly
 
         nanmask = np.isnan(self.data)
         assert isinstance(n, int) and n >= 3, "Error - invalid kernel. N must be an integer > 3. "
@@ -335,6 +334,7 @@ class HyImage( HyData ):
             size (int): the size of the erode filter. Default is a 3x3 kernel.
             iterations (int): the number of erode iterations. Default is 1.
         """
+        import cv2 # import this here to avoid errors if opencv is not installed properly
 
         # erode
         kernel = np.ones((size, size), np.uint8)
@@ -347,7 +347,7 @@ class HyImage( HyData ):
             mask = cv2.erode(mask.astype(np.uint8), kernel, iterations=iterations)
             self.data[mask == 0, :] = 0
 
-    def resize(self, newdims, interpolation=cv2.INTER_LINEAR):
+    def resize(self, newdims : tuple, interpolation : int = 1):
         """
         Resize this image with opencv.
 
@@ -355,7 +355,7 @@ class HyImage( HyData ):
             newdims (tuple): the new image dimensions.
             interpolation (int): opencv interpolation method. Default is cv2.INTER_LINEAR.
         """
-
+        import cv2 # import this here to avoid errors if opencv is not installed properly
         self.data = cv2.resize(self.data, (newdims[1],newdims[0]), interpolation=interpolation)
 
     def despeckle(self, size=5):
@@ -367,7 +367,7 @@ class HyImage( HyData ):
         """
 
         assert (size % 2) == 1, "Error - size must be an odd integer"
-
+        import cv2 # import this here to avoid errors if opencv is not installed properly
         if self.is_float():
             self.data = cv2.medianBlur( self.data.astype(np.float32), size )
         else:
@@ -404,6 +404,7 @@ class HyImage( HyData ):
                     - k (ndarray): the keypoints detected
                     - d (ndarray): corresponding feature descriptors
          """
+        import cv2 # import this here to avoid errors if opencv is not installed properly
 
         # get image
         if isinstance(band, int) or isinstance(band, float): #single band
@@ -482,7 +483,7 @@ class HyImage( HyData ):
             min_count (int): the minimum number of matches to consider a valid matching operation. If fewer matches are found,
                        then the function returns None, None. Default is 5.
         """
-
+        import cv2 # import this here to avoid errors if opencv is not installed properly
         if 'sift' in method.lower():
             algorithm = cv2.NORM_INF
         elif 'orb' in method.lower():

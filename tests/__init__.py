@@ -6,7 +6,7 @@ import os
 
 # functions for creating test datasets
 def genHeader():
-    return  io.loadHeader( os.path.join( os.path.join(str(Path(__file__).parent.parent), "test_data"), "image.hdr") )
+    return  io.loadHeader( str( Path(__file__).parent.parent / "test_data" / "image.hdr") )
 
 # create test cloud
 def genCloud( npoints = 1000, nbands=10, data=True, normals=True, rgb=True):

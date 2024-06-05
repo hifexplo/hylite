@@ -168,6 +168,7 @@ class MyTestCase(unittest.TestCase):
 
             # test recursive searching
             C2.free() # used for testing queries on datasets that are not loaded into RAM
+            C2.print()
             for _C in [C, C2]:
                 query = _C.query(name_pattern='funky_data', recurse = True, ram_only=False)
                 self.assertListEqual(sorted(query), sorted(['funky_data_base', 'funky_data_B', 'funky_data_A', 'funky_data_C']) )
@@ -176,11 +177,11 @@ class MyTestCase(unittest.TestCase):
                 query = _C.query(ext_pattern=['npy', 'ndarray'], recurse=True, ram_only=False) # matches string attributes
                 self.assertListEqual(query, sorted(['array', 'funky_data_A']))
                 query = _C.query(ext_pattern=['dat', 'HyImage'], recurse=True,
-                                 ram_only=False)  # matches string attributes
+                                ram_only=False)  # matches string attributes
                 self.assertListEqual(query, ['another_image', 'image'])
                 query = _C.query(ext_pattern=['hyc', 'HyCollection'], recurse=False, ram_only=False)  # test no recurse
                 query2 = _C.query(ext_pattern=['hyc', 'HyCollection'], recurse=True, ram_only=False,
-                                  recurse_matches=False )  # test no recurse matches
+                                recurse_matches=False )  # test no recurse matches
                 self.assertListEqual(query, query2)
         except:
             shutil.rmtree(pth)  # delete temp directory

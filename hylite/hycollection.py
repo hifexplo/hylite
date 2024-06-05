@@ -8,6 +8,8 @@ import numpy as np
 import shutil
 import re
 from natsort import natsorted
+from pathlib import Path
+
 class External(object):
     """
     Small wrapper class for storing external objects in HyCollections.
@@ -25,7 +27,7 @@ class External(object):
 
         # no - figure out where it is
         if self.base is not None:
-            path = os.path.join(self.base, self.path)
+            path = str(Path(self.base) / Path(self.path))
         assert os.path.exists(path), "Error: %s does not exist." % path
 
         # and load it
@@ -87,7 +89,7 @@ class HyCollection(object):
         attr = self.getAttributes()
 
         # build paths dictionary
-        out = {os.path.join(root, "%s.hdr" % name): self.header}
+        out = {str( Path(root) / ("%s.hdr" % name)): self.header}
         path = self.getDirectory(root=root, name=name)
         for a in attr:
             value = getattr(self, a)  # get value
@@ -98,7 +100,7 @@ class HyCollection(object):
             elif isinstance(value, External): # external link
                 self.header[a] = "<" + value.path + ">" # store in header file
             else:
-                out[os.path.join(path, a)] = value
+                out[str( Path(path) / a)] = value
 
         return out
 
@@ -119,7 +121,7 @@ class HyCollection(object):
                     path = None
                     for f in os.listdir(self.getDirectory()):
                         if os.path.splitext(f)[0] == a:  # we have found the right file
-                            path = os.path.join(self.getDirectory(), f)
+                            path = str(Path(self.getDirectory()) / f)
                             break
                     if path is not None and os.path.exists(path):
                         hdr, dat = hylite.io.matchHeader( path )
@@ -159,12 +161,12 @@ class HyCollection(object):
             if (attr + '.hdr') in os.listdir(self.getDirectory(makedirs=False)):
                 # look for header files first
                 # (in case e.g. attr.hdr, attr.png and attr.dat all exist)!
-                path = os.path.join(self.getDirectory(makedirs=False), attr + '.hdr')
+                path = str(Path(self.getDirectory(makedirs=False))/ (attr + '.hdr'))
             else:
                 # no header file; search for any extension
                 for f in os.listdir(self.getDirectory(makedirs=False)):
                     if os.path.splitext(f)[0] == attr:  # we have found the right file
-                        path = os.path.join(self.getDirectory(makedirs=False), f)
+                        path = str(Path(self.getDirectory(makedirs=False)) / f)
                         break
             if (path is None) or not os.path.exists(path):
                 raise AttributeError # couldn't find on disk
@@ -224,7 +226,7 @@ class HyCollection(object):
             return os.path.splitext( self.getDirectory() )[0]
         else:
             name = name.strip().replace(' ', '_')
-            return os.path.join( self.getDirectory(), name )
+            return str( Path(self.getDirectory()) / name )
 
     def getDirectory(self, root=None, name=None, makedirs=False):
         """
@@ -243,7 +245,7 @@ class HyCollection(object):
             name = self.name
         assert root is not None, "Error - root argument must be set during HyCollection initialisation or function call."
         assert name is not None, "Error - name argument must be set during HyCollection initialisation or function call."
-        p = os.path.join(root, os.path.splitext(name)[0] + self.ext)
+        p = str( Path(root) / (os.path.splitext(name)[0] + self.ext))
         if makedirs:
             os.makedirs(p, exist_ok=True)  # ensure directory actually exists!
         return p
@@ -351,7 +353,7 @@ class HyCollection(object):
                 else: # object is on the disk
                     from hylite.io import _loadCollection
                     try:
-                        C = _loadCollection(os.path.join(self.getDirectory(), a + e) )
+                        C = _loadCollection(str(Path(self.getDirectory()) / (a + e) ) )
                         out += C.query( name_pattern=name_pattern, ext_pattern=ext_pattern,
                                                       recurse=recurse, recurse_matches=recurse_matches,
                                                       ram_only = ram_only )

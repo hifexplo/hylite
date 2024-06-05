@@ -8,7 +8,6 @@ from matplotlib import path
 import numpy as np
 from scipy.optimize import least_squares
 import matplotlib.patches as patches
-import cv2
 
 import hylite
 from hylite.reference.features import HyFeature
@@ -82,6 +81,8 @@ class Panel( HyData ):
                 self.outline = path.Path(verts)  # make matplotlib path from selected region
 
             else:
+                import cv2 # import this here to avoid errors if opencv is not installed properly
+                
                 db = kwds.get('db', False)  # draw plots?
 
                 # calculate greyscale image

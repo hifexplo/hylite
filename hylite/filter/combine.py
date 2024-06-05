@@ -3,7 +3,6 @@ Utility functions for combining / averaging multiple Datasets together.
 """
 
 import numbers
-import cv2
 import numpy as np
 from hylite import io as io
 
@@ -32,6 +31,7 @@ def combine(image_list, method="median", warp=False):
 
     # build co-aligned data array to average
     if warp:
+        import cv2 # import this here to avoid errors if opencv is not installed properly
         alg = cv2.optflow.createOptFlow_DeepFlow()
         X, Y = np.meshgrid(range(arr[0].shape[1]), range(arr[0].shape[0]))
         match_idx = int(image_list[0].band_count() / 2)

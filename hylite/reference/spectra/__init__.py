@@ -56,7 +56,7 @@ class Target(object):
             os.makedirs(path)
 
         #create file
-        path = os.path.join( path, "%s.txt" % self.get_name())
+        path = str( Path(path) / "%s.txt" % self.get_name())
         with open(path,'w') as f:
             w = self.get_wavelengths()
             r = self.get_reflectance()
@@ -100,7 +100,7 @@ def loadDirectory( path ):
         A dictionary of reference (with target names as keys)
     """
 
-    files = glob.glob( os.path.join(path, "*.txt" ) )
+    files = glob.glob( str( Path(path) / "*.txt" ) )
     targets = {}
     for f in files:
         try:

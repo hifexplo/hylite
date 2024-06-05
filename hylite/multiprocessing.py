@@ -7,7 +7,7 @@ import numpy as np
 import shutil
 from tempfile import mkdtemp
 import multiprocessing as mp
-
+from pathlib import Path
 from hylite import HyCloud, HyImage
 from hylite import io
 
@@ -167,10 +167,10 @@ def parallel_chunks(function, data, *args, **kwds):
     for i, c in enumerate(chunks):
 
         if isinstance(c, HyCloud):
-            p = os.path.join(pth, '%d.ply' % i)
+            p = str( Path(pth) / ('%d.ply' % i))
             io.saveCloudPLY(p, c)
         else:
-            p = os.path.join(pth, '%d.hdr' % i)
+            p = str(Path(pth)/ ('%d.hdr' % i))
             io.save(p, c)
         paths.append(p)
 

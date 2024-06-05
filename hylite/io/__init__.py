@@ -9,6 +9,7 @@ from .clouds import *
 from .libraries import *
 from .pmaps import *
 from .cameras import saveCameraTXT, loadCameraTXT
+from pathlib import Path
 
 from hylite import HyImage, HyCloud, HyLibrary, HyCollection, HyScene, HyData
 from hylite.project import PMap, Camera, Pushbroom
@@ -100,7 +101,7 @@ def save(path, data, **kwds):
     elif isinstance(data, HyCollection):
         save_func = _saveCollection
         ext = data.ext[1:]
-        outdir = os.path.join(data.root, os.path.splitext(data.name)[0])
+        outdir = str( Path(data.root) / os.path.splitext(data.name)[0])
         os.makedirs( os.path.splitext(path)[0] +"."+ ext, exist_ok=True ) # make output directory (even if empty)
         if os.path.splitext(path)[0] != outdir:
             if os.path.exists( outdir+"."+ext): # if it exists...

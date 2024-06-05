@@ -13,6 +13,7 @@ import hylite
 from tempfile import mkdtemp
 import shutil
 from tqdm import tqdm
+from pathlib import Path
 
 class PMap(object):
     """
@@ -796,7 +797,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
                                                                                                       scene.cloud.point_count(),
                                                                                                       mask.shape[0])
             # make output directory
-            pth = os.path.join(tmp, s.name)
+            pth = str(Path(tmp)/ s.name)
             os.makedirs(pth, exist_ok=True)
 
             # remove zeros
@@ -813,7 +814,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
                     data = s.push_to_cloud(chunk).data  # project bands
                     for n in range(data.shape[-1]):  # save them as individual numpy files
                         mask = np.logical_or(mask, np.isfinite(data[:, n]))
-                        np.save(os.path.join(pth, 'b%d.npy' % chunk[n]), data[:, n])
+                        np.save( str(Path(pth) / ('b%d.npy' % chunk[n])), data[:, n])
                     chunk = []
             if ooc:
                 s.free()
@@ -828,8 +829,8 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         for n, b in enumerate(loop):
             sm = np.zeros(mask.shape[0])
             for i, s in enumerate(scenes):
-                pth = os.path.join(tmp, s.name)
-                out.data[:, n] += np.nan_to_num(np.load(os.path.join(pth, 'b%d.npy' % b)) * weights[:, i])
+                pth = str(Path(tmp)/ s.name)
+                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b))) * weights[:, i])
     except KeyboardInterrupt as inst:
         print("Operation cancelled: cleaning up after KeyboardInterrupt.")
         err = inst

@@ -6,7 +6,6 @@ Perspective, panoramic and orthographic projections.
 import numpy as np
 from scipy import spatial
 from numba import jit, prange
-import cv2
 
 def proj_persp( xyz, C, a, fov, dims, normals=None):
     """
@@ -348,6 +347,8 @@ def pnp(kxyz, kxy, fov, dims, ransac=True, **kwds):
          - r = the camera orientation (as XYZ euler angle).
          - inl = list of Ransac inlier indices used to estimate the position, or None if ransac == False.
     """
+    import cv2 # import this here to avoid errors if opencv is not installed properly
+    
     # normalize keypoints so that origin is at mean
     mean = np.mean(kxyz, axis=0)
     kxyz = kxyz - mean

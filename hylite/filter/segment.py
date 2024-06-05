@@ -7,7 +7,6 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import hylite
-import cv2
 from matplotlib import path
 from hylite import io
 from tqdm import tqdm
@@ -132,6 +131,7 @@ def label_blocks(image, fg=None, s=8, epad=20, boost=3, erode=3, bands=hylite.RG
                 fg[max(p[0] - s, 0): min(p[0] + s, fg.shape[0]),
                 max(p[1] - s, 0): min(p[1] + s, fg.shape[1])] = i + 1
 
+    import cv2 # import this here to avoid errors if opencv is not installed properly
     mask = np.full((image.data.shape[0], image.data.shape[1]), cv2.GC_PR_BGD)
     mask[0:epad, :] = cv2.GC_BGD
     mask[-epad:-1] = cv2.GC_BGD
@@ -244,6 +244,7 @@ def extract_tiles(image, labels, connected=False, ids=None, erode=0):
             continue  # can be the case if erode removed entire labels
 
         if erode > 0:
+            import cv2 # import this here to avoid errors if opencv is not installed properly
             mask = cv2.erode(mask.astype(np.uint8), np.ones((erode, erode,))) == 1
 
         if not connected:
@@ -261,6 +262,7 @@ def extract_tiles(image, labels, connected=False, ids=None, erode=0):
             tiles.append(tile)
         else:
             # check connected components first
+            import cv2 # import this here to avoid errors if opencv is not installed properly
             nc, cl = cv2.connectedComponents(mask.astype(np.uint8))
             for n in range(nc):  # loop through components
                 comp_mask = cl == n
@@ -409,6 +411,7 @@ def build_core_template(images, N=5, thresh=40, vb=True):
         valid = valid.T
 
     # label components
+    import cv2 # import this here to avoid errors if opencv is not installed properly
     num_labels, labels_im = cv2.connectedComponents((valid.T > np.percentile(valid, 40)).astype(np.uint8))
 
     # take top N labels by area.
