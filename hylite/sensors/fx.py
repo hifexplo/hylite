@@ -215,8 +215,14 @@ class FX50(FX):
             # convert from int to float
             image.data = image.data.astype(np.float32)
 
+            # store exposure histogram for QAQC
+            counts, bins = np.histogram(image.data.ravel(), bins=50, range=(0, 2**14) )
+            image.header['Bins'] = bins
+            image.header['Raw Levels'] = counts
+            image.header['ninvalid'] = counts[-1]
+
             # flag infs
-            image.data[image.data == 65535.] = np.nan
+            image.data[image.data >= 2**14 - 1] = np.nan
 
             # apply dark reference
             if cls.dark is None:
@@ -224,6 +230,14 @@ class FX50(FX):
             else:
                 dref = np.nanmean(cls.dark.data, axis=1)  # calculate dark reference
                 image.data[:, :, :] -= dref[:, None, :]  # apply dark calibration
+                
+                # store darkref histogram for QAQC
+                counts, bins = np.histogram(dref.ravel(), bins=50, range=(0, 2**14) )
+                image.header['Dark Levels'] = counts
+
+                # store corrected counts for QAQC
+                counts, bins = np.histogram(image.data.ravel(), bins=50, range=(0, 2**14) )
+                image.header['Corrected Levels'] = counts
 
             # apply white reference (if specified)
             if not cls.white is None:

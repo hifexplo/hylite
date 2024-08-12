@@ -83,6 +83,14 @@ class Fenix(Sensor):
             # convert from int to float
             image.data = image.data.astype(np.float32)
 
+            # store exposure histogram for QAQC
+            dn = image.data.copy()
+            dn[..., :image.get_band_index(975.)] *= 16 # increase DN of VNIR range for comparability
+            counts, bins = np.histogram(dn.ravel(), bins=50, range=(0, 65535. ) )
+            image.header['Bins'] = bins
+            image.header['Raw Levels'] = counts
+            image.header['ninvalid'] = counts[-1]
+
             # find saturation and store in mask
             r = image.get_band_index(975.)
             mask = np.ones(image.data.shape)
@@ -95,6 +103,15 @@ class Fenix(Sensor):
             else:
                 dref = np.nanmean(cls.dark.data, axis=1)  # calculate dark reference
                 image.data[:, :, :] -= dref[:, None, :]  # apply dark calibration
+
+                dn = dref.copy()
+                dn[..., :image.get_band_index(975.)] *= 16 # increase DN of VNIR range for comparability
+                counts, bins = np.histogram(dn.ravel(), bins=50, range=(0, 65535. ) )
+                image.header['Dark Levels'] = counts
+
+                # store corrected counts for QAQC
+                counts, bins = np.histogram(image.data.ravel(), bins=50, range=(0, 2**14) )
+                image.header['Corrected Levels'] = counts
 
             # apply laboratory calibration
             assert not image.header is None, "Error: image must be linked to a header file (.hdr) for FENIX correction."

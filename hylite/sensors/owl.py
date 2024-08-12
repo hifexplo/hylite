@@ -76,8 +76,14 @@ class OWL(Sensor):
             # convert from int to float
             image.data = image.data.astype(np.float32)
 
-            # flag infs
-            image.data[image.data == 65535.] = np.nan
+            # store exposure histogram for QAQC
+            counts, bins = np.histogram(image.data.ravel(), bins=50, range=(0, 2**14) )
+            image.header['Bins'] = bins
+            image.header['Raw Levels'] = counts
+            image.header['ninvalid'] = counts[-1]
+            
+            # flag over-exposed pixels
+            image.data[image.data >= (2**14 - 1)] = np.nan
 
             # apply dark reference
             if cls.dark is None:
@@ -85,6 +91,14 @@ class OWL(Sensor):
             else:
                 dref = np.nanmean(cls.dark.data, axis=1)  # calculate dark reference
                 image.data[:, :, :] -= dref[:, None, :lim]  # apply dark calibration
+
+                # store darkref histogram for QAQC
+                counts, bins = np.histogram(dref[:, :lim].ravel(), bins=50, range=(0, 2**14) )
+                image.header['Dark Levels'] = counts
+                
+                # store corrected counts for QAQC
+                counts, bins = np.histogram(image.data.ravel(), bins=50, range=(0, 2**14) )
+                image.header['Corrected Levels'] = counts
 
             # apply white reference (if specified)
             if not cls.white is None:
@@ -97,7 +111,6 @@ class OWL(Sensor):
                 image.data[:, :, :] *= cfac[:, None, :lim]
                 white = white[:,:,:lim] * cfac[:, None, :lim]
 
-
             if verbose: print("DONE.")
 
         ####################################################################
@@ -106,6 +119,7 @@ class OWL(Sensor):
         if bpr:
             if verbose: print("Filtering bad pixels... ", end="", flush="True")
             invalids = np.argwhere(np.isnan(image.data) | np.isinf(image.data))  # search for bad pixels
+            image.header['ninvalid'] = len(invalids) # store for QAQC
             for px, py, band in invalids:
                 n = 0
                 sum = 0
@@ -123,11 +137,13 @@ class OWL(Sensor):
             if verbose: print("DONE.")
 
         # Denoise LWIR along sensor plane
-        image.data = median_filter(image.data, size=(3, 1, 3), mode="mirror")
-        
+        if verbose: print("Denoising... ", end='')
+        image.data = median_filter(image.data, size=(5, 3, 5), mode="mirror")
+        if verbose: print("DONE.")
+
         # also estimate noise per-band (useful for eg., MNFs)
         if cls.white is not None:
-            white = median_filter(white, size=(3,1,3), mode='mirror') # also apply to white panel for noise estimation
+            white = median_filter(white, size=(5,3,5), mode='mirror') # also apply to white panel for noise estimation
             noise = np.nanstd(white, axis=(0, 1))
             image.header['band noise'] = noise
 
@@ -135,7 +151,7 @@ class OWL(Sensor):
         image.data = np.rot90(image.data)  # np.transpose(remap, (1, 0, 2))
         image.data = np.flip(image.data, axis=1)
         image.set_band_names(None)  # delete band names as they get super annoying
-
+        
     @classmethod
     def correct_folder(cls, path, **kwds):
 
