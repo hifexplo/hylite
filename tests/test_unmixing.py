@@ -32,7 +32,7 @@ class MyTestCase(unittest.TestCase):
 
             # also check for (pure) endmembers
             for m in ['atgp', 'fippi', 'nfindr', 'ppi']:
-                em, ix = endmembers(X, 2, method=m )
+                em, ix = endmembers(X, 3, method=m )
 
                 # check that endmembers match their indices
                 if len(ix.shape) > 1:

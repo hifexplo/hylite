@@ -42,10 +42,7 @@ def saveHeader(path, header):
 
             #get value as string
             if isinstance(value, list) or isinstance(value, np.ndarray): #convert lists to string
-                if isinstance(value[0], str):  # format a list of strings
-                    s = ', '.join(value)
-                else:  # format a list of numbers
-                    s = ("%s" % list(value))[1:-1]  # convert to string and strip '[' and ']' characters
+                s = ', '.join( np.array(value).ravel().astype(str) ).strip()
             else:
                 s = str(value).strip()
 

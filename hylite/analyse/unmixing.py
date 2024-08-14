@@ -133,8 +133,8 @@ def endmembers( data : HyData, n : int, method : str = 'nfindr', **kwds):
     
     # sort out indices
     im = np.array([ix[i,:] for i in im]).squeeze()
-
+    
     # build output library
-    out = HyLibrary( em, lab=['EM%d'%(i+1) for i in range(n)], wav=data.get_wavelengths())
+    out = HyLibrary( np.array(em), lab=['EM%d'%(i+1) for i in range(len(em))], wav=data.get_wavelengths())
     return out, im
 
