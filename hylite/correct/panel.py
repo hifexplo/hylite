@@ -384,13 +384,21 @@ class Panel( HyData ):
             ax[0].set_xlim(bbox.min[0] - padx, bbox.max[0] + padx)
             ax[0].set_ylim(bbox.max[1] + pady, bbox.min[1] - pady)
 
-            # plot spectra
+            # plot radiance spectra
             kwds['labels'] = kwds.get('labels', HyFeature.Themes.ATMOSPHERE)
-            self.plot_spectra( ax=ax[1], **kwds )
-        else: # no image data, just plot spectra
+            fig, ax = self.plot_spectra( ax=ax[1], **kwds )
+
+        else: # no image data, just plot radiance spectra
             kwds['labels'] = kwds.get('labels', HyFeature.Themes.ATMOSPHERE)
             fig, ax = self.plot_spectra(**kwds)
             ax.set_ylabel('Downwelling Radiance')
+
+        # plot reflectance
+        ax.set_ylabel("Radiance")
+        ax2 = ax.twinx()
+        ax2.set_ylabel("Reflectance")
+        ax2.plot( self.get_wavelengths(), self.get_reflectance(), color='g' )
+        ax2.spines['right'].set_color('g')
         return fig, ax
 
     def plot_ratio(self, ax = None):

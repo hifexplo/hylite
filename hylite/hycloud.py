@@ -348,6 +348,7 @@ class HyCloud( HyData ):
                 - 'rgb' = rgb
                 - 'xyz' = point position
                 - 'klm' = normal vectors
+                - 'i' = point ID values
                 - numeric = index (int), wavelength (float) of a scalar field
                 - tuple of length 2 = slice of scalar fields (e.g. (0,-1) would return all bands).
                 - tuple of length > 2 or list: list of band indices (int) or wavelengths (float).
@@ -439,7 +440,11 @@ class HyCloud( HyData ):
             #extract based on string
             if isinstance(e, str):
                 for c in e.lower():
-                    if  c == 'r':
+                    if c == 'i':
+                        data.append(np.arange(self.point_count())[::step])
+                        nam.append('i')
+                        wav.append(-1)
+                    elif  c == 'r':
                         assert self.has_rgb(), "Error - RGB information not found."
                         data.append(self.rgb[::step,0])
                         nam.append('r')

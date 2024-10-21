@@ -57,18 +57,25 @@ class OWL(Sensor):
             **kwds: Optional keywords include:
 
                  - rad = true if image should be converted to radiance by applying dark and white references. Default is True.
-                 - bpr = replace bad pixels (only for raw data). Default is True.
+                 - denoise = denoising factor for total variation denoising (see skimage docs). Default is 1.
+                 - dead = percentage of pixels expected to be dead. Default is 2.5.
+                 - blink = percentage of pixels expected to be blinking. Default is 10.
                  - flip = true if image should be flipped (if camera mounted backwards in core
                           scanner). Default is False.
         """
 
         # get kwds
         rad = kwds.get("rad", True)
-        bpr = kwds.get("bpr", True)
+        lim = image.get_band_index(kwds.get("lim", 12368.))
+        denoise = kwds.get('denoise', 1)
+        dead = kwds.get('denoise', 2.5)
+        blink = kwds.get('blink', 10)
+        flip = kwds.get("flip", False)
 
-        lim = image.get_band_index(12368.)
+        # drop pixels above specified limit wavelength (these are shite)
         image.data = image.data[..., :lim]
         image.set_wavelengths(image.get_wavelengths()[:lim])
+        image.rot90() # rotate so cross-track is y-axis
 
         if rad:
             if verbose: print("Converting to radiance... ", end="", flush="True")
@@ -85,71 +92,77 @@ class OWL(Sensor):
             # flag over-exposed pixels
             image.data[image.data >= (2**14 - 1)] = np.nan
 
+            # load white reference
+            whiteref=None
+            if cls.white is not None:
+                whiteref = cls.white.copy()
+                whiteref.rot90()
+                whiteref.data = whiteref.data[:,:,:lim]
+                whiteref.data = whiteref.data.astype(np.float32)
+
             # apply dark reference
             if cls.dark is None:
                 print("Warning: dark calibration not found; no dark correction was applied! Something smells dodgy...")
             else:
-                dref = np.nanmean(cls.dark.data, axis=1)  # calculate dark reference
-                image.data[:, :, :] -= dref[:, None, :lim]  # apply dark calibration
+                darkref = cls.dark.copy()
+                darkref.rot90()
+                darkref.data = darkref.data[:,:,:lim]
+                darkref.data = darkref.data.astype(np.float32)
 
-                # store darkref histogram for QAQC
-                counts, bins = np.histogram(dref[:, :lim].ravel(), bins=50, range=(0, 2**14) )
-                image.header['Dark Levels'] = counts
+                # detect blinking pixels
+                darkmean = np.mean( darkref.data, axis=0 ) # calculate dark reference
+                darksigma = np.std( darkref.data, axis=0)
+                blinkmask = darksigma > np.percentile(darksigma,100-blink)
                 
-                # store corrected counts for QAQC
-                counts, bins = np.histogram(image.data.ravel(), bins=50, range=(0, 2**14) )
-                image.header['Corrected Levels'] = counts
+                # do dark subtraction
+                for img in [image, whiteref]:
+                    if img is not None:
+                        img.data = img.data.astype(np.float32)
+                
+                        # detect dead pixels
+                        imgsigma = np.std( img.data, axis=0 )
+                        deadpixels = imgsigma < np.percentile(imgsigma, dead)
+
+                        # store darkref histogram for QAQC
+                        counts, bins = np.histogram(darkmean.ravel(), bins=50, range=(0, 2**14) )
+                        img.header['Dark Levels'] = counts
+
+                        # despeckle and denoise
+                        from skimage.filters import median
+                        from skimage.morphology import white_tophat, black_tophat, ball
+                        from skimage.restoration import denoise_tv_chambolle
+                        mask = np.logical_or(blinkmask)
+                        smooth = median( img.data, footprint=np.ones((1,5,5)))
+                        img.data[ :, mask ] = smooth[:, mask ] # replace dead / stuck pixels
+                        footprint = ball(3)[::3,::3,:] # ellipse footprint
+                        img.data = img.data + black_tophat(img.data, footprint) # dark despeckle
+                        img.data = img.data - white_tophat(img.data, footprint) # bright despeckle
+                        #img.data = denoise_tv_chambolle(img.data, weight=denoise, channel_axis=-1) # denoise
+
+                    # store corrected counts for QAQC
+                    counts, bins = np.histogram(img.data.ravel(), bins=50, range=(0, 2**14) )
+                    img.header['Corrected Levels'] = counts
 
             # apply white reference (if specified)
-            if not cls.white is None:
+            if whiteref is None:
                 # calculate white reference radiance
-                white = cls.white.data.astype(np.float32) - dref[:, None, :]
-                refl = np.ones(white.shape[-1])  # assume pure white
+                refl = np.ones(whiteref.data.shape[-1])  # assume pure white
 
                 # apply white reference
-                cfac = refl[None, :] / np.nanmean( white, axis=1 )
-                image.data[:, :, :] *= cfac[:, None, :lim]
-                white = white[:,:,:lim] * cfac[:, None, :lim]
+                cfac = refl[None, :] / np.nanmean( whiteref.data, axis=0 )
+                image.data[:, :, :] *= cfac[None, :, :]
 
             if verbose: print("DONE.")
-
-        ####################################################################
-        # replace bad (nan) pixels with an average of the surrounding ones
-        ####################################################################
-        if bpr:
-            if verbose: print("Filtering bad pixels... ", end="", flush="True")
-            invalids = np.argwhere(np.isnan(image.data) | np.isinf(image.data))  # search for bad pixels
-            image.header['ninvalid'] = len(invalids) # store for QAQC
-            for px, py, band in invalids:
-                n = 0
-                sum = 0
-                for xx in range(px - 1, px + 2):
-                    for yy in range(py - 1, py + 2):
-                        if xx == px and yy == py: continue  # skip invalid pixel
-                        if xx < 0 or yy < 0 or xx >= image.data.shape[0] or yy >= image.data.shape[
-                            1]: continue  # skip out of bounds pixels
-                        if image.data[xx][yy][band] == np.nan or image.data[xx][yy][
-                            band] == np.inf: continue  # maybe neighbour is nan also
-                        n += 1
-                        sum += image.data[xx][yy][band]
-                if n > 0: sum /= n  # do averaging
-                image.data[px][py][band] = sum
-            if verbose: print("DONE.")
-
-        # Denoise LWIR along sensor plane
-        if verbose: print("Denoising... ", end='')
-        image.data = median_filter(image.data, size=(5, 3, 5), mode="mirror")
-        if verbose: print("DONE.")
 
         # also estimate noise per-band (useful for eg., MNFs)
-        if cls.white is not None:
-            white = median_filter(white, size=(5,3,5), mode='mirror') # also apply to white panel for noise estimation
-            noise = np.nanstd(white, axis=(0, 1))
-            image.header['band noise'] = noise
+        if False:
+            if cls.white is not None:
+                white = median_filter(white, size=(5,3,5), mode='mirror') # also apply to white panel for noise estimation
+                noise = np.nanstd(white, axis=(0, 1))
+                image.header['band noise'] = noise
 
-        # rotate image so that scanning direction is horizontal rather than vertical)
-        image.data = np.rot90(image.data)  # np.transpose(remap, (1, 0, 2))
-        image.data = np.flip(image.data, axis=1)
+        if flip:
+            image.data = np.flip(image.data, axis=1) # rotate image so that scanning direction is horizontal rather than vertical)
         image.set_band_names(None)  # delete band names as they get super annoying
         
     @classmethod

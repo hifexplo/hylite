@@ -244,6 +244,11 @@ def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
         output = gdal.GetDriverByName(driver).Create( path + ext, image.xdim(), image.ydim(), image.band_count(), dtype)
     else:
         output = gdal.GetDriverByName(driver).Create( path + ext, image.xdim(), image.ydim(), image.band_count(), dtype, ['INTERLEAVE=%s'%interleave] )
+    
+    # check we got a valid file
+    if output is None:
+        assert False, "Could not create output file at %s"%(path + ext)
+    assert image.band_count() > 0, "Image has incorrect data shape (%s) and could not be saved."%image.data.shape
 
     #write bands
     for i in range(image.band_count()):
@@ -258,10 +263,13 @@ def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
 
     # save geotransform/project information
     output = gdal.Open(path + ext, gdal.GA_Update)
-    output.SetGeoTransform(image.affine)
-    if not image.projection is None:
-        output.SetProjection(image.projection.ExportToPrettyWkt())
-    output = None  # close file
+    if output is None:
+        print("Warning - could not save geotransform information for %s"%(path + ext))
+    else:
+        output.SetGeoTransform(image.affine)
+        if not image.projection is None:
+            output.SetProjection(image.projection.ExportToPrettyWkt())
+        output = None  # close file
 
 def saveWithSPy( path, image, writeHeader=True, interleave='BSQ'):
     # make directories if need be

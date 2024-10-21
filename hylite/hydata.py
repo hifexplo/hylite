@@ -923,6 +923,7 @@ class HyData(object):
         #store min/max in header
         self.header["data ignore value"] = str(0)
         self.header['reflectance scale factor'] = sf
+        self.header['hylite compression factor'] = sf # backup, as some packages (i.e. SPy) overwrite the reflectance scale factor
 
     def decompress(self):
         """
@@ -939,7 +940,9 @@ class HyData(object):
         self.header["reflectance scale factor"] = 1.0
         if 'data ignore value' in self.header:
             del self.header['data ignore value']
-
+        if 'hylite compression factor' in self.header:
+            del self.header['hylite compression factor']
+            
         # expand data array to float32
         self.data = self.data.astype(np.float32)
         self.data = (self.data / sf).astype(np.float32)

@@ -15,7 +15,12 @@ class MyTestCase(unittest.TestCase):
             self.assertGreaterEqual(np.nanmin(Xhc.data), 0.0)
             self.assertLessEqual(np.nanmax(Xhc.data), 1.0)
 
-
-
+    def test_panel(self):
+        image = io.load(os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"image.hdr"))
+        from hylite.correct import Panel
+        from hylite.reference.spectra import R90
+        rad = np.nanmean( image.data[:10,:10,:], axis=(0,1))
+        P = Panel( R90, rad, strict=True, wavelengths=image.get_wavelengths() )
+        fig,ax = P.quick_plot()
 if __name__ == '__main__':
     unittest.main()

@@ -30,6 +30,8 @@ class TestHyCloud(unittest.TestCase):
         self.assertEqual( (rgb == cloud.rgb).all(), False ) # check that colours have changed!
         cloud.quick_plot('rgb', cam )
 
+        ids = cloud.render('ortho', 'i')
+        assert np.max(ids.data.ravel().astype(int)) > 1000 # check some point IDs exist
 
     def test_cloud(self):
 

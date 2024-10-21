@@ -99,10 +99,10 @@ BROAD = (1972.0,644.0,1450.0) #useful preview for data that covers visible VNIR 
 MWIR = (3000., 3400., 3800. )
 """Useful preview for MWIR range (3000., 3400., 3800. )."""
 
-LWIR = TIR = (10101.01, 9174.31, 8547.01)
+LWIR = TIR = (10113., 9156.31, 8527.01)
 """Useful preview for TIR range (10101.01, 9174.31, 8547.01)."""
 
-band_select_threshold = 10.
+band_select_threshold = 25.
 """Maximum distance (in nanometers) to use when matching wavelengths with band indices. See HyData.get_band_index(...) for more detail."""
 
 #import basic data classes
