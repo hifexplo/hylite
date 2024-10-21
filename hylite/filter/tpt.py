@@ -6,9 +6,11 @@ import numpy as np
 from tqdm import tqdm
 from scipy import signal
 
-
-import warnings
-warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
+try:
+    import warnings
+    warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning) # needed for some versions of numpy
+except:
+    pass
 
 def build_kernel(sigma, res):
     """
