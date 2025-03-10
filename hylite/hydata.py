@@ -160,9 +160,14 @@ class HyData(object):
         """
         Set the band names associated with this hyperspectral data
         """
-        if not names is None:
+        if names is not None:
             assert len(names) == self.band_count(), "Error - band names must be specified for each band."
-        self.header.set_band_names( names )
+            # make sure name is string, and drop any commas or other nasty characters
+            # as these break things in the header file....
+            names = [str(n).replace(',','').replace('\n','').replace('{','').replace('}','') for n in names] 
+            self.header.set_band_names( names )
+        else:
+            self.header.set_band_names(None)
 
     def set_fwhm(self, fwhm):
         """

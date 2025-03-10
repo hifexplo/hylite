@@ -80,6 +80,12 @@ class TestHyData(unittest.TestCase):
             data.set_band_names([a for a in 'abcdefghijklmnop'[:10]])
             self.assertEqual( data.get_band_index('e'), 4 )
 
+            # check nasty characters are dropped to avoid issues in header files....
+            data.set_band_names(["%s,2\n{}"%b for b in 'abcdefghijklmnop'[:10]])
+            for c in ',\n{}':
+                self.assertTrue(c not in ''.join(data.get_band_names()))
+            #print('|'.join(data.get_band_names()))
+
             # check export (which also checks copy etc.)
             data2 = data.export_bands( (0,5) )
             self.assertEqual(len(data2.get_wavelengths()), 6)

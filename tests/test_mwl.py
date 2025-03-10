@@ -84,7 +84,7 @@ class MyTestCase(unittest.TestCase):
             self.assertTrue( (np.nan_to_num(deepest.data) == np.nan_to_num(M[0].data)).all() )
 
             # check closest feature extraction
-            closest = M.closest(2100.)
+            closest = M.closest(2100., depth_cutoff=0 )
             M.sortByPos()
             self.assertTrue( (np.nan_to_num(closest.data) == np.nan_to_num(M[0].data)).all() )
 

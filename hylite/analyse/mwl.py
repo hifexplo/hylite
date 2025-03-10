@@ -193,6 +193,9 @@ class MWL(HyCollection):
         if valid_range is not None:
             valid_pos = (self[:, 'pos'] > valid_range[0]) & (np.array(self[:, 'pos']) < valid_range[1])
 
+        # apply depth cutoff
+        valid_pos = np.logical_and( valid_pos, self[:, 'depth'] > depth_cutoff )
+
         # get deviations and filter to only include valid positions
         dp = self[:, 'pos'].copy() - position
         dp[np.logical_not(valid_pos)] = np.inf

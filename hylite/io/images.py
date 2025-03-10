@@ -262,14 +262,15 @@ def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
         saveHeader(path + ".hdr", image.header)
 
     # save geotransform/project information
-    output = gdal.Open(path + ext, gdal.GA_Update)
-    if output is None:
-        print("Warning - could not save geotransform information for %s"%(path + ext))
-    else:
-        output.SetGeoTransform(image.affine)
-        if not image.projection is None:
-            output.SetProjection(image.projection.ExportToPrettyWkt())
-        output = None  # close file
+    if (image.affine is not None) or (image.projection is not None):
+        output = gdal.Open(path + ext, gdal.GA_Update)
+        if output is None:
+            print("Warning - could not save geotransform information for %s"%(path + ext)) # this happens sometimes -- not sure why.
+        else:
+            output.SetGeoTransform(image.affine)
+            if not image.projection is None:
+                output.SetProjection(image.projection.ExportToPrettyWkt())
+            output = None  # close file
 
 def saveWithSPy( path, image, writeHeader=True, interleave='BSQ'):
     # make directories if need be
