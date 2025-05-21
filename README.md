@@ -1,7 +1,7 @@
 
-<div style="display: flex; align-items: center; height: 64px; background-color:rgb(255, 255, 255); padding: 0 16px; border-bottom: 1px solid #ddd;">
-  <img src="hylite-icon.png" alt="hylite icon" style="height: 40px; margin-right: 12px;">
-  <span style="font-weight: bold; font-size: 24px;">hylite</span>
+<div style="display: flex; align-items: center; height: 100px; background-color:rgb(255, 255, 255); padding: 0 16px; border-bottom: 1px solid #ddd;">
+  <img src="hylite-icon.png" alt="hylite icon" style="height: 100px; margin-right: 0px;">
+  <span><b><h1>hylite</h1></b></span>
 </div>
 <br/>
 
