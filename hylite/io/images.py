@@ -4,7 +4,6 @@ Read common image formats, including ENVI format hyperspectral data.
 
 import sys, os
 import numpy as np
-import spectral
 from hylite.hyimage import HyImage, HyData
 from .headers import matchHeader, makeDirs, loadHeader, saveHeader
 
@@ -78,9 +77,12 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
     Returns:
         a hyImage object
     """
-
     assert os.path.exists(path), "Error - %s does not exist." % path
-
+    try: 
+        import spectral
+    except:
+        assert False, "Error - please install spectral python using `pip install spectral` before using loadWithSPy(...)"
+        
     # parse file format
     _, ext = os.path.splitext(path)
     if len(ext) == 0 or 'hdr' in ext.lower() or \
@@ -118,7 +120,8 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
     img = HyImage(data, projection=None, affine=None, header=header, dtype=dtype)
 
     # spectral python automatically applies reflectance scale factor, so we must set this to 1.0 to avoid future nightmares...
-    img.header['reflectance scale factor'] = 1.0
+    if np.nanmax(img.data) < 1.0:
+        img.header['reflectance scale factor'] = 1.0
 
     if mask_zero and img.dtype == float:
         img.data[img.data == 0] = np.nan  # note to self: np.nan is float...
@@ -154,8 +157,12 @@ def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32):
             bands = [ HyImage( np.zeros((3,3,imageheader.band_count())),
                         header=imageheader, wav=imageheader.get_wavelengths() ).get_band_index(b) for b in bands ]
 
-        # load image with SPy
+        # load image with SPy  TODO - replace this with numpy loading if possible?
         assert os.path.exists(image), "Error - %s does not exist." % image
+        try: 
+            import spectral
+        except:
+            assert False, "Error - please install spectral python using `pip install spectral` before using saveWithSPy(...)"
         try:  # try loading envi file first
             img = spectral.envi.open(header, image)  # this must be an envi file
         except:
@@ -173,9 +180,117 @@ def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32):
             out.header=imageheader
         return out
 
+def loadWithNumpy( path, dtype=np.float32, mask_zero=True ):
+    # parse file format
+    _, ext = os.path.splitext(path)
+    if len(ext) == 0 or 'hdr' in ext.lower() or \
+            'dat' in ext.lower() or \
+            'img' in ext.lower() or \
+            'lib' in ext.lower():
+        header, image = matchHeader(path)
 
+        # load header
+        assert os.path.exists(image), "Error - %s does not exist." % image
+        assert os.path.exists(header), "Error - %s does not exist." % header
+        header = loadHeader(header)
+        samples = int(header['samples']) # read relevant bits of header file
+        lines = int(header['lines'])
+        bands = int(header['bands'])
+        data_type = int(header['data type'])
+        interleave = header.get('interleave', 'bil')
+    
+        # ENVI data type mapping to NumPy
+        dtype_map = {
+            1: np.uint8,
+            2: np.int16,
+            3: np.int32,
+            4: np.float32,
+            5: np.float64,
+            12: np.uint16,
+            13: np.uint32,
+            14: np.int64,
+            15: np.uint64
+        }
+    
+        if data_type not in dtype_map:
+            raise ValueError(f"Unsupported data type: {data_type}")
+        dtype = dtype_map[data_type]
+    
+        # Load binary data
+        data = np.fromfile(image, dtype=dtype)
 
+        expected_size = lines * bands * samples
+        if data.size != expected_size:
+            raise ValueError(f"Expected {expected_size} elements, got {data.size}. Check lines, bands and samples entries in header file.")
 
+        if interleave == 'bil':
+            data = data.reshape((lines, bands, samples))
+            data = np.transpose(data, (0, 2, 1))  # (lines, samples, bands)
+        elif interleave == 'bsq':
+            data = data.reshape((bands, lines, samples))
+            data = np.transpose(data, (1, 2, 0))  # (lines, samples, bands)
+        elif interleave == 'bip':
+            data = data.reshape((lines, samples, bands))  # already in correct order
+        else:
+            raise ValueError(f"Unsupported interleave format: {interleave}")
+
+        # flip from row-column to x-y layout
+        data = np.transpose( data, (1,0,2) )
+        return HyImage(data, header=header)
+    elif 'tif' in ext.lower() or 'png' in ext.lower() or 'jpg' in ext.lower():  # standard image formats
+        # load with matplotlib
+        import matplotlib.image as mpimg
+        data = mpimg.imread(path)
+        return HyImage(data)
+    else:
+        assert False, "Error - %s is an unknown/unsupported file format." % ext
+
+def saveWithNumpy( path, image, writeHeader=True, interleave='BSQ'):
+    # make sure extension is proper
+    path, ext = os.path.splitext(path)
+    if "hdr" in str.lower(ext) or ext == '':
+        ext = ".dat"
+
+    interleave = interleave.lower()
+    if interleave not in ['bil', 'bip', 'bsq']:
+        raise ValueError("Interleave must be one of: 'bil', 'bip', or 'bsq'")
+
+    image.push_to_header() # update header flags
+    
+    # Map NumPy dtype to ENVI data type code
+    dtype = str(image.data.dtype)
+    numpy_to_envi = {
+        'uint8': 1,
+        'int16': 2,
+        'int32': 3,
+        'float32': 4,
+        'float64': 5,
+        'uint16': 12,
+        'uint32': 13,
+        'int64': 14,
+        'uint64': 15
+    }
+    if dtype not in numpy_to_envi:
+        raise ValueError(f"Unsupported dtype for ENVI: {dtype}")
+    envi_data_type = numpy_to_envi[dtype]
+
+    # Reorder data based on interleave
+    array = np.transpose( image.data, (1,0,2) ) # from x-y to i-j ordering
+    if interleave == 'bil':
+        out_data = np.transpose(array, (0, 2, 1))  # (lines, bands, samples)
+    elif interleave == 'bsq':
+        out_data = np.transpose(array, (2, 0, 1))  # (bands, lines, samples)
+    elif interleave == 'bip':
+        out_data = array  # (lines, samples, bands)
+    out_data.tofile(path+ext)
+
+    # save header file
+    header = image.header.copy()
+    header['data type'] = envi_data_type
+    header['interleave'] = interleave
+    header['byte order'] = '0'
+    header_path = path + '.hdr'
+    saveHeader( header_path, header)
 
 # noinspection PyUnusedLocal
 def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
@@ -273,13 +388,16 @@ def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
             output = None  # close file
 
 def saveWithSPy( path, image, writeHeader=True, interleave='BSQ'):
+    try: 
+        import spectral
+    except:
+        assert False, "Error - please install spectral python using `pip install spectral` before using saveWithSPy(...)"
+        
     # make directories if need be
     makeDirs(path)
 
-    path, ext = os.path.splitext(path)
-
     # make sure extension is proper
-
+    path, ext = os.path.splitext(path)
     if "hdr" in str.lower(ext) or ext == '':
         ext = ".dat"
 

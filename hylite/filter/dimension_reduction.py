@@ -1,10 +1,7 @@
 """
 PCA and MNF methods for dimensionality reduction.
 """
-
 import numpy as np
-
-import spectral
 from hylite import HyData
 
 def PCA(hydata, bands=20, band_range=None, step=5, mask : np.ndarray = None):
@@ -136,6 +133,13 @@ def MNF(hydata, bands=20, band_range=None, noise='diff', noise_thresh=50, denois
                      for plotting/interpreting the regions each MNF band is sensitive too.
         - means = the means for each band that are subtracted before applying the MNF transform.
     """
+    try: 
+        import spectral
+    except:
+        assert False, "Error - please install spectral python using `pip install spectral` before using MNF(...)"
+    
+    np.alltrue = np.all # hack to get around numpy changes and keep compatibility with spectral python
+
 
     # prepare data for MNF
     wav = hydata.get_wavelengths()

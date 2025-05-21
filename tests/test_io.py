@@ -6,7 +6,6 @@ from pathlib import Path
 from tempfile import mkdtemp
 import shutil
 import numpy as np
-
 from hylite.project import Camera, Pushbroom
 
 class TestIO(unittest.TestCase):

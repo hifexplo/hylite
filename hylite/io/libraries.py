@@ -175,9 +175,11 @@ def saveLibraryCSV(path, library):
     makeDirs(path)
 
     with open(path, 'w') as f:
-        f.write( "name," + str(list(library.get_wavelengths()))[1:-1] +'\n' )
+        #f.write( "name," + str(list(library.get_wavelengths()))[1:-1] +'\n' )
+        f.write( "name," + ','.join(['%.6f'%f for f in library.get_wavelengths()]) +'\n' )
         for i,n in enumerate(library.get_sample_names()):
-            f.write( str(n) + ", " + str(list( library.data[i,0,:] ))[1:-1] + '\n' )
+            # f.write( str(n) + ", " + str(list( library.data[i,0,:] ))[1:-1] + '\n' )
+            f.write( str(n) + ", " + ','.join(['%.6f'%f for f in library.data[i,0,:]]) + '\n' )
     f.close()
 
 def loadLibraryCSV(path):

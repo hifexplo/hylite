@@ -1,5 +1,9 @@
-hylite
-----------
+
+<div style="display: flex; align-items: center; height: 64px; background-color:rgb(255, 255, 255); padding: 0 16px; border-bottom: 1px solid #ddd;">
+  <img src="hylite-icon.png" alt="hylite icon" style="height: 40px; margin-right: 12px;">
+  <span style="font-weight: bold; font-size: 24px;">hylite</span>
+</div>
+<br/>
 
 *hylite* is an open-source python package for loading and preprocessing imagery from a variety of hyperspectral sensors, applying various analyses (e.g., multi-feature minimum wavelength maps, dimensionality reduction, band ratios), and/or fusing HSI imagery with high-resolution point-cloud data to generate seamless and radiometrically corrected hyperclouds. Reference spectra from spectral libraries, ground or laboratory measurements can also be integrated and used to perform supervised classifications using machine learning techniques.
 

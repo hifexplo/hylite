@@ -74,8 +74,9 @@ def save(path, data, **kwds):
             if usegdal:
                 from osgeo import gdal  # is gdal installed?
                 save_func = saveWithGDAL
-            else:  # no gdal, use SPy
-                save_func = saveWithSPy
+            else:  # no gdal
+                #save_func = saveWithSPy
+                save_func = saveWithNumpy
             if 'lib' in ext: # special case - we are actually saving a HyLibrary (as an image)
                 ext = 'lib'
             else:
@@ -203,9 +204,9 @@ def load(path):
             if usegdal:
                 from osgeo import gdal # is gdal installed?
                 out = loadWithGDAL(path)
-            else: # no gdal, use SPy
-                out = loadWithSPy(path)
-
+            else: # no gdal
+                #out = loadWithSPy(path)
+                out = loadWithNumpy(path)
         # special case - loading spectral library; convert image to HyData
         if 'lib' in ext:
             out = HyLibrary(out.data, header=out.header)
