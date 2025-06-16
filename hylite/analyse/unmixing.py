@@ -4,9 +4,81 @@ Functions for linear unmixing using endmember spectra.
 Note that some of these rely on functions implemented in `pysptools`, which thus
 may need to be installed for them to work.
 """
+import math
+import random
 import numpy as np
 from hylite import HyLibrary, HyData
 
+# update pysptools function to fix a bug with newer numpy versions
+try:
+    import pysptools
+    from pysptools.eea import eea
+    from pysptools.eea import nfindr
+    def NFINDR(data, q, transform=None, maxit=None, ATGP_init=False):
+        """
+        N-FINDR endmembers induction algorithm.
+        """
+
+        nsamples, nvariables = data.shape
+
+        if maxit is None:
+            maxit = 3 * q
+
+        # PCA transformation using sklearn if no transform is provided
+        if transform is None:
+            transform = data
+            transform = eea._PCA_transform(data, q-1)
+        else:
+            transform = transform
+
+        # Initialization
+        TestMatrix = np.zeros((q, q), dtype=np.float32)
+        TestMatrix[0, :] = 1  # first row of TestMatrix is all 1s
+
+        IDX = np.zeros(q, dtype=np.int64)
+
+        if ATGP_init:
+            induced_em, idx = eea.ATGP(transform, q)
+            IDX = np.array(idx, dtype=np.int64)
+            for i in range(q):
+                TestMatrix[1:q, i] = induced_em[i]
+        else:
+            for i in range(q):
+                idx = int(math.floor(random.random() * nsamples))
+                TestMatrix[1:q, i] = transform[idx]
+                IDX[i] = idx
+
+        actualVolume = 0
+        it = 0
+        v1 = -1.0
+        v2 = actualVolume
+
+        while it <= maxit and v2 > v1:
+            for k in range(q):
+                for i in range(nsamples):
+                    TestMatrix[1:q, k] = transform[i]
+                    volume = abs(np.linalg.det(TestMatrix))
+                    if volume > actualVolume:
+                        actualVolume = volume
+                        IDX[k] = i
+                TestMatrix[1:q, k] = transform[IDX[k]]
+            it += 1
+            v1 = v2
+            v2 = actualVolume
+
+        E = np.zeros((len(IDX), nvariables), dtype=np.float32)
+        Et = np.zeros((len(IDX), q - 1), dtype=np.float32)
+        for j in range(len(IDX)):
+            E[j] = data[IDX[j]]
+            Et[j] = transform[IDX[j]]
+
+        return E, Et, IDX, it
+
+    # update function in psptools
+    pysptools.eea.nfindr.NFINDR = NFINDR 
+
+except ImportError:
+    pass
 def mix( abundances : HyData, endmembers : np.ndarray ):
     """
     Generate synthetic spectra by linearly mixing an abundance and endmember
