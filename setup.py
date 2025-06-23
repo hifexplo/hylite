@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="hylite",
-    version="1.35",
+    version="1.36",
     author="Helmholtz Institute Freiberg",
     author_email="s.thiele@hzdr.de",
     description="Open-source toolbox for hyperspectral geology.",
