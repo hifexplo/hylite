@@ -12,6 +12,8 @@
 
 Try *hylite* [here](https://drive.google.com/drive/folders/1hkr4gtP1OY_PIK7cynl3dWd3sYi_9s5F?usp=drive_link)!
 
+And, for EO (satellite hyperspectral) applications, then please also see [this](https://drive.google.com/drive/folders/1_QLu8OsT8hfcLZ3nLqtwO1bLbJIauICb) set of tutorials.
+
 #### Documentation:
 
 Detailed documentation for *hylite* can be found at: https://hifexplo.github.io/hylite/hylite.html.
@@ -78,7 +80,6 @@ Installation
 conda create -n hylite
 conda activate hylite
 ````
-
 
 ------------
 

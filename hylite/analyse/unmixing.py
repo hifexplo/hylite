@@ -18,7 +18,6 @@ try:
         """
         N-FINDR endmembers induction algorithm.
         """
-
         nsamples, nvariables = data.shape
 
         if maxit is None:
@@ -76,9 +75,9 @@ try:
 
     # update function in psptools
     pysptools.eea.nfindr.NFINDR = NFINDR 
-
 except ImportError:
     pass
+
 def mix( abundances : HyData, endmembers : np.ndarray ):
     """
     Generate synthetic spectra by linearly mixing an abundance and endmember
