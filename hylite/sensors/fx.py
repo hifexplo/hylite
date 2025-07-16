@@ -222,7 +222,7 @@ class FX50(FX):
             image.header['ninvalid'] = counts[-1]
 
             # flag infs
-            image.data[image.data >= 2**14 - 1] = np.nan
+            image.data[image.data >= 2**16 - 1] = np.nan
 
             # apply dark reference
             if cls.dark is None:
