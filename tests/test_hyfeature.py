@@ -12,12 +12,12 @@ class MyTestCase(unittest.TestCase):
     def test_multigauss(self):
         x = np.linspace(2100., 2400., 500 )
         y = HyFeature.gaussian(x, 2200., 200., 0.5 )
-        self.assertAlmostEquals( np.max(y), 1.0, 2 )
-        self.assertAlmostEquals(np.min(y), 0.5, 2)
+        self.assertAlmostEqual( np.max(y), 1.0, 2 )
+        self.assertAlmostEqual(np.min(y), 0.5, 2)
 
         y = HyFeature.multi_gauss(x, [2200.,2340.], [200., 200.], [0.5,0.5])
-        self.assertAlmostEquals(np.max(y), 1.0, 2)
-        self.assertAlmostEquals(np.min(y), 0.5, 2)
+        self.assertAlmostEqual(np.max(y), 1.0, 2)
+        self.assertAlmostEqual(np.min(y), 0.5, 2)
 
     def test_plotting(self):
         x = np.linspace(2100., 2400., 500)

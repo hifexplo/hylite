@@ -58,8 +58,8 @@ class MyTestCase(unittest.TestCase):
             # test projections using normal camera
             cld = S.push_to_cloud( hylite.RGB, method='best' )
             img = S.push_to_image( 'klm', method='closest')
-            self.assertAlmostEquals( np.nanmax(img.data), 1.0, 2)
-            self.assertAlmostEquals(np.nanmax(cld.data), 1.0, 2 )
+            self.assertAlmostEqual( np.nanmax(img.data), 1.0, 2)
+            self.assertAlmostEqual(np.nanmax(cld.data), 1.0, 2 )
 
             # test projections using pushbroom camera
             cld = S2.push_to_cloud(hylite.RGB, method='best')

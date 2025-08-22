@@ -31,14 +31,14 @@ class MyTestCase(unittest.TestCase):
         try:
             C = HyCollection("test", pth ) # create a HyCollection
             C.attr = "foo"
-            self.assertEquals(C.file_type, 'Hylite Collection') # check "file type" key is loaded as file_type
-            self.assertEquals(C.file_type, C.header['file type'])  # check "file type" key is loaded as file_type
+            self.assertEqual(C.file_type, 'Hylite Collection') # check "file type" key is loaded as file_type
+            self.assertEqual(C.file_type, C.header['file type'])  # check "file type" key is loaded as file_type
             C.save()
 
             C2 = io.load(os.path.join(pth,'test.hdr'))
-            self.assertEquals(C.attr, "foo")
-            self.assertEquals(C2.file_type, 'Hylite Collection')  # check "file type" key is loaded as file_type
-            self.assertEquals(C2.file_type, C2.header['file type'])  # check "file type" key is loaded as file_type
+            self.assertEqual(C.attr, "foo")
+            self.assertEqual(C2.file_type, 'Hylite Collection')  # check "file type" key is loaded as file_type
+            self.assertEqual(C2.file_type, C2.header['file type'])  # check "file type" key is loaded as file_type
         except:
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error - failed save header only test")

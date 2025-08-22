@@ -123,8 +123,8 @@ class TestHyData(unittest.TestCase):
             # check quantize
             for m in ['kmeans']: # , 'minibatch', 'birch']:
                 index,lib = data.getQuantized(n=255, cmeth=m, vthresh=10, subsample=50, mask=None )
-                self.assertEquals( np.max(index.data), 255 )
-                self.assertEquals( lib.data.shape[0], 256 )
+                self.assertEqual( np.max(index.data), 255 )
+                self.assertEqual( lib.data.shape[0], 256 )
 
             # check reconstruction from quanta
             rc = hylite.HyData.fromQuanta( index, lib )
@@ -173,7 +173,7 @@ class TestHyData(unittest.TestCase):
             # test reshaping to feature vectors
             data.data[..., 5] = np.nan  # add some nans
             self.assertSequenceEqual( data.X().shape, np.reshape(data.data, (-1, data.band_count())).shape ) # check shape is unchanged
-            self.assertNotEquals(data.X(True).shape[0], np.reshape(data.data, (-1, data.band_count())).shape[0] ) # check nans are removed
+            self.assertNotEqual(data.X(True).shape[0], np.reshape(data.data, (-1, data.band_count())).shape[0] ) # check nans are removed
             self.assertTrue( np.isfinite( data.X(True).all()) )
 
             data.set_raveled( np.zeros_like( data.X(True)), onlyFinite=True ) # set with nan-mask

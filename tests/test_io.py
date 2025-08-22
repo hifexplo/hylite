@@ -31,7 +31,7 @@ class TestIO(unittest.TestCase):
         try:
             io.saveLibraryTXT(os.path.join(pth,"libtxt.txt"), lib )
             io.saveLibraryCSV(os.path.join(pth, "libcsv.csv"), lib)
-
+            
             lib2 = io.loadLibraryTXT(os.path.join(pth,"libtxt.txt"))
             lib3 = io.loadLibraryCSV(os.path.join(pth, "libcsv.csv"))
             for l in [lib2, lib3]:
@@ -43,8 +43,8 @@ class TestIO(unittest.TestCase):
                 io.saveLibraryTXT(os.path.join(pth,"library/%s/_%d.txt"%(mineral,i)), lib )
             lib = io.loadLibraryDIR(os.path.join(pth,"library"))
             self.assertIn('phlogopite', lib.get_sample_names())
-            self.assertEquals(lib.data.shape[0],3)
-            self.assertEquals(lib.data.shape[1],57)
+            self.assertEqual(lib.data.shape[0],3)
+            self.assertEqual(lib.data.shape[1],57)
         except:
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error - could not load or save spectral library to text format.")
@@ -66,7 +66,7 @@ class TestIO(unittest.TestCase):
                 for data,name in zip([self.lib, self.cld],['lib','cld']):
                     io.save(os.path.join(pth, "%s.hdr" % name), data)
                     data2 = io.load(os.path.join(pth, "%s.hdr" % name))
-                    self.assertAlmostEquals( np.nanmax(np.abs( data.data - data2.data)), 0, 6 ) # check values are the same
+                    self.assertAlmostEqual( np.nanmax(np.abs( data.data - data2.data)), 0, 6 ) # check values are the same
 
                 # test image(s) with GDAL and SPy
                 for data in [self.img]:
@@ -74,14 +74,14 @@ class TestIO(unittest.TestCase):
                         io.save(os.path.join(pth, "data.hdr"), data )
                         self.assertEqual( os.path.exists(os.path.join(pth, "data.hdr")), True)
                         data2 = io.load(os.path.join(pth, "data.hdr")) # reload it
-                        self.assertAlmostEquals(np.nanmax(np.abs(data.data - data2.data)), 0,
+                        self.assertAlmostEqual(np.nanmax(np.abs(data.data - data2.data)), 0,
                                                 6)  # check values are the same
 
                         # save with SPy
                         io.saveWithSPy(os.path.join(pth, "data2.hdr"), data )
                         self.assertEqual(os.path.exists(os.path.join(pth, "data2.hdr")), True)
                         data2 = io.load(os.path.join(pth, "data2.hdr")) # reload it
-                        self.assertAlmostEquals(np.nanmax(np.abs(data.data - data2.data)), 0,
+                        self.assertAlmostEqual(np.nanmax(np.abs(data.data - data2.data)), 0,
                                                 6)  # check values are the same
 
                 # test saving 3-band images to png files
@@ -229,6 +229,18 @@ class TestIO(unittest.TestCase):
         self.assertAlmostEqual(np.nanmax( np.abs(image.export_bands(hylite.SWIR).data - subset.data ) ), 0 )
 
         # load a pixel and check that the dimensions and values match
+
+    def test_loadSED(self):
+        pth = os.path.join(os.path.join(str(Path(__file__).parent.parent), "test_data"),"sedLib")
+        assert os.path.exists(pth)
+
+        from hylite.io.libraries import loadLibrarySED
+        lib = loadLibrarySED(pth)
+        assert '1456045_00115' in lib.get_sample_names() # check sample names
+        assert lib.data.shape[0] == 2 # two samples in this library
+        assert lib.data.shape[1] == 1 # one measurement per sample
+        assert lib.data.shape[2] == 1024 # 1024 bands
+        assert np.abs((np.mean(lib.data)-10.258820312500001)) < 1e-5 # check spectral data
 
 if __name__ == '__main__':
     unittest.main()

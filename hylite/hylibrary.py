@@ -239,7 +239,7 @@ class HyLibrary(HyData):
         Get list of sample names.
         """
         if self.has_sample_names():
-            return self.header.get_list('sample names') # names are defined
+            return self.header.get_list('sample names', str) # names are defined; return
         else:
             # no names defined, so make some
             self.header['sample names'] = ['S%d' % i for i in range(self.sample_count()) ]
@@ -251,7 +251,7 @@ class HyLibrary(HyData):
         """
         assert isinstance(names, list) or isinstance(names, np.ndarray), "Error - sample labels must be a list."
         assert self.data.shape[0] == len(names), "Error - sample names must be specified for each sample."
-        self.header['sample names'] = np.array(names)
+        self.header['sample names'] = np.array(names, dtype=str)
 
     def has_groups(self):
         """
@@ -282,7 +282,7 @@ class HyLibrary(HyData):
             a list containing integer indices of the spectra in this group.
         """
         assert 'group %s'%name in self.header, "Error - no group named %s exists." % name
-        return self.header.get_list('group %s'%name)
+        return self.header.get_list('group %s'%name, str)
 
     def get_group(self, name, shallow=False):
         """

@@ -41,14 +41,10 @@ def _read_sed_file(path):
             else:
                 meta[splt[0]] = ''.join(splt[1:]).strip()
             l = f.readline()
+        l = f.readline() # read next line (data headings)
 
         # get dataset name
         name = os.path.splitext(os.path.basename(path))[0]
-
-        # read colum names
-        # n.b. we ignore these for now. We could parse them by splitting by spaces EXCLUDING spaces
-        # that are preceded by a '.' (i.e. split on ' ' but not '. ').
-        col_names = f.readline()
 
         # read data lines
         wav = []
@@ -100,7 +96,6 @@ def loadLibrarySED(path):
 
         data.append(_r)
         names.append(_n)
-
         if 'Latitude' in _m and 'Longitude' in _m and 'Altitude' in _m:
             try:
                 _x = float(_m['Longitude'])
@@ -198,7 +193,6 @@ def loadLibraryCSV(path):
             l = f.readline()
     return HyLibrary( np.array(refl), names, wav=wav )
 
-
 def loadLibraryTXT(path):
     """
     Load an ENVI text format library. This should have the following structure:
@@ -258,9 +252,7 @@ def loadLibraryTXT(path):
         lib = HyLibrary(data[list(names.keys()), :], lab=list(names.values()), wav=wav)
         return lib
 
-
 import glob
-
 
 def loadLibraryDIR(path, wav=None):
     """
