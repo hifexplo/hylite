@@ -513,7 +513,7 @@ class HyImage( HyData ):
     ############################
     ## Visualisation methods
     ############################
-    def quick_plot(self, band=0, ax=None, bfac=0.0, cfac=0.0, samples=False, tscale=False, rot=False, flipX=False, flipY=False,
+    def quick_plot(self, band=0, ax=None, bfac=0.0, cfac=0.0, samples=False, tscale=False, invert=False, rot=False, flipX=False, flipY=False,
                    **kwds):
         """
         Plot a band using matplotlib.imshow(...).
@@ -529,6 +529,7 @@ class HyImage( HyData ):
             tscale (bool): True if each band (for ternary images) should be scaled independently. Default is False.
                     When using scaling, vmin and vmax can be used to set the clipping percentiles (integers) or
                     (constant) values (float).
+            invert (bool) : True if each band should be inverted before plotting. Only works for multiband (ternary) images.
             rot (bool): if True, the x and y axis will be flipped (90 degree rotation) before plotting. Default is False.
             flipX (bool): if True, the x axis will be flipped before plotting (after applying rotations).
             flipY (bool): if True, the y axis will be flippe before plotting (after applying rotations).
@@ -618,6 +619,8 @@ class HyImage( HyData ):
                 return ax.get_figure(), ax
 
             # invert if needed
+            if invert:
+                band = [-b for b in band]
             for i,b in enumerate(band):
                 if not isinstance(b, str) and (b < 0):
                     img[..., i] = np.nanmax(img[..., i]) - img[..., i]

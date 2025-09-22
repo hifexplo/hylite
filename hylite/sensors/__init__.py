@@ -11,6 +11,7 @@ from .owl import OWL
 from .fenix import Fenix
 from .rikola import Rikola, Rikola_HSC2, Rikola_RSC1
 from .fx import *
+from .telopsNano import TelopsNano
 
 # noinspection PyDefaultArgument
 def QAQC(image, method, dim=0, fit="minmax", checklines=[]):
