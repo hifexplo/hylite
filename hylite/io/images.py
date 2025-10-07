@@ -197,7 +197,7 @@ def loadWithNumpy( path, dtype=np.float32, mask_zero=True ):
         lines = int(header['lines'])
         bands = int(header['bands'])
         data_type = int(header['data type'])
-        interleave = header.get('interleave', 'bil')
+        interleave = header.get('interleave', 'bil').lower()
     
         # ENVI data type mapping to NumPy
         dtype_map = {
