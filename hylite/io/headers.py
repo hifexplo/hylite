@@ -114,7 +114,7 @@ def loadHeader(path):
                 inblock = False
                 value = re.sub("}$", "", value, 1)
                 value = value.strip()
-            header[key] = header[key] + value
+            header[key] = header[key] + value + '\n' # keep the newline characters
         currentline = hdrfile.readline()
     hdrfile.close()
 

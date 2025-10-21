@@ -1,11 +1,15 @@
 """
-PCA and MNF methods for dimensionality reduction.
+Deprecated PCA and MNF methods for dimensionality reduction. These have been replaced with the sklearn-based implementations in the `hylite.transform`
+submodule.
 """
+
 import numpy as np
 from hylite import HyData
 
 def PCA(hydata, bands=20, band_range=None, step=5, mask : np.ndarray = None):
     """
+    DEPRECATED: This function should no longer be used; see `hylite.transform.PCA` instead.  Kept only for legacy compatibility.
+
     Apply a PCA dimensionality reduction to the hyperspectral dataset using singular vector decomposition (SVD).
 
     Args:
@@ -110,6 +114,8 @@ def PCA(hydata, bands=20, band_range=None, step=5, mask : np.ndarray = None):
 
 def MNF(hydata, bands=20, band_range=None, noise='diff', noise_thresh=50, denoise=False, mask : np.ndarray =None):
     """
+    DEPRECATED: This function should no longer be used; see `hylite.transform.MNF` instead.
+
     Apply a minimum noise filter to a hyperspectral image.
 
     Args:
@@ -256,6 +262,8 @@ def MNF(hydata, bands=20, band_range=None, noise='diff', noise_thresh=50, denois
 
 def from_loadings(data, L, m=None):
     """
+    DEPRECATED: This function should no longer be used; see `hylite.transform.PCA` or `hylite.transform.MNF` instead. Kept only for legacy compatibility.
+
     Transform a dataset using a precomputed loading vector.  This allows PCA
     transforms to be computed on one dataset and then applied to another.
 
