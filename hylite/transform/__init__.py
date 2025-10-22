@@ -22,19 +22,27 @@ class NoiseWhitener(BaseEstimator, TransformerMixin):
 
     def __init__(self, noise_estimate=None, neighbor_axis=0, subsample=5, noiseMethod='spectral'):
         """
-        Parameters
-        ----------
-        noise_estimate : np.ndarray, optional
-            Optional noise array of shape (H, W, B). If None, noise is estimated from spatial differences.
-        neighbor_axis : int
-            Which spatial axis to use for differencing if noise is estimated (0=row, 1=column).
-        subsample : int
-            An integer factor to subsample the noise samples for covariance estimation. This can help
-            reduce computation time and memory usage when dealing with large datasets.
-        noiseMethod : str
-            Direction to compute noise differences. 'spectral' for band-wise differences, 'spatial' for spatial differences.
-            Note that 'spatial' can only be used for image data.
+        Estimate or apply a noise model for hyperspectral data.
+
+        This function either uses a provided noise estimate or computes one from spatial or spectral
+        differences in the data. The resulting noise statistics can be used for subsequent 
+        denoising, covariance estimation, or dimensionality reduction tasks.
+
+        Args:
+            noise_estimate: Optional array of shape (H, W, B) containing per-pixel noise estimates. 
+                            If None, noise is estimated from spatial or spectral differences.
+            neighbor_axis: Integer specifying which spatial axis to use for differencing when 
+                        estimating noise (0 = rows, 1 = columns). Default is 0.
+            subsample: Integer factor to subsample noise samples during covariance estimation. 
+                    Reduces computation time and memory usage for large datasets.
+            noiseMethod: String specifying the differencing method to use. 
+                        'spectral' computes band-wise differences, while 
+                        'spatial' computes spatial differences (image data only).
+
+        Returns:
+            A numpy array representing the estimated noise covariance or adjusted noise model.
         """
+
         self.noise_estimate = noise_estimate
         self.neighbor_axis = neighbor_axis
         self.Wn_ = None
@@ -86,24 +94,20 @@ class NoiseWhitener(BaseEstimator, TransformerMixin):
 
     def quick_plot(self, ax=None, **kwargs):
         """
-        Quick plot of the estimated noise spectrum per band.
+        Plot the estimated noise spectrum as a function of wavelength or band index.
 
-        Plots the fitted noise estimate against the corresponding wavelengths (or band indices if 
-        wavelengths are not provided). Can plot on an existing Matplotlib axis or create a new one.
+        This function visualizes the fitted noise estimate per spectral band, using either
+        provided wavelength information or band indices. It can plot on an existing Matplotlib
+        axis or create a new figure if none is supplied.
 
-        Parameters
-        ----------
-        ax : matplotlib.axes.Axes, optional
-            An existing matplotlib axes object to plot on. If None, a new figure and axes are created.
-        **kwargs : dict
-            Additional keyword arguments passed to `ax.plot()` (e.g., color, linestyle, label).
+        Args:
+            ax: Optional Matplotlib Axes object to plot on. If None, a new figure and axis 
+                are created automatically.
+            **kwargs: Additional keyword arguments passed to `ax.plot()` (e.g., color, linestyle, label).
 
-        Returns
-        -------
-        fig : matplotlib.figure.Figure
-            The Matplotlib figure object containing the plot.
-        ax : matplotlib.axes.Axes
-            The axes object used for the plot.
+        Returns:
+            fig: The Matplotlib Figure object containing the plot.
+            ax: The Matplotlib Axes object used for plotting.
         """
 
         if ax is None:
@@ -140,34 +144,32 @@ class MNF(BaseEstimator, TransformerMixin):
 
     def __init__(self, n_components=None, normalise=False, subsample=5, noise=None):
         """
-        Initialize the MNF or PCA transformer.
+        Initialize a Principal Component Analysis (PCA) or Minimum Noise Fraction (MNF) transformer.
 
-        Parameters
-        ----------
-        n_components : int or None, optional
-            The number of principal components to retain after the transform. If None, all components
-            are kept.
-        normalise : bool, default=False
-            If True, the PCA components will be normalised to have unit variance.
-        subsample : int, default=5
-            Subsampling factor applied to the input data to speed up fitting. Only every `subsample`-th
-            sample is used when computing the transform.
-        noise : NoiseWhitener instance or None, optional
-            If provided, a Minimum Noise Fraction (MNF) transform will be performed using this noise
-            estimator. If None, a standard PCA is performed.
+        This class sets up a dimensionality reduction model that can operate in either PCA or MNF mode,
+        depending on whether a noise estimator is provided. MNF uses noise whitening to maximize the
+        signal-to-noise ratio across components, while PCA identifies directions of maximum variance.
 
-        Attributes
-        ----------
-        _pca : sklearn.decomposition.PCA or None
-            Placeholder for the fitted PCA or MNF model.
-        n_components : int or None
-            Number of components to retain (as above).
-        normalise : bool
-            Whether components will be normalised (as above).
-        subsample : int
-            Subsampling factor (as above).
-        noise : NoiseWhitener instance or None
-            Noise estimator for MNF (as above).
+        Reference:
+            Green et al. (1988), "Transformation for ordering multispectral data in terms of image quality
+            with implications for noise removal," *IEEE Transactions on Geoscience and Remote Sensing*, 26(1), 65–74.
+
+        Args:
+            n_components: Integer or None specifying the number of components to retain. 
+                        If None, all components are preserved.
+            normalise: Boolean flag indicating whether to normalize PCA components to unit variance. 
+                    Default is False.
+            subsample: Integer subsampling factor applied to input data to accelerate model fitting. 
+                    Only every `subsample`-th sample is used. Default is 5.
+            noise: Optional NoiseWhitener instance. If provided, an MNF transform is performed; 
+                otherwise, a standard PCA is used.
+
+        Attributes:
+            _pca: The fitted sklearn.decomposition.PCA model or None if not yet fitted.
+            n_components: The number of components to retain after transformation.
+            normalise: Whether PCA components are normalized to unit variance.
+            subsample: The subsampling factor used during fitting.
+            noise: The NoiseWhitener instance used for MNF, or None for PCA mode.
         """
         self.n_components = n_components # number of components to keep after transform.
         self.normalise = normalise # if True, PCA components will be normalised to have a variance of 1.
@@ -242,30 +244,30 @@ class PCA( MNF ):
     """ 
     def __init__(self, n_components=None, normalise=False, subsample=5):
         """
-        Initialize the MNF or PCA transformer.
+        Initialize a Principal Component Analysis (PCA) or Minimum Noise Fraction (MNF) transformer.
 
-        Parameters
-        ----------
-        n_components : int or None, optional
-            The number of principal components to retain after the transform. If None, all components
-            are kept.
-        normalise : bool, default=False
-            If True, the PCA components will be normalised to have unit variance.
-        subsample : int, default=5
-            Subsampling factor applied to the input data to speed up fitting. Only every `subsample`-th
-            sample is used when computing the transform.
-        Attributes
-        ----------
-        _pca : sklearn.decomposition.PCA or None
-            Placeholder for the fitted PCA or MNF model.
-        n_components : int or None
-            Number of components to retain (as above).
-        normalise : bool
-            Whether components will be normalised (as above).
-        subsample : int
-            Subsampling factor (as above).
-        noise : NoiseWhitener instance or None
-            Noise estimator for MNF (as above).
+        This class sets up a dimensionality reduction model that can operate in either PCA or MNF mode.
+        MNF uses a noise estimator to maximize signal-to-noise ratio across components, while PCA
+        identifies directions of maximum variance without noise weighting.
+
+        Args:
+            n_components: int or None, optional
+                Number of components to retain after the transform. If None, all components are kept.
+            normalise: bool, default=False
+                If True, PCA components are normalized to unit variance.
+            subsample: int, default=5
+                Subsampling factor applied to input data to speed up fitting. Only every `subsample`-th 
+                sample is used.
+
+        Attributes:
+            _pca: sklearn.decomposition.PCA or None
+                Placeholder for the fitted PCA model. Can be used to access the underlying sklearn object.
+            n_components: int or None
+                Number of components to retain (as specified in Args).
+            normalise: bool
+                Whether components are normalized to unit variance.
+            subsample: int
+                Subsampling factor used during fitting.
         """
         self.n_components = n_components # number of components to keep after transform.
         self.normalise = normalise # if True, PCA components will be normalised to have a variance of 1.

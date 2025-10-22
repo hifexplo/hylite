@@ -147,6 +147,184 @@ def _regress(x, y, split=True, clip=(10, 90)):
 #############################################################################
 ## Useful functions for building / doing illumination corrections
 #############################################################################
+import hylite
+import numpy as np
+from skimage.morphology import closing, opening
+
+def autoELC( 
+    img : hylite.HyImage,
+    percentile : int = 1,
+    ylim : int | float = 0.3,
+    xlim : int | float = 0,
+    area_threshold : int = 16,
+    downsampling_factor : int = 2,
+    patch_size : int | None = None,
+    mode='pixel',  # 'pixel' or 'overall'
+    precomputed : dict | None = None
+):
+    """
+    Perform an automatic Empirical Line Calibration (ELC) on a hyperspectral image.
+
+    This function identifies bright and dark reference spectra within a hyperspectral image
+    and applies a linear correction (ELC) to remove illumination and sensor effects. This applies
+    a simple relative reflectance correction of the following form:
+
+    `quickR = (radiance - dark_spectra) / (bright_spectra - dark_spectra)`
+
+    This can perform surprisingly well for scenes containing bright and spectrally flat "white" materials (ideally a panel),
+    and with relatively small viewing distance (low path radiance). In situations with larger path radiance, consider applying
+    this in conjunction with the `hylite.illumination.UAC(...)` function for a still quick/dirty but slightly better correction.  
+
+    It supports two modes: 
+    - 'pixel': uses the darkest and brightest pixel spectra.
+    - 'overall': uses the darkest and brightest overall spectra across the scene.
+
+    Args:
+        img: A hylite.HyImage instance containing the hyperspectral data to be corrected.
+        percentile: The percentile of the relevant image region (determined by xlim, ylim and if mode='pixel' the patch_size) that is 
+                    averaged to determine the dark and bright spectra. Default is 1%. Set as 0 to use the minimum and maximum spectra for dark and light (respectively).
+        ylim: Fraction of the image height (float) or pixel coordinate (int) below which calibration pixels are taken 
+                        from, typically to avoid sky pixels. Default is 0.3. Use negative numbers to keep pixels above this limit instead.
+        xlim: Same as ylim, but in the x-direction. Use negative numbers to keep pixels left of the specified x-coordinate, and positive numbers to keep 
+              pixels to the right of the specified x-coordinate.
+        area_threshold: Kernel size used to remove small light and dark pixels (using open and close filters) before identifying light and dark pixels. Any panels in the image
+                        should be larger than this number of pixels (in width and height). Default is 16.
+        downsampling_factor: Spatial downsampling factor used to speed up processing. Default is 2.
+        patch_size: Size (in pixels) of the local patch around the identified dark and bright pixels used to extract reference spectra if mode='pixel'. 
+                    Defaults to area_threshold / 2.
+        mode: Determines which spectra to use for correction:
+              'pixel' uses the darkest and brightest pixel spectra,
+              'overall' uses the darkest and brightest overall spectra. Default is 'pixel'.
+        precomputed: A dictionary containing the correction parameters returned e.g., by calling `autoELC(..)` on a different image. In this case 
+                     the 'black' and 'white' spectra in this dictionary will be used for the ELC rather than recomputing them.
+    
+    Returns:
+        quickR: hylite.HyImage
+            The "quick" ELC-corrected hyperspectral image with relative reflectance values.
+        out: dict
+            Dictionary containing additional information from the ELC computation:
+            
+            - black: np.ndarray
+                The low (dark) reference spectrum actually used for ELC correction.
+            - white: np.ndarray
+                The high (bright) reference spectrum actually used for ELC correction.
+            - dark_spectra: np.ndarray
+                Extracted dark patch spectra averaged over the patch.
+            - bright_spectra: np.ndarray
+                Extracted bright patch spectra averaged over the patch.
+            - dark_patch : hylite.HyImage
+                The extracted dark patch.
+            - bright_patch : hylite.HyImage
+                The extracted bright patch.
+            - min_spectra: np.ndarray
+                Minimum spectra computed over the whole selected region.
+            - max_spectra: np.ndarray
+                Maximum spectra computed over the whole selected region.
+            - minx, maxx: int
+                X-coordinates of the center of the dark and bright patches, respectively.
+            - miny, maxy: int
+                Y-coordinates of the center of the dark and bright patches, respectively.
+    """
+
+    if precomputed is None:
+        # --- Compute key geometric parameters ---
+        if isinstance(ylim, float):
+            ylim = int(ylim * img.ydim())
+        if isinstance(xlim, float):
+            xlim = int(xlim * img.xdim())
+
+        size = int(area_threshold / 2) if patch_size is None else patch_size
+        sf = downsampling_factor
+
+        # --- Crop and downsample image data ---
+        if ylim > 0:
+            arr = img.data[:, ylim:, :]
+        elif ylim < 0:
+            arr = img.data[:, :ylim, :]
+        if xlim > 0:
+            arr = arr[xlim:, ...]
+        elif xlim < 0:
+            arr = arr[:xlim, ...]
+        arr = arr[::sf, ::sf, :]
+
+        # --- Morphological smoothing ---
+        footprint = np.full((int(size/sf), int(size/sf), 1), 1)
+        arr_open = opening(arr, footprint=footprint, mode='ignore')
+        arr_close = closing(arr, footprint=footprint, mode='ignore')
+
+        # --- Find darkest and brightest pixels ---
+        mean_img = np.nanmean(arr_open, axis=2)
+        maxx, maxy = np.unravel_index(np.argmax(mean_img), mean_img.shape)
+        minx, miny = np.unravel_index(np.argmin(mean_img), mean_img.shape)
+
+        # rescale coordinates back to original image
+        maxx, maxy = np.array([maxx, maxy]) * sf + int(size / 2)
+        minx, miny = np.array([minx, miny]) * sf + int(size / 2)
+        maxy += ylim
+        miny += ylim
+
+        # --- Extract patches around bright/dark pixels ---
+        def get_patch(x, y):
+            return hylite.HyImage(
+                img.data[
+                    max(x - size // 2, 0):min(x + size // 2, img.xdim()),
+                    max(y - size // 2, 0):min(y + size // 2, img.ydim()),
+                    :
+                ],
+                wav=img.get_wavelengths()
+            )
+
+        dark_patch = get_patch(minx, miny)
+        bright_patch = get_patch(maxx, maxy)
+
+        # --- Compute reference spectra ---
+        def percentile_band_average(data, percentile=2, mode='low'): # Compute the per-band average of pixels below or above a given percentile
+            H, W, B = data.shape
+            flat = data.reshape(-1, B)
+            
+            if mode == 'low':
+                thresh = np.nanpercentile(flat, percentile, axis=0)
+                return np.array([np.nanmean(flat[:, i][flat[:, i] <= thresh[i]]) for i in range(B)])
+            elif mode == 'high':
+                thresh = np.nanpercentile(flat, 100 - percentile, axis=0)
+                return np.array([np.nanmean(flat[:, i][flat[:, i] >= thresh[i]]) for i in range(B)])
+            else:
+                raise ValueError("mode must be 'low' or 'high'")
+        
+        dark_spectra = percentile_band_average(dark_patch.data, percentile=percentile, mode='low')
+        bright_spectra = percentile_band_average(bright_patch.data, percentile=percentile, mode='high')
+        min_spectra = percentile_band_average(arr_close, percentile=percentile, mode='low')
+        max_spectra = percentile_band_average(arr_open, percentile=percentile, mode='high')
+
+        # --- Select spectra based on mode ---
+        if mode.lower() == 'pixel':
+            low_ref, high_ref = dark_spectra, bright_spectra
+        elif mode.lower() == 'overall':
+            low_ref, high_ref = min_spectra, max_spectra
+        else:
+            raise ValueError("mode must be either 'pixel' or 'overall'")
+
+        # build output
+        out = dict( black=low_ref, white=high_ref, # spectra used for ELC correction
+                    dark_spectra=dark_spectra, bright_spectra=bright_spectra, # extracted dark pixel and bright pixel spectra (over patch)
+                    dark_patch=dark_patch, bright_patch=bright_patch, # patches extracted from the image around the dark pixel and bright pixel
+                    min_spectra=min_spectra, max_spectra=max_spectra, # calculated minima and maxima spectra (over whole region)
+                    minx = minx, maxx = maxx, miny=miny, maxy=maxy, # position of the center of the patches used to compute dark and bright spectra
+                    ylim=ylim, xlim=xlim # limits of the original image that were used.
+                    )
+    
+    else:
+        out = precomputed # unchanged
+        low_ref = out['black'] # retrieve spectra to use
+        high_ref = out['white'] # retrieve spectra to use
+
+    # --- Apply ELC correction ---
+    quickR = img.copy()
+    quickR.data = quickR.data - low_ref[None, None, :]
+    quickR.data = quickR.data / (high_ref - low_ref)[None, None, :]
+    
+    # Return everything :-) 
+    return quickR, out
 
 def UAC(data, band_range=(0, -1), thresh=98, vb=True):
     """
@@ -171,6 +349,9 @@ def UAC(data, band_range=(0, -1), thresh=98, vb=True):
     out = data.export_bands(band_range)
     nanmask = np.logical_not(np.isfinite(out.data))
     out.data[nanmask] = 0  # replace nans with 0
+    if 'bbl' in data.header: # also replace bad bands (if indicated) with 0s, so they don't mess with the hull correction.
+        bbl =  data.header.get_list('bbl') == 0
+        out.data[...,bbl] = 0
 
     # do hull correction
     hc = get_hull_corrected(out, vb=vb)
