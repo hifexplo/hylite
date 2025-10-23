@@ -768,7 +768,7 @@ class mwl_legend(object):
     A utility class storing data needed to create a legend for mwl plots.
     """
 
-    def __init__(self, minh, maxh, minc, maxc, mode='val', cmap='rainbow', **kwds):
+    def __init__(self, minh, maxh, minc, maxc, mode='val', cmap='hue', **kwds):
         """
         Create an mwl_legend instance.
 
@@ -820,7 +820,7 @@ class mwl_legend(object):
             ax: the axes to overlay the legend on.
             pos: the position of the legend. Can be:
 
-                - a string: 'top left' (default), 'bottom left', 'top right' or 'bottom right', or;
+                - a string: 'top left' (default), 'bottom left', 'top right' or 'bottom right', 'center', or;
                 - a tuple (x,y) coordinates of the top left of the legend in figure coordinates.
             s: the (width, height) of the legend in figure coordinates. Default is (0.2, 0.1).
         Returns:
@@ -839,6 +839,8 @@ class mwl_legend(object):
                 y0 = pad
                 tickBottom = False
                 origin = 'lower'
+            elif 'middle' in pos.lower() or 'centre' in pos.lower():
+                y0 = 0.5 - (s[1] * 0.5)
             else:
                 assert False, "Error - unknown position %s" % pos
 
@@ -885,7 +887,7 @@ class mwl_legend(object):
             idx[idx < 0] = 0
             idx[idx > 254] = 254
             x = lookup[idx]
-        elif 'rainbow' in self.cmap:
+        elif 'hue' in self.cmap:
             extent = (self.minh, self.maxh, self.minc, self.maxc)
             x = np.linspace(0, 1, num=int(2000 * s[0]))
         else:
@@ -913,7 +915,7 @@ class mwl_legend(object):
         return ax
 
 
-def colourise_mwl(mwl, mode='p-d', cmap='rainbow', **kwds):
+def colourise_mwl(mwl, mode='p-d', cmap='hue', **kwds):
     """
     Takes a HyData instance containing minimum wavelength bands (pos, depth, width and strength) and creates
     a RGB composite such that hue ~ pos, sat ~ width and val ~ strength or depth.
@@ -922,7 +924,7 @@ def colourise_mwl(mwl, mode='p-d', cmap='rainbow', **kwds):
         mwl: the HyData instance containing minimum wavelength data.
         mode: the mapping from position (p), width (w) and depth and (d) to hsv. Default is 'pwd', though other options
               are 'p-d' (constant saturation of 80%), 'pdw' and 'pd-' (constant brightness of 85%).
-        cmap: the colour mapping to use. Default is to map position to hue ('rainbow'), but any matplotlib
+        cmap: the colour mapping to use. Default is to map position to hue ('hue'), but any matplotlib
               colormap string can be provided here. Note that colours output by this colormap will be scaled in brightness
               and saturation according to the mode argument. Alternatively use 'swir' for customised
               rainbow-like colour stretch optimised for clay, mica and chlorite absorbtion features in the SWIR.
@@ -988,7 +990,7 @@ def colourise_mwl(mwl, mode='p-d', cmap='rainbow', **kwds):
     s[mask] = 0
 
     # calculate hue value from colormap
-    if 'rainbow' in cmap.lower():
+    if 'hue' in cmap.lower():
         h = h  # no change to hue
     elif 'swir' in cmap.lower():  # use SWIR customised colormap
         _x = np.array([0, 2150,

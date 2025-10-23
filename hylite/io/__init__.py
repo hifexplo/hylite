@@ -137,13 +137,14 @@ def save(path, data, **kwds):
     os.makedirs( os.path.dirname(path), exist_ok=True)  # make output directory
     save_func( path, data )
 
-def load(path):
+def load(path, to_nm=False):
     """
     A generic function for loading hyperspectral images, point clouds and libraries. The appropriate load function
     will be chosen based on the file extension.
 
     Args:
         path (str): the path of the file to load.
+        to_nm: if True, wavelengths will be converted into nanometers. Default is False.
 
     Returns:
         The loaded data.
@@ -199,17 +200,26 @@ def load(path):
                 im = im[:,:,None] # add last dimension if greyscale image is loaded
             out = HyImage(np.transpose(im, (1, 0, 2)))
             if header is not None:
-                out.header = loadHeader(header)
+                out.header = loadHeader(header, to_nm=to_nm)
         else:
             if usegdal:
                 from osgeo import gdal # is gdal installed?
-                out = loadWithGDAL(path)
+                out = loadWithGDAL(path, to_nm=to_nm)
             else: # no gdal
                 #out = loadWithSPy(path)
-                out = loadWithNumpy(path)
+                out = loadWithNumpy(path, to_nm=to_nm)
+        
         # special case - loading spectral library; convert image to HyData
         if 'lib' in ext:
             out = HyLibrary(out.data, header=out.header)
+
+    # ensure band are ordered from lowest to highest
+    if hasattr(out, 'header'):
+        if 'wavelength' in out.header:
+            ixx = np.argsort( out.get_wavelengths() )
+            out.data = out.data[..., ixx] # sort into ascending order
+            out.set_wavelengths( out.get_wavelengths()[ixx] )
+
     return out  # return dataset
 
 ##############################################

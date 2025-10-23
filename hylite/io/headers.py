@@ -64,12 +64,13 @@ def saveHeader(path, header):
                 f.write("%s = %s\n" % (key, s))
         f.close()
 
-def loadHeader(path):
+def loadHeader(path, to_nm=False):
     """
     Load a header file.
 
     Args:
        file: a file path to a .hdr file.
+       to_nm: if True, wavelengths will be converted into nanometers. Default is False.
     """
     header = HyHeader()
 
@@ -124,22 +125,25 @@ def loadHeader(path):
         header['wavelength'] = header['Wavelength']
         del header['Wavelength']
     if "wavelength" in header:
-        units = header.get("wavelength units", "nm").lower()
-        if "nm" in units or "nano" in units: #units in nanometers
-            header['wavelength'] = np.fromstring(header['wavelength'], sep=',')
-        elif "um" in units or "micro" in units:
-            header['wavelength'] = np.fromstring(header['wavelength'], sep=',') * 1000.0
-        elif "mm" in units or "milli" in units:
-            header['wavelength'] = np.fromstring(header['wavelength'], sep=',') * 1000000.0
-        elif "wavenum" in units or "cm-1" in units:
-            header['wavelength'] = (1 / np.fromstring(header['wavelength'], sep=',')) * 10000000.0
-        elif "unk" in units.lower():
-            print("Warning - unknown wavelength units. Assuming nanometers.")
-            header['wavelength'] = np.fromstring(header['wavelength'], sep=',')
-        else:
-            assert False, "Error - unrecognised wavelength format %s." % units
+        if to_nm:
+            units = header.get("wavelength units", "nm").lower()
+            if "nm" in units or "nano" in units: #units in nanometers
+                header['wavelength'] = np.fromstring(header['wavelength'], sep=',')
+            elif units == "um" or "micro" in units: # N.B. "um" is also in "wavenumber"!
+                header['wavelength'] = np.fromstring(header['wavelength'], sep=',') * 1000.0
+            elif "mm" in units or "milli" in units:
+                header['wavelength'] = np.fromstring(header['wavelength'], sep=',') * 1000000.0
+            elif "wavenum" in units or "cm-1" in units:
+                header['wavelength'] = (1 / np.fromstring(header['wavelength'], sep=',')) * 10000000.0
+            elif "unk" in units.lower():
+                print("Warning - unknown wavelength units. Assuming nanometers.")
+                header['wavelength'] = np.fromstring(header['wavelength'], sep=',')
+            else:
+                assert False, "Error - unrecognised wavelength format %s." % units
 
-        header['wavelength units'] = 'nm' #update wavelength units
+            header['wavelength units'] = 'nm' #update wavelength units
+        else:
+            header['wavelength'] = np.fromstring(header['wavelength'], sep=',') # keep units, just cast to numpy array
 
     #if "band names" in header:
     #    header["band names"] = header['band names'].split(',') #split into list

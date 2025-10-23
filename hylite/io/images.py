@@ -11,7 +11,7 @@ from .headers import matchHeader, makeDirs, loadHeader, saveHeader
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
+def loadWithGDAL(path, dtype=np.float32, mask_zero = True, to_nm=False):
     """
     Load an image using gdal.
 
@@ -45,7 +45,7 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
         header, image = matchHeader(path)
     # load header
     if not header is None:
-        header = loadHeader(header)
+        header = loadHeader(header, to_nm=to_nm)
 
     #load image
     assert os.path.exists(image), "Error - %s does not exist." % image
@@ -66,7 +66,7 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True):
 
     return img
 
-def loadWithSPy( path, dtype=np.float32, mask_zero = True):
+def loadWithSPy( path, dtype=np.float32, mask_zero = True, to_nm=False):
     """
     Load an image using spectral python. This works for most envi images, but doesn not load
     georeferencing information (in which case loadWithGDAL(...) should be used).
@@ -105,7 +105,7 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True):
 
         # load header
         if not header is None:
-            header = loadHeader(header)
+            header = loadHeader(header, to_nm=to_nm)
     elif 'tif' in ext.lower() or 'png' in ext.lower() or 'jpg' in ext.lower():  # standard image formats
         # load with matplotlib
         import matplotlib.image as mpimg
@@ -180,7 +180,7 @@ def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32):
             out.header=imageheader
         return out
 
-def loadWithNumpy( path, dtype=np.float32, mask_zero=True ):
+def loadWithNumpy( path, dtype=np.float32, mask_zero=True, to_nm=False ):
     # parse file format
     _, ext = os.path.splitext(path)
     if len(ext) == 0 or 'hdr' in ext.lower() or \
@@ -192,7 +192,7 @@ def loadWithNumpy( path, dtype=np.float32, mask_zero=True ):
         # load header
         assert os.path.exists(image), "Error - %s does not exist." % image
         assert os.path.exists(header), "Error - %s does not exist." % header
-        header = loadHeader(header)
+        header = loadHeader(header, to_nm=to_nm)
         samples = int(header['samples']) # read relevant bits of header file
         lines = int(header['lines'])
         bands = int(header['bands'])

@@ -722,6 +722,19 @@ class HyImage( HyData ):
         imageio.mimsave( os.path.splitext(path)[0] + ".gif", frames, fps=fps)
 
     ## masking
+    def drop_bbl(self, drop=True):
+        """
+        Remove bad bands as stored in the 'bbl' key in the image header. Note that this operates in-place.
+
+        Args:
+            drop (bool): True if bad bands should be completely dropped. If False, these bands will be kept but replaced with nans.
+        """
+        assert 'bbl' in self.header, "Please specify a bad band list ('bbl') in the image header, as per the ENVI format definition."
+        mask = self.header.get_list('bbl') == 0
+        self.data[...,mask] = np.nan
+        if drop:
+            self.delete_nan_bands(inplace=True)
+    
     def mask(self, mask=None, flag=np.nan, invert=False, crop=False, bands=None):
         """
          Apply a mask to an image, flagging masked pixels with the specified value. Note that this applies the mask to the
