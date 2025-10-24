@@ -198,7 +198,10 @@ def loadWithNumpy( path, dtype=np.float32, mask_zero=True, to_nm=False ):
         bands = int(header['bands'])
         data_type = int(header['data type'])
         interleave = header.get('interleave', 'bil').lower()
-    
+
+        # get byte offset
+        offset = int(header.get('header offset', 0))
+
         # ENVI data type mapping to NumPy
         dtype_map = {
             1: np.uint8,
@@ -218,7 +221,9 @@ def loadWithNumpy( path, dtype=np.float32, mask_zero=True, to_nm=False ):
     
         # Load binary data
         data = np.fromfile(image, dtype=dtype)
-
+        if offset > 0:
+            offset = int(offset / data.dtype.itemsize) # convert from bytes to index
+            data = data[offset:] # slice off header bytes
         expected_size = lines * bands * samples
         if data.size != expected_size:
             raise ValueError(f"Expected {expected_size} elements, got {data.size}. Check lines, bands and samples entries in header file.")

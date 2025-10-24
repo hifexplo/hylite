@@ -81,7 +81,8 @@ class NoiseWhitener(BaseEstimator, TransformerMixin):
             noise = noise.reshape(-1, noise.shape[-1])
 
         # remove nans and subsample
-        noise = noise[~np.isnan(noise).any(axis=1), :][::self.subsample, :]
+        #noise = noise[~np.isnan(noise).any(axis=1), :][::self.subsample, :]
+        noise = np.nan_to_num(noise)[::self.subsample, :] # convert nans to 0s (no noise) and subsample for speed
         self.estimate = noise.mean(axis=0)
 
         # Estimate noise covariance and compute whitening matrix
