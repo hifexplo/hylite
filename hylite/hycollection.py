@@ -479,6 +479,12 @@ class HyCollection(object):
         """
         return self.__getattribute__(name)
 
+    def __getitem__(self, key):
+        return self.get(key)
+
+    def __setitem__(self, key, value):
+        return self.set(key, value, save=False)
+        
     def set(self, name, value, save=False):
         """
         Set an attribute in this collection.

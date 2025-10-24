@@ -79,8 +79,7 @@ class TelopsNano(Sensor):
         return 0.05
 
     @classmethod
-    def correct_image(cls, image, verbose=True, **kwds):
-
+    def correct_image( image, verbose=True, **kwds):
         """
         Apply sensor corrections to an image.
 
@@ -89,10 +88,10 @@ class TelopsNano(Sensor):
             verbose (bool): true if updates/progress should be printed to the console. Default is False.
             **kwds: Optional keywords include:
 
-                 - bright = true if image should be converted to brightness temperature by inverting the Plank function. Default is True.
-                 - denoise = denoising factor for total variation denoising (see skimage docs). Set to 0 (default) to disable. 
-                 - flipY = true if image should be flipped on the Y-axis. Default is True.
-                 - flipX = true if image should be flipped on the X-axis. Default is True.
+                    - bright = true if image should be converted to brightness temperature by inverting the Plank function. Default is True.
+                    - denoise = denoising factor for total variation denoising (see skimage docs). Set to 0 (default) to disable. 
+                    - flipY = true if image should be flipped on the Y-axis. Default is True.
+                    - flipX = true if image should be flipped on the X-axis. Default is True.
         """
 
         # get kwds
@@ -106,19 +105,10 @@ class TelopsNano(Sensor):
         if flipY:
             image.flip('y')
         
-        # reverse bands and sort into ascending order by wavelength
-        # (also deal with mysterious unit conversions)
-        wavn = image.get_wavelengths() / 1000 # wavenumber in cm-1
-        wav = 10**7 / wavn # wavelength in nm
-        
-        # reverse bands into ascending order by wavelength
-        image.set_wavelengths( wav[::-1] ) # set wavelengths
-        image.header['wavenumbers'] = wavn[::-1] # also store wavenumbers as these can be useful
-        image.data = image.data[..., ::-1] / 100 # not sure why the 100 is necessary, but it is.
 
         # convert to brightness temperature
         if bright:
-            image.data = radiance_to_brightness_temp( image.header['wavenumbers'], image.data )
+            image.data = radiance_to_brightness_temp( image.get_wavelengths(), image.data ) # N.B. image.wavelengths are in wavenumbers!
         
         # despeckle and denoise
         if denoise > 0:
@@ -127,6 +117,7 @@ class TelopsNano(Sensor):
 
         image.set_band_names(None)  # delete band names as they get super annoying
         return image
+        
     
     @classmethod
     def correct_folder(cls, path, **kwds):

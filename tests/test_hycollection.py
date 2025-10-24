@@ -65,8 +65,12 @@ class MyTestCase(unittest.TestCase):
             self.assertFalse( os.path.exists( C.getDirectory(makedirs=False) ) )
             # test get and set
             self.assertEqual( C.get('image'), image )
+            self.assertEqual( C['image'], image) # also test dict-like behaviour
+
             C.set('image2', image)
             self.assertEqual(C.image2, image )
+            C['image3'] = image # also test dict-like behaviour
+            self.assertEqual(C.image3, image )
 
             # test loaded function
             self.assertTrue( C.loaded('image2'), "Error in loaded(...) function.")
