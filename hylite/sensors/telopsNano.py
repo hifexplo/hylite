@@ -79,7 +79,7 @@ class TelopsNano(Sensor):
         return 0.05
 
     @classmethod
-    def correct_image( image, verbose=True, **kwds):
+    def correct_image( cls, image, verbose=True, **kwds):
         """
         Apply sensor corrections to an image.
 
