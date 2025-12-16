@@ -6,6 +6,8 @@ from hylite import HyLibrary, HyData
 import numpy as np
 from gfit.util import remove_hull
 
+## TASNIM TO ADD DETRENDING FUNCTIONS HERE
+
 def polynomial(data, degree = 1, method='div'):
 
     """
@@ -38,7 +40,6 @@ def polynomial(data, degree = 1, method='div'):
         y += np.min(y) #map to positive
 
     return y.reshape(data.shape), t.reshape(data.shape)
-
 
 def get_hull_corrected(data, band_range=None, method='div', hull='upper', vb=True):
     """

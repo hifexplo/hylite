@@ -513,13 +513,13 @@ class HyImage( HyData ):
     ############################
     ## Visualisation methods
     ############################
-    def quick_plot(self, band=0, ax=None, bfac=0.0, cfac=0.0, samples=False, tscale=False, invert=False, rot=False, flipX=False, flipY=False,
+    def quick_plot(self, bands=0, ax=None, bfac=0.0, cfac=0.0, samples=False, tscale=False, invert=False, rot=False, flipX=False, flipY=False,
                    **kwds):
         """
         Plot a band using matplotlib.imshow(...).
 
         Args:
-            band (str,int,float,tuple): the band name (string), index (integer) or wavelength (float) to plot. Default is 0. If a tuple is passed then
+            bands (str,int,float,tuple): the band name (string), index (integer) or wavelength (float) to plot. Default is 0. If a tuple is passed then
                   each band in the tuple (string or index) will be mapped to rgb. Bands with negative wavelengths or indices will be inverted before plotting.
             ax: an axis object to plot to. If none, plt.imshow( ... ) is used.
             bfac (float): a brightness adjustment to apply to RGB mappings (-1 to 1)
@@ -558,13 +558,13 @@ class HyImage( HyData ):
             ax.set_yticks([])
 
         #map individual band using colourmap
-        if isinstance(band, str) or isinstance(band, int) or isinstance(band, float):
+        if isinstance(bands, str) or isinstance(bands, int) or isinstance(bands, float):
             #get band
-            if isinstance(band, str):
-                data = self.data[:, :, self.get_band_index(band)]
+            if isinstance(bands, str):
+                data = self.data[:, :, self.get_band_index(bands)]
             else:
-                data = self.data[:, :, self.get_band_index(np.abs(band))]
-            if not isinstance(band, str) and band < 0:
+                data = self.data[:, :, self.get_band_index(np.abs(bands))]
+            if not isinstance(bands, str) and bands < 0:
                 data = np.nanmax(data) - data # flip
 
             # convert integer vmin and vmax values to percentiles
@@ -603,10 +603,10 @@ class HyImage( HyData ):
             ax.cbar = ax.imshow(data.T, interpolation=kwds.pop('interpolation', 'none'), **kwds) # change default interpolation to None
 
         #map 3 bands to RGB
-        elif isinstance(band, tuple) or isinstance(band, list):
+        elif isinstance(bands, tuple) or isinstance(bands, list):
             #get band indices and range
             rgb = []
-            for b in band:
+            for b in bands:
                 if isinstance(b, str):
                     rgb.append(self.get_band_index(b))
                 else:
@@ -620,8 +620,8 @@ class HyImage( HyData ):
 
             # invert if needed
             if invert:
-                band = [-b for b in band]
-            for i,b in enumerate(band):
+                bands = [-b for b in bands]
+            for i,b in enumerate(bands):
                 if not isinstance(b, str) and (b < 0):
                     img[..., i] = np.nanmax(img[..., i]) - img[..., i]
 

@@ -3,6 +3,7 @@ sandbox/
 build/
 .vscode/
 .DS_Store
+*/.DS_Store
 *.egg-info
 .pytest_cache/
 .pyc

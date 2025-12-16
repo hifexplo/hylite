@@ -13,6 +13,21 @@ from sklearn.decomposition import PCA as sPCA
 from sklearn.covariance import EmpiricalCovariance
 import hylite
 import matplotlib.pyplot as plt
+from hylite import HyData
+
+def convertToAbsorbance( data : HyData ):
+    """
+    Detrend an image data array using a polynomial fit and np.polyfit( ... ).
+
+    Args:
+        data: a HyData instance containing (relative) reflectance data to convert to absorbance.
+
+    Returns:
+        A HyData instance converted to absorbance.
+    """
+        
+    pass # TASNIM TO IMPLEMENT THIS
+
 
 class NoiseWhitener(BaseEstimator, TransformerMixin):
     """
