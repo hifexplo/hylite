@@ -46,7 +46,8 @@ class HyImage( HyData ):
 
         #load any additional project information (specific to images)
         self.set_projection(kwds.get("projection",None))
-        self.affine = kwds.get("affine",[0,1,0,0,0,1])
+        self.affine = np.array( kwds.get("affine",[0,1,0,0,0,1]) )
+        self.header['affine'] = kwds.get("affine",[0,1,0,0,0,1]) # also store this here
 
         # wavelengths
         if 'wav' in kwds:
@@ -93,6 +94,10 @@ class HyImage( HyData ):
         Return the aspect ratio of this image (width/height).
         """
         return self.ydim() / self.xdim()
+    
+    #####################################
+    ## GEOREFERENCING METHODS
+    #####################################
 
     def get_extent(self):
         """
@@ -269,9 +274,221 @@ class HyImage( HyData ):
         #apply
         return gdal.ApplyGeoTransform(inv, x, y)
 
+    def crop(self, xmin, xmax, ymin, ymax, bands=None):
+        """
+        Return a cropped copy of this image.
+
+        Args:
+            xmin, xmax (int): pixel bounds in x (rows)
+            ymin, ymax (int): pixel bounds in y (columns)
+            bands (None, list, tuple): optional band indices or (min,max) range
+
+        Returns:
+            HyImage: cropped image with updated affine transform
+        """
+
+        # ---- validate bounds ----
+        xmin = int(max(0, xmin))
+        ymin = int(max(0, ymin))
+        xmax = int(min(self.xdim(), xmax))
+        ymax = int(min(self.ydim(), ymax))
+
+        assert xmin < xmax and ymin < ymax, "Invalid crop extent."
+
+        # ---- crop data ----
+        if bands is None:
+            data = self.data[xmin:xmax, ymin:ymax, :].copy()
+            wav = self.get_wavelengths()
+        else: # band selection
+            if isinstance(bands, tuple):
+                b0 = self.get_band_index(bands[0])
+                b1 = self.get_band_index(bands[1])
+                data = self.data[xmin:xmax, ymin:ymax, b0:b1].copy()
+                wav = self.get_wavelengths()[b0:b1]
+            else:
+                idx = [self.get_band_index(b) for b in bands]
+                data = self.data[xmin:xmax, ymin:ymax, idx].copy()
+                wav = self.get_wavelengths()[idx]
+
+        # ---- update affine transform ----
+        if self.affine is not None:
+            a = list(self.affine)
+            new_affine = a.copy()
+
+            # shift origin to new top-left pixel
+            new_affine[0] = a[0] + xmin*a[1] + ymin*a[2]
+            new_affine[3] = a[3] + xmin*a[4] + ymin*a[5]
+        else:
+            new_affine = None
+
+        # ---- construct output image ----
+        out = HyImage(
+            data,
+            header=self.header.copy(),
+            projection=self.projection,
+            affine=new_affine,
+            wav=wav
+        )
+
+        return out
+
+    def resize(self, newdims: tuple, interpolation: int = 1):
+        """
+        Resize this image with opencv and update affine transform accordingly.
+
+        Args:
+            newdims (tuple): the new image dimensions (xdim, ydim)
+            interpolation (int): opencv interpolation method. Default is cv2.INTER_LINEAR.
+        """
+        import cv2  # avoid import issues if opencv is missing
+
+        old_x, old_y = self.xdim(), self.ydim()
+        new_x, new_y = int(newdims[0]), int(newdims[1])
+
+        assert new_x > 0 and new_y > 0, "Invalid resize dimensions."
+
+        # resize data (opencv uses width, height = y, x)
+        self.data = cv2.resize(
+            self.data,
+            (new_y, new_x),
+            interpolation=interpolation
+        )
+
+        # update affine transform
+        if self.affine is not None:
+            a = list(self.affine)
+
+            sx = old_x / new_x
+            sy = old_y / new_y
+
+            self.affine = [
+                a[0],          # x origin unchanged
+                a[1] * sx,     # pixel width
+                a[2] * sy,     # row rotation
+                a[3],          # y origin unchanged
+                a[4] * sx,     # column rotation
+                a[5] * sy      # pixel height
+            ]
+
+    def tile(self, tile_size):
+        """
+        Break image into tiles of given size and return a list of HyImage tiles.
+        Each tile has an updated affine transform reflecting its position in the original image.
+
+        Args:
+            tile_size (tuple): (tile_x, tile_y) in pixels
+        Returns:
+            list of HyImage
+        """
+        tiles = []
+        tx, ty = tile_size
+        nx, ny = self.xdim(), self.ydim()
+        for i in range(0, nx, tx):
+            for j in range(0, ny, ty):
+                data_tile = self.data[i:min(i+tx, nx), j:min(j+ty, ny), :].copy() # slice data
+
+                # compute new affine
+                # affine = [x0, dx, rotx, y0, roty, dy]
+                x0, dx, rotx, y0, roty, dy = self.affine
+                new_x0 = x0 + i*dx + j*rotx
+                new_y0 = y0 + i*roty + j*dy
+                new_affine = [new_x0, dx, rotx, new_y0, roty, dy]
+
+                # create tile
+                tile_img = HyImage(
+                    data_tile,
+                    affine=new_affine,
+                    projection=self.projection,
+                    wav=self.get_wavelengths(),
+                    header=self.header.copy()
+                )
+                tile_img.header['xleft'] = i
+                tile_img.header['ytop'] = j
+                tiles.append(tile_img)
+
+        return tiles
+
+    @staticmethod
+    def mosaic(
+        tiles,
+        blend="mean",
+        resampling="nearest",
+        out_affine=None,
+        out_shape=None,
+    ):
+        """
+        Mosaic georeferenced HyImage tiles using GDAL. Note that this assumes all tiles are in the same coordinate system.
+
+        Args:
+            tiles (list[HyImage])
+            blend (str): 'first', 'min', 'max', 'mean', 'median'
+            resampling (str): 'nearest', 'bilinear', 'cubic'
+            out_affine (list): optional 6-element affine to define output grid. If None, the affine of the first tile is used.
+            out_shape (tuple): optional (xdim, ydim) shape of the output grid. If None, the extent of all tiles will be used.
+        Returns:
+            HyImage
+        """
+        import numpy as np
+        from hylite.project.align import resample_raster
+        from osgeo import gdal, osr
+
+        assert len(tiles) > 0
+        assert blend in ("first", "min", "max", "mean", "median")
+
+        # compute bounds in world coordinates
+        # N.B. THIS ASSUMES ALL DATA ARE IN THE SAME CRS
+        points = []
+        for t in tiles:
+            points.append( t.pix_to_world(0,0) )
+            points.append( t.pix_to_world(t.xdim()+1,t.ydim()+1) )
+        min_x, min_y = np.min(points, axis=0)
+        max_x, max_y = np.max(points, axis=0)
+        if out_shape is None:
+            out_shape = (np.array(tiles[0].world_to_pix(max_x, max_y)) + np.array(tiles[0].world_to_pix(min_x, min_y))).round().astype(int)
+        if out_affine is None:
+            out_affine = list(tiles[0].affine)
+            out_affine[0] = min_x
+            out_affine[3] = max_y
+
+        if blend == "first": # fill output, first come, first served.
+            out = np.full( tuple(out_shape) + (tiles[0].band_count(),), np.nan, dtype=np.float32)
+            for t in tiles:
+                r = resample_raster( t.data, t.affine, out_affine, out_shape )
+                mask = np.isnan(out)
+                out[mask] = r[mask]
+        elif blend == "min": # keep minimum value in case of overlap
+            out = np.nanmin( np.stack([ resample_raster( t.data, t.affine, out_affine, out_shape ) for t in tiles ], 
+                                      axis=0), axis=0 )
+        elif blend == "max": # keep maximum value in case of overlap
+            out = np.nanmax( np.stack([ resample_raster( t.data, t.affine, out_affine, out_shape ) for t in tiles ], 
+                                      axis=0), axis=0 )
+        elif blend == "mean": # use average in case of overlap
+            out = np.nanmean( np.stack([ resample_raster( t.data, t.affine, out_affine, out_shape ) for t in tiles ], 
+                                       axis=0), axis=0 )
+        elif blend == "median": # use mean in case of overlap
+            out = np.nanmedian( np.stack([ resample_raster( t.data, t.affine, out_affine, out_shape ) for t in tiles ], 
+                                         axis=0), axis=0 )
+
+        # Return HyImage
+        out =  HyImage(
+            out,
+            affine=out_affine,
+            projection=tiles[0].projection,
+            wav=tiles[0].get_wavelengths(),
+            header=tiles[0].header.copy()
+        )
+        if 'xleft' in out.header: del out.header['xleft'] # stored in tiles, but not meaningful here
+        if 'ytop' in out.header: del out.header['ytop'] # stored in tiles, but not meaningful here
+
+        return out
+
+    #####################################
+    ## BASIC TRANSFORMS
+    #####################################
+
     def flip(self, axis='x'):
         """
-        Flip the image on the x or y axis.
+        Flip the image on the x or y axis. Note that this will remove any defined affine transform.
 
         Args:
             axis (str): 'x' or 'y' or both 'xy'.
@@ -281,6 +498,9 @@ class HyImage( HyData ):
             self.data = np.flip(self.data,axis=0)
         if 'y' in axis.lower():
             self.data = np.flip(self.data,axis=1)
+        self.affine = None
+        del self.header['affine']
+        self.push_to_header() # update width and height info
 
     def rot90(self):
         """
@@ -288,7 +508,9 @@ class HyImage( HyData ):
         to achieve positive/negative rotations.
         """
         self.data = np.transpose( self.data, (1,0,2) )
-        self.push_to_header()
+        self.affine = None
+        del self.header['affine']
+        self.push_to_header() # update width and height info
 
     #####################################
     ##IMAGE FILTERING
@@ -346,17 +568,6 @@ class HyImage( HyData ):
             mask = (self.data != 0).any( axis=-1 )
             mask = cv2.erode(mask.astype(np.uint8), kernel, iterations=iterations)
             self.data[mask == 0, :] = 0
-
-    def resize(self, newdims : tuple, interpolation : int = 1):
-        """
-        Resize this image with opencv.
-
-        Args:
-            newdims (tuple): the new image dimensions.
-            interpolation (int): opencv interpolation method. Default is cv2.INTER_LINEAR.
-        """
-        import cv2 # import this here to avoid errors if opencv is not installed properly
-        self.data = cv2.resize(self.data, (newdims[1],newdims[0]), interpolation=interpolation)
 
     def despeckle(self, size=5):
         """
@@ -796,21 +1007,7 @@ class HyImage( HyData ):
 
         # crop image
         if crop:
-            # calculate non-masked pixels
-            valid = np.logical_not(mask)
-
-            # integrate along axes
-            xdata = np.sum(valid, axis=1) > 0.0
-            ydata = np.sum(valid, axis=0) > 0.0
-
-            # calculate domain containing valid pixels
-            xmin = np.argmax(xdata)
-            xmax = xdata.shape[0] - np.argmax(xdata[::-1])
-            ymin = np.argmax(ydata)
-            ymax = ydata.shape[0] - np.argmax(ydata[::-1])
-
-            # crop
-            self.data = self.data[xmin:xmax, ymin:ymax, :]
+            self.crop_to_data()
 
         return mask
 
@@ -818,12 +1015,29 @@ class HyImage( HyData ):
         """
         Remove padding of nan or zero pixels from image. Note that this is performed in place.
         """
-
         valid = np.isfinite(self.data).any(axis=-1) & (self.data != 0).any(axis=-1)
-        ymin, ymax = np.percentile(np.argwhere(np.sum(valid, axis=0) != 0), (0, 100))
-        xmin, xmax = np.percentile(np.argwhere(np.sum(valid, axis=1) != 0), (0, 100))
-        self.data = self.data[int(xmin):int(xmax), int(ymin):int(ymax), :]  # do clipping
 
+        # integrate along axes
+        xdata = np.sum(valid, axis=1) > 0.0
+        ydata = np.sum(valid, axis=0) > 0.0
+
+        # calculate domain containing valid pixels
+        xmin = np.argmax(xdata)
+        xmax = xdata.shape[0] - np.argmax(xdata[::-1])
+        ymin = np.argmax(ydata)
+        ymax = ydata.shape[0] - np.argmax(ydata[::-1])
+
+        # crop
+        self.data = self.data[xmin:xmax, ymin:ymax, :]
+        
+        # shift affine origin to new top-left pixel
+        if self.affine is not None: 
+            new_affine = list(self.affine)
+            new_affine[0] = a[0] + xmin*a[1] + ymin*a[2]
+            new_affine[3] = a[3] + xmin*a[4] + ymin*a[5]
+            self.affine = np.array(new_affine)
+            self.header['affine'] = self.affine
+            
     ##################################################
     ## Interactive tools for picking regions/pixels
     ##################################################

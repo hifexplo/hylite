@@ -96,6 +96,102 @@ def align_to_cloud_manual( cloud, cam, points, pixels, **kwds ):
 
     return est, err
 
+def resample_raster(data, src_gt, dst_gt, dst_shape, order=1):
+    """
+    Resample a raster using GDAL Warp.
+
+    Parameters
+    ----------
+    data : np.ndarray | hylite.HyImage
+        Source raster array, shape (x, y, band) or (x, y)
+    src_gt : tuple
+        Source GDAL affine (x0, px_w, rot_x, y0, rot_y, px_h)
+    dst_gt : tuple
+        Destination GDAL affine (x0, px_w, rot_x, y0, rot_y, px_h)
+    dst_shape : tuple
+        Output shape (height, width) = (y, x)
+    order : int
+        Resampling order (0=nearest, 1=bilinear, 3=cubic)
+
+    Returns
+    -------
+    np.ndarray
+        Resampled array, same shape as input ([x, y, band] or [x, y])
+    """
+
+    try:
+        from osgeo import gdal, osr 
+    except:
+        assert False, "Please install GDAL to use this functionality."
+    
+    header = None
+    if isinstance(data, HyImage):
+        header = data.header.copy()
+        data = data.data # extract numpy array
+
+    # check for bad dims
+    single_band = False
+    if data.ndim == 2:
+        data = data[:, :, np.newaxis]
+        single_band = True
+    
+    # get arguments and ensure they are integers
+    width, height, bands = data.shape
+    dst_width  = int(dst_shape[1])
+    dst_height = int(dst_shape[0])
+    bands      = int(bands)
+    width      = int(width)
+    height     = int(height)
+
+    # Determine resampling type
+    resample_map = {
+        0: gdal.GRA_NearestNeighbour,
+        1: gdal.GRA_Bilinear,
+        3: gdal.GRA_Cubic,
+    }
+    resample_alg = resample_map.get(order, gdal.GRA_Bilinear)
+
+    # reate source MEM dataset
+    mem_driver = gdal.GetDriverByName("MEM")
+    src_ds = mem_driver.Create("", width, height, bands, gdal.GDT_Float32)
+
+    src_ds.SetGeoTransform(src_gt)
+
+    # Write data band-by-band
+    for b in range(bands):
+        band = src_ds.GetRasterBand(b + 1)
+        band.WriteArray(data[:, :, b].T)
+        band.SetNoDataValue(np.nan)
+
+    # Create destination MEM dataset for output
+    dst_ds = mem_driver.Create("", dst_width, dst_height, bands, gdal.GDT_Float32)
+    dst_ds.SetGeoTransform(dst_gt)
+    for b in range(bands):
+        band = dst_ds.GetRasterBand(b + 1)
+        band.SetNoDataValue(np.nan)
+        band.WriteArray(np.full((dst_height, dst_width), np.nan, dtype=np.float32)) # Explicitly initialize to NaN
+
+    # Perform warp (resampling)
+    gdal.Warp(
+        destNameOrDestDS=dst_ds,
+        srcDSOrSrcDSTab=src_ds,
+        resampleAlg=resample_alg,
+        srcNodata=np.nan,
+        dstNodata=np.nan,
+        warpOptions=["INIT_DEST=NO_DATA"]
+    )
+
+    # Read back into NumPy
+    out = np.full((dst_width, dst_height, bands), np.nan, dtype=np.float32)
+    for b in range(bands):
+        out[:, :, b] = dst_ds.GetRasterBand(b + 1).ReadAsArray().T
+
+    if single_band:
+        return out[:, :, 0]
+
+    if header is not None:
+        return hylite.HyImage( out, header=header )
+    return out
 
 def refine_alignment(image, cloud, cam, bands=hylite.RGB, s=2,
                      maxdist=25, histeq=True, method='sift',

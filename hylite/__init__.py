@@ -67,13 +67,6 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 #disable annoying warnings
-#np.warnings.filterwarnings('ignore')
-#warnings.filterwarnings("ignore", category=DeprecationWarning)
-# ignore all warnings
-#def _warn(*args, **kwargs):
-#    pass
-#warnings.warn = _warn
-
 import warnings
 warnings.filterwarnings('ignore')
 warnings.filterwarnings("ignore", category=DeprecationWarning)
