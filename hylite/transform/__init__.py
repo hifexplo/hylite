@@ -13,20 +13,70 @@ from sklearn.decomposition import PCA as sPCA
 from sklearn.covariance import EmpiricalCovariance
 import hylite
 import matplotlib.pyplot as plt
-from hylite import HyData
+from hylite import HyData, HyImage
+import warnings
 
-def convertToAbsorbance( data : HyData ):
+def convertToAbsorbance( data : HyData, method: str = 'kubelka-munk', band_range = None) -> HyImage:
     """
-    Detrend an image data array using a polynomial fit and np.polyfit( ... ).
+    Converts Reflectance to Pseudo-Absorbance using methods such as Kubelka-Munk.
+    Applies to an entire HyData instance (HyImage, HyCloud or HyLibrary).
+
+    Kubelka-Munk transformation: 
+        Based on Escobedo-Morales et al. 2019, 'Automated method for the determination of
+        the band gap energy of pure and mixed powder samples using diffuse reflectance spectroscopy',
+        DOI: 10.1016/j.heliyon.2019.e01505
+
+        This function is developed by Andréa de Lima Ribeiro (Orchid Id: 0000-0003-0096-3627)
 
     Args:
-        data: a HyData instance containing (relative) reflectance data to convert to absorbance.
+        data: a numpy array or HyData instance to detrend.
+        method: string specifying the conversion method. Currently only 'kubelka-munk' is supported.
+        band_range: Tuple containing the (min,max) band indices or wavelengths to run the correction between. If None
+        (default) then the correction is run of the entire range. Only works if data is a HyData instance.
 
     Returns:
-        A HyData instance converted to absorbance.
+        HyImage: Pseudo-absorbance dataset
     """
-        
-    pass # TASNIM TO IMPLEMENT THIS
+
+    if isinstance(data, HyData):
+        # create copy containing the bands of interest
+        if band_range is None:
+            band_range = (0, -1)
+        else:
+            band_range = (data.get_band_index(band_range[0]), data.get_band_index(band_range[1]))
+        corrected = data.export_bands(band_range)
+
+        # selected range check
+        arr = corrected.data
+        valid = arr[np.isfinite(arr)]
+        valid = valid[ valid >= 0.0 ] # make the negative values as nan
+        min_val = valid.min()
+        max_val = valid.max()
+
+        # check if reflectance values are within 0–1 or 0–100
+        in_01 = (min_val >= 0.0) and (max_val <= 1.0)
+        in_0100 = (min_val >= 0.0) and (max_val <= 100.0)
+
+        if not (in_01 or in_0100):
+            warnings.warn(f"Reflectance values out of expected range: "
+                          f"min={min_val:.3f}, max={max_val:.3f}. Expected 0–1 or 0–100.")
+            raise ValueError("Invalid reflectance range. Function stopped.")
+
+        # if reflectance values between 0–100, convert to 0–1 for the formula
+        if in_0100 and not in_01:
+            arr = arr / 100.0
+
+        # Kubelka–Munk transformation
+        if method.lower() == 'kubelka-munk':
+            eps = 1e-12 #factor added to avoid division by 0 or by negative numbers
+            arr = np.clip(arr, eps, 1.0)  # reflectance should be (0,1]
+            km = ((1.0 - arr) ** 2) / (2.0 * arr) # Kubelka-Munk transformation
+
+        corrected.data = km
+        return corrected
+
+    else:
+        raise TypeError("data must be a HyData instance (HyImage/HyCloud/HyLibrary).")
 
 
 class NoiseWhitener(BaseEstimator, TransformerMixin):
