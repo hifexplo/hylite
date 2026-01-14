@@ -169,13 +169,14 @@ def matchHeader(path):
         - header = file path to the associated .hdr or .HDR file (if found, otherwise None)
         - image = file path to the associated image data (if found, otherwise None).
     """
+    path = os.path.normpath(path) # ensure sensibly formatted path
 
     # find files with the same name but different extensions
     path, ext = os.path.splitext(path)
     header = None
     image = None
-    match = glob.glob(path + "*")
-
+    match = [os.path.normpath(p) for p in glob.glob(path + "*")]
+    
     assert (path + ext) in match, "Error - file not found (%s)" % (path + ext)
     match.remove(path + ext)  # remove self-match
 
