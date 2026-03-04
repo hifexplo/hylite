@@ -583,7 +583,6 @@ def push_to_cloud(pmap, bands=(0, -1), method='best', image=None, cloud=None ):
 
     return out
 
-
 def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
     """
     Project the specified data from a point cloud onto an image using a (precalculated) PMap instance. If multiple points map
@@ -661,7 +660,6 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
     return out
 
 # functions for blending scenes together
-
 def push_geomattr(scene, method='best'):
     """
     Return a HyCloud instance containing the geometric attributes of a given projection. This will have
@@ -697,7 +695,6 @@ def push_geomattr(scene, method='best'):
     attr = scene.push_to_cloud((0, -1), method=method, image=image)
     attr.set_band_names(bands)
     return attr
-
 
 def get_blend_weights(scenes, method, ascloud=True):
     """
@@ -740,7 +737,6 @@ def get_blend_weights(scenes, method, ascloud=True):
         weights = hylite.HyCloud(scenes[0].cloud.xyz, bands=np.nan_to_num(weights, nan=0, posinf=0))
         weights.set_band_names([s.name for s in scenes])
     return weights
-
 
 def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=True, vb=True):
     """

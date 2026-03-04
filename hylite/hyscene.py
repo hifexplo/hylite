@@ -8,6 +8,7 @@ from hylite.project import PMap, Pushbroom, Camera, proj_persp, proj_pano, proje
 from tqdm import tqdm
 from scipy.ndimage import grey_dilation
 import numpy as np
+from hylite.correct.equalize import hist_eq, norm_eq
 
 class HyScene( HyCollection ):
     """
@@ -97,6 +98,9 @@ class HyScene( HyCollection ):
                 prg.set_description("Filtering by footprint")
                 prg.update(1)
             self.pmap.filter_footprint( self.maxf )
+
+        # filter nans
+        self.pmap.remove_nan_pixels()
 
         # do projections
         if vb:
@@ -287,58 +291,58 @@ class HyScene( HyCollection ):
 
         return push_to_image( self.pmap, bands, method, image=image, cloud=cloud )
 
-    # def match_colour_to(self, reference, uniform=True, method='norm', inplace=True):
-    #
-    #     """
-    #     Identifies matching pixels between two hyperspectral scenes and uses them to minimise
-    #     colour differences using a linear model (aka by adjusting the brightness/contrast of this scene
-    #     to match the brightness/contrast of the reference scene). WARNING: by default this modifies this scene's
-    #     image IN PLACE.
-    #
-    #     Args:
-    #     - reference = the scene to match colours to.
-    #     - uniform = True if a single brightness contrast adjustment is applied to all bands (avoids introducing spectral
-    #              artefacts). If False, different corrections area applied to each band - use with CARE! Default is True.
-    #     - method = The colour matching method to use. Current options are:
-    #                 - 'norm' = centre-means and scale to match standard deviation. Only compares points known to match.
-    #                 - 'hist' = histogram equalisation. Applies to all pixels in scene - use with care!
-    #                Default is 'norm'.
-    #     - inplace = True if the correction should be applied to self.image in-place. If False, no correction is
-    #               applied, and the correction weights (cfac and mfac) returned for future use. Default is True.
-    #     Returns:
-    #     - The corrected image as a HyImage object. If inplace=True (default) then this will be the same as self.image.
-    #     """
-    #
-    #     image = self.image
-    #     if not inplace:
-    #         image = image.copy()
-    #
-    #     if 'norm' in method.lower():
-    #         # get matching pixels
-    #         px1, px2 = self.intersect_pixels(reference)
-    #         assert px1.shape[0] > 0, "Error - no overlap between images."
-    #         if px1.shape[0] < 1000:
-    #             print("Warning: images only have %d overlapping pixels,"
-    #                " which may result in poor colour matching." % px1.shape[0])
-    #
-    #         # extract data to create vector of matching values
-    #         px1 = image.data[px1[:, 0], px1[:, 1], :]
-    #         px2 = reference.image.data[px2[:, 0], px2[:, 1], :]
-    #
-    #         # apply correction
-    #         image.data = norm_eq( image.data, px1, px2, per_band=not uniform, inplace=True)
-    #
-    #     elif 'hist' in method.lower():
-    #         if uniform: # apply to whole dataset
-    #             image.data = hist_eq(image.data, reference.image.data)
-    #         else: # apply per band
-    #             for b in range(self.image.band_count()):
-    #                 image.data[:, :, b] = hist_eq(image.data[:, :, b], reference.image.data[:, :, b])
-    #     else:
-    #         assert False, "Error - %s is an unrecognised colour correction method." % method
-    #
-    #     return image
-    #
+    def match_colour_to(self, reference, uniform=True, method='norm', inplace=True):
+        
+        """
+         Identifies matching pixels between two hyperspectral scenes and uses them to minimise
+         colour differences using a linear model (aka by adjusting the brightness/contrast of this scene
+         to match the brightness/contrast of the reference scene). WARNING: by default this modifies this scene's
+         image IN PLACE.
+    
+         Args:
+         - reference = the scene to match colours to.
+         - uniform = True if a single brightness contrast adjustment is applied to all bands (avoids introducing spectral
+                  artefacts). If False, different corrections area applied to each band - use with CARE! Default is True.
+         - method = The colour matching method to use. Current options are:
+                     - 'norm' = centre-means and scale to match standard deviation. Only compares points known to match.
+                     - 'hist' = histogram equalisation. Applies to all pixels in scene - use with care!
+                    Default is 'norm'.
+         - inplace = True if the correction should be applied to self.image in-place. If False, no correction is
+                   applied, and the correction weights (cfac and mfac) returned for future use. Default is True.
+         Returns:
+         - The corrected image as a HyImage object. If inplace=True (default) then this will be the same as self.image.
+        """
+
+        image = self.image
+        if not inplace:
+            image = image.copy()
+    
+        if 'norm' in method.lower():
+            # get matching pixels
+            px1, px2 = self.pmap.intersect_pixels(reference.pmap)
+            assert px1.shape[0] > 0, "Error - no overlap between images."
+            if px1.shape[0] < 1000:
+                print("Warning: images only have %d overlapping pixels,"
+                " which may result in poor colour matching." % px1.shape[0])
+    
+            # extract data to create vector of matching values
+            px1 = image.data[px1[:, 0], px1[:, 1], :]
+            px2 = reference.image.data[px2[:, 0], px2[:, 1], :]
+    
+            # apply correction
+            image.data = norm_eq( image.data, px1, px2, per_band=not uniform, inplace=True)
+    
+        elif 'hist' in method.lower():
+            if uniform: # apply to whole dataset
+                image.data = hist_eq(image.data, reference.image.data)
+            else: # apply per band
+                for b in range(self.image.band_count()):
+                    image.data[:, :, b] = hist_eq(image.data[:, :, b], reference.image.data[:, :, b])
+        else:
+            assert False, "Error - %s is an unrecognised colour correction method." % method
+    
+        return image
+    
     # ###################################
     # ##PLOTTING AND EXPORT FUNCTIONS
     # ###################################

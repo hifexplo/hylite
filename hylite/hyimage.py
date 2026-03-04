@@ -499,7 +499,7 @@ class HyImage( HyData ):
         if 'y' in axis.lower():
             self.data = np.flip(self.data,axis=1)
         self.affine = None
-        del self.header['affine']
+        if 'affine' in self.header: del self.header['affine']
         self.push_to_header() # update width and height info
 
     def rot90(self):
@@ -509,7 +509,7 @@ class HyImage( HyData ):
         """
         self.data = np.transpose( self.data, (1,0,2) )
         self.affine = None
-        del self.header['affine']
+        if 'affine' in self.header: del self.header['affine']
         self.push_to_header() # update width and height info
 
     #####################################
