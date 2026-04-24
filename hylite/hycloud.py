@@ -13,6 +13,10 @@ from hylite.hydata import HyData
 from hylite.hyimage import HyImage
 from hylite.project import proj_persp, proj_pano, rasterize, Camera
 
+import matplotlib.pyplot as plt
+from matplotlib import path
+from roipoly import MultiRoi
+
 
 
 class HyCloud( HyData ):
@@ -592,7 +596,327 @@ class HyCloud( HyData ):
             else:
                 return img.quick_plot((0, 1, 2), **kwds)
         else:
-            return img.quick_plot(0, **kwds)
+            return img.quick_plot(0, **kwds)     
+
+    def mask(self, mask=None, flag=np.nan, invert=False, bands=['rgb'], cam='ortho', **kwds):
+        """
+        Apply a mask to a point cloud by rendering and polygon selection.
+        Masks ALL points projecting into the polygon, even if multiple points
+        project to the same pixel.
+
+        Args:
+            mask (ndarray, str, None): Polygon [[x1,y1],[x2,y2],...] or None for interactive
+            flag (float): Value for masked points (default np.nan) or 'delete' to remove
+            invert (bool): If True, mask inside polygon; if False, mask outside
+            bands (list, str, tuple): Display bands for rendering
+            cam (str or Camera): Camera for rendering ('ortho' default)
+            **kwds: Additional render args (s, fill_holes, blur, etc.)
+
+        Returns:
+            Tuple of (point_mask, polygon)
+        """
+        
+        from hylite.project import proj_persp, proj_pano
+        
+        if mask is None:
+            # Interactive polygon picking
+            print("Rendering cloud for visualization...")
+            rendered_img = self.render(cam=cam, bands=bands, **kwds)
+            
+            n_display_bands = rendered_img.band_count()
+            if n_display_bands >= 3:
+                display_bands = list(range(n_display_bands))[:3]
+            else:
+                display_bands = 0
+            
+            print("\nSelect masking polygon. Close window when done.")
+            print("Draw polygon by clicking points, right-click to finalize.")
+            
+            backend = plt.matplotlib.get_backend()
+            plt.matplotlib.use('Qt5Agg')
+            
+            try:
+                fig, ax = rendered_img.quick_plot(bands=display_bands, vmax=98, vmin=2)
+                ax.set_title("Draw polygon for masking (right-click to finish)")
+                
+                roi = MultiRoi(roi_names=["mask"])
+                plt.close(fig)
+                
+                if len(roi.rois) == 0:
+                    print("Warning - no mask picked/applied.")
+                    return None, None
+                
+                regions = []
+                for name, r in roi.rois.items():
+                    x = r.x
+                    y = r.y
+                    regions.append(np.vstack([x, y]).T)
+                
+                mask = regions[0]
+                
+            finally:
+                try:
+                    plt.matplotlib.use(backend)
+                except:
+                    print("Warning: could not reset matplotlib backend.")
+        
+        elif isinstance(mask, str):
+            mask = np.load(mask)
+        
+        assert isinstance(mask, np.ndarray) and mask.shape[1] == 2, \
+            "Error - mask must be (N,2) polygon vertices"
+        
+        print("Projecting all points to determine masking...")
+        
+        # Get camera and projection parameters from the visualization render
+        if isinstance(cam, str) and 'ortho' in cam:
+            # Orthographic projection - use render to get bounds
+            dummy = self.render(cam=cam, bands=['rgb'], **{k:v for k,v in kwds.items() if k != 'step'})
+            
+            # Get world bounds from render
+            cloudxmin = np.amin(self.xyz[:, 0])
+            cloudxmax = np.amax(self.xyz[:, 0])
+            cloudymin = np.amin(self.xyz[:, 1])
+            cloudymax = np.amax(self.xyz[:, 1])
+            
+            res = kwds.get("res", None)
+            if res is None:
+                res = max(cloudxmax - cloudxmin, cloudymax - cloudymin) / 1000
+            
+            # Project ALL points to pixel coordinates
+            C = np.array([cloudxmin, cloudymax, 0])
+            pp = np.abs(self.xyz - C[None, :]) / res
+            vis = np.ones(self.xyz.shape[0], dtype=bool)
+            dims = (int((cloudxmax - cloudxmin) / res + 1), int((cloudymax - cloudymin) / res + 1))
+            
+        else:
+            # Perspective or panoramic projection
+            if isinstance(cam, str):
+                raise ValueError("Only 'ortho' camera is supported for string cameras")
+            
+            if 'persp' in cam.proj.lower():
+                pp, vis = proj_persp(self.xyz, C=cam.pos, a=cam.ori, fov=cam.fov, dims=cam.dims)
+            elif 'pano' in cam.proj.lower():
+                pp, vis = proj_pano(self.xyz, C=cam.pos, a=cam.ori, fov=cam.fov, dims=cam.dims, step=cam.step)
+            else:
+                raise ValueError("Unknown camera projection")
+        
+        # Extract pixel coordinates (x, y only, ignore depth)
+        points_2d = pp[:, :2]  # Shape: (n_points, 2)
+        
+        # Check which projected points fall within the polygon
+        polygon_mask = path.Path(mask).contains_points(points_2d)
+        
+        # Apply inversion if requested
+        if not invert:
+            polygon_mask = np.logical_not(polygon_mask)
+        
+        # Only consider visible points
+        point_mask = polygon_mask & vis
+        
+        print(f"Masking {np.sum(point_mask)} points out of {self.point_count()}")
+        
+        if flag == 'delete':
+            self.filter_points(band=0, val=point_mask[:, None], trim=False)
+            print(f"Deleted {np.sum(point_mask)} points. Remaining: {self.point_count()}")
+        else:
+            if self.has_bands():
+                for b in range(self.band_count()):
+                    self.data[point_mask, b] = flag
+        
+        return point_mask, mask
+
+    def plot_from_render(self, click=None, bands='rgb', band_range=None, cam='ortho', radius=5, **kwds):
+        """
+        Render the point cloud, let the user click a pixel, and show the spectral
+        data next to the rendered image in a single Qt popup window.
+        Wavelengths are read automatically from self.get_wavelengths().
+
+        Args:
+            click (array-like, None): Pixel coordinate [x, y], or None for interactive
+            bands (list, str): Display bands for rendering (default 'rgb')
+            band_range (tuple, None): Optional subset of bands to plot.
+                                - (int, int)   → interpreted as band index range, e.g. band_range=(10, 50)
+                                - (float, float) → interpreted as wavelength range in nm, e.g. band_range=(400.0, 700.0)
+                                If None, the full spectrum is plotted.
+            cam (str or Camera): Camera for rendering ('ortho' default)
+            radius (int): Pixel radius around the clicked point (default 5)
+            **kwds: Additional render args passed to self.render()
+
+        Returns:
+            Tuple of (selected_data, click_coord)
+                selected_data : ndarray of shape (n_selected_points, n_bands_plotted)
+                click_coord   : ndarray [x, y] of the clicked pixel
+        """
+
+        from hylite.project import proj_persp, proj_pano
+
+        # ------------------------------------------------------------------ #
+        # 1. Render image once                                                 #
+        # ------------------------------------------------------------------ #
+        print("Rendering cloud for visualization...")
+        rendered_img = self.render(cam=cam, bands=bands, **kwds)
+
+        n_display_bands = rendered_img.band_count()
+        display_bands = list(range(n_display_bands))[:3] if n_display_bands >= 3 else 0
+
+        # ------------------------------------------------------------------ #
+        # 2. Project all points to pixel space                                 #
+        # ------------------------------------------------------------------ #
+        print("Projecting points...")
+
+        if isinstance(cam, str) and 'ortho' in cam:
+            cloudxmin = np.amin(self.xyz[:, 0])
+            cloudxmax = np.amax(self.xyz[:, 0])
+            cloudymin = np.amin(self.xyz[:, 1])
+            cloudymax = np.amax(self.xyz[:, 1])
+
+            res = kwds.get("res", None)
+            if res is None:
+                res = max(cloudxmax - cloudxmin, cloudymax - cloudymin) / 1000
+
+            C = np.array([cloudxmin, cloudymax, 0])
+            pp = np.abs(self.xyz - C[None, :]) / res
+            vis = np.ones(self.xyz.shape[0], dtype=bool)
+
+        else:
+            if isinstance(cam, str):
+                raise ValueError("Only 'ortho' camera is supported as a string; pass a Camera object.")
+
+            if 'persp' in cam.proj.lower():
+                pp, vis = proj_persp(self.xyz, C=cam.pos, a=cam.ori, fov=cam.fov, dims=cam.dims)
+            elif 'pano' in cam.proj.lower():
+                pp, vis = proj_pano(self.xyz, C=cam.pos, a=cam.ori, fov=cam.fov, dims=cam.dims, step=cam.step)
+            else:
+                raise ValueError("Unknown camera projection type.")
+
+        points_2d = pp[:, :2]
+
+        # ------------------------------------------------------------------ #
+        # 3. Resolve wavelengths and optional band subset                      #
+        # ------------------------------------------------------------------ #
+        wavelengths = self.get_wavelengths()  # None if not set
+
+        n_bands = self.data.shape[1]
+        wavelengths = self.get_wavelengths()  # None if not set
+
+        if wavelengths is not None:
+            wavelengths = np.asarray(wavelengths)
+
+        if band_range is not None:
+            b_min, b_max = band_range
+            if isinstance(b_min, int) and isinstance(b_max, int):
+                # Integer → treat as band index
+                band_mask = np.zeros(n_bands, dtype=bool)
+                band_mask[b_min:b_max + 1] = True
+                x = wavelengths[band_mask] if wavelengths is not None else np.where(band_mask)[0]
+                xlabel = "Wavelength (nm)" if wavelengths is not None else "Band index"
+            else:
+                # Float → treat as wavelength range
+                if wavelengths is None:
+                    raise ValueError("band_range given as float (wavelength range) but no wavelengths found in self.get_wavelengths().")
+                band_mask = (wavelengths >= b_min) & (wavelengths <= b_max)
+                x = wavelengths[band_mask]
+                xlabel = "Wavelength (nm)"
+        else:
+            band_mask = np.ones(n_bands, dtype=bool)
+            x = wavelengths if wavelengths is not None else np.arange(n_bands)
+            xlabel = "Wavelength (nm)" if wavelengths is not None else "Band index"
+
+        # ------------------------------------------------------------------ #
+        # 4. Setup Qt figure with image + empty spectrum side by side          #
+        # ------------------------------------------------------------------ #
+        backend = plt.matplotlib.get_backend()
+        plt.matplotlib.use('Qt5Agg')
+
+        fig, (ax_img, ax_spec) = plt.subplots(1, 2, figsize=(14, 5))
+        fig.suptitle("Click on a pixel – spectrum appears on the right", fontsize=11)
+
+        rendered_img.quick_plot(bands=display_bands, vmax=98, vmin=2, ax=ax_img)
+        ax_img.set_title("Rendered Image")
+
+        ax_spec.set_title("Spectrum")
+        ax_spec.set_xlabel(xlabel)
+        ax_spec.set_ylabel("Intensity")
+        ax_spec.text(0.5, 0.5, "← Click a pixel",
+                    ha='center', va='center', transform=ax_spec.transAxes,
+                    fontsize=12, color='gray')
+
+        plt.tight_layout()
+        plt.ion()
+        plt.show()
+
+        # ------------------------------------------------------------------ #
+        # 5. Click loop – update spectrum on every click, close on Enter       #
+        # ------------------------------------------------------------------ #
+        last_data, last_click = None, None
+
+        print("Click a pixel to display its spectrum. Press Enter to finish.")
+
+        def on_click(event):
+            nonlocal last_data, last_click
+
+            if event.inaxes is not ax_img or event.button != 1:
+                return
+
+            click = np.array([event.xdata, event.ydata])
+
+            distances = np.linalg.norm(points_2d - click[None, :], axis=1)
+            in_radius = (distances <= radius) & vis
+            n_selected = int(np.sum(in_radius))
+
+            for artist in ax_img.lines + ax_img.patches:
+                artist.remove()
+            circle = plt.Circle(click, radius, color='red', fill=False,
+                                linewidth=1.5, linestyle='--')
+            ax_img.add_patch(circle)
+            ax_img.plot(*click, 'r+', markersize=10, markeredgewidth=2)
+
+            ax_spec.cla()
+            ax_spec.set_xlabel(xlabel)
+            ax_spec.set_ylabel("Intensity")
+
+            if n_selected == 0:
+                ax_spec.text(0.5, 0.5, f"No points found (r={radius}px)",
+                            ha='center', va='center', transform=ax_spec.transAxes,
+                            fontsize=11, color='gray')
+                ax_spec.set_title("Spectrum – no points found")
+            else:
+                selected_data = self.data[in_radius][:, band_mask]
+                mean_spectrum = np.nanmean(selected_data, axis=0)
+
+                for row in selected_data:
+                    ax_spec.plot(x, row, color='steelblue', alpha=0.3, linewidth=0.8)
+                ax_spec.plot(x, mean_spectrum, color='navy', linewidth=2,
+                            label=f'Mean (n={n_selected})')
+                ax_spec.set_title(f"Pixel ({click[0]:.1f}, {click[1]:.1f}), r={radius}px")
+                ax_spec.legend()
+
+                last_data, last_click = selected_data, click
+                print(f"{n_selected} points at pixel ({click[0]:.1f}, {click[1]:.1f})")
+
+            fig.canvas.draw_idle()
+
+        def on_key(event):
+            if event.key in ('enter', 'escape'):
+                plt.close(fig)
+
+        fig.canvas.mpl_connect('button_press_event', on_click)
+        fig.canvas.mpl_connect('key_press_event', on_key)
+
+        plt.ioff()
+        plt.show(block=True)
+
+        try:
+            plt.matplotlib.use(backend)
+        except:
+            print("Warning: could not reset matplotlib backend.")
+
+        if last_click is None:
+            print("No pixel selected.")
+            return None, None
+
+        return last_data, last_click  
 
     def colourise(self, bands, stretch=(1, 99)):
 
