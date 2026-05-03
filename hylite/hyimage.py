@@ -1032,6 +1032,7 @@ class HyImage( HyData ):
         
         # shift affine origin to new top-left pixel
         if self.affine is not None: 
+            a = self.affine # shorthand for affine
             new_affine = list(self.affine)
             new_affine[0] = a[0] + xmin*a[1] + ymin*a[2]
             new_affine[3] = a[3] + xmin*a[4] + ymin*a[5]
