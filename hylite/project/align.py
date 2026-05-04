@@ -44,6 +44,217 @@ def deepWarp(image,target):
 
     return cv2.remap(image, dmap, None,cv2.INTER_LINEAR), dmap
 
+def select_from_dual_view(hyimage, hycloud, cam='ortho', bands='rgb',
+                          image_bands=None, **render_kwds):
+    """
+    Open a HyImage and rendered HyCloud side-by-side for interactive point selection.
+    
+    Allows clicking on both plots to collect:
+    - HyImage clicks: pixel coordinates [x, y]
+    - HyCloud clicks: nearest point index to the clicked pixel
+    
+    Each click gets a color that cycles through a consistent palette in both windows.
+    
+    Args:
+        hyimage (HyImage): The image to display on the right
+        hycloud (HyCloud): The point cloud to render on the left
+        cam (str or Camera): Camera for rendering. Default is 'ortho' (orthographic top-down).
+        bands (list, str, tuple): Bands to render for the cloud. Default is 'rgb'.
+        image_bands (int, tuple, list): Bands to display for the image. 
+                                        Default is (10, 20, 30) for pseudo-RGB.
+        **render_kwds: Additional keywords passed to hycloud.render()
+                       (e.g., s=2 for point size, fill_holes=True)
+    
+    Returns:
+        Tuple of (image_selections, cloud_selections)
+            - image_selections: (N, 2) array of [x, y] pixel coordinates from HyImage clicks
+            - cloud_selections: (M,) array of point indices from HyCloud clicks (one per click)
+    """
+    import matplotlib.pyplot as plt
+    from hylite.project import proj_persp, proj_pano
+    
+    # Color palette that cycles through distinct colors
+    colors = ['#E41A1C', '#377EB8', '#4DAF4A', '#984EA3', '#FF7F00', 
+              '#A65628', '#F781BF', '#999999', '#66C2A5', '#FC8D62']
+    
+    # Set default image bands for pseudo-RGB if not specified
+    if image_bands is None:
+        image_bands = (10, 20, 30)
+    
+    # =====================================================================
+    # 1. Render the cloud
+    # =====================================================================
+    print("Rendering cloud for visualization...")
+    rendered_cloud = hycloud.render(cam=cam, bands=bands, **render_kwds)
+    
+    # Determine display bands for the cloud render
+    n_cloud_bands = rendered_cloud.band_count()
+    cloud_display_bands = list(range(n_cloud_bands))[:3] if n_cloud_bands >= 3 else 0
+    
+    # =====================================================================
+    # 2. Project all cloud points to pixel space
+    # =====================================================================
+    print("Projecting cloud points to image space...")
+    
+    if isinstance(cam, str) and 'ortho' in cam:
+        # Orthographic projection
+        cloudxmin = np.amin(hycloud.xyz[:, 0])
+        cloudxmax = np.amax(hycloud.xyz[:, 0])
+        cloudymin = np.amin(hycloud.xyz[:, 1])
+        cloudymax = np.amax(hycloud.xyz[:, 1])
+        
+        res = render_kwds.get("res", None)
+        if res is None:
+            res = max(cloudxmax - cloudxmin, cloudymax - cloudymin) / 1000
+        
+        C = np.array([cloudxmin, cloudymax, 0])
+        cloud_pp = np.abs(hycloud.xyz - C[None, :]) / res
+        cloud_vis = np.ones(hycloud.xyz.shape[0], dtype=bool)
+        
+    else:
+        # Perspective or panoramic projection
+        if isinstance(cam, str):
+            raise ValueError("Only 'ortho' camera supported as string; pass Camera object for other projections")
+        
+        if 'persp' in cam.proj.lower():
+            cloud_pp, cloud_vis = proj_persp(hycloud.xyz, C=cam.pos, a=cam.ori, 
+                                             fov=cam.fov, dims=rendered_cloud.data.shape)
+        elif 'pano' in cam.proj.lower():
+            cloud_pp, cloud_vis = proj_pano(hycloud.xyz, C=cam.pos, a=cam.ori, 
+                                            fov=cam.fov, dims=rendered_cloud.data.shape, step=cam.step)
+        else:
+            raise ValueError("Unknown camera projection type")
+    
+    cloud_points_2d = cloud_pp[:, :2]
+    
+    # =====================================================================
+    # 3. Create Qt figure with image and cloud side-by-side
+    # =====================================================================
+    backend = plt.matplotlib.get_backend()
+    plt.matplotlib.use('Qt5Agg')
+    
+    fig, (ax_cloud, ax_image) = plt.subplots(1, 2, figsize=(16, 6))
+    fig.suptitle("Select points: Click on cloud (left) and/or image (right). Close window to finish.", 
+                 fontsize=12)
+    
+    # Plot rendered cloud on the left
+    rendered_cloud.quick_plot(band=cloud_display_bands, ax=ax_cloud, vmax=98, vmin=2)
+    ax_cloud.set_title("Point Cloud (Rendered)")
+    
+    # Plot image on the right
+    hyimage.quick_plot(band=image_bands, ax=ax_image, vmax=98, vmin=2)
+    ax_image.set_title("Spectral Image")
+    
+    plt.tight_layout()
+    plt.ion()
+    plt.show()
+    
+    # =====================================================================
+    # 4. Setup click tracking
+    # =====================================================================
+    image_selections = []
+    cloud_selections = []
+    cloud_click_count = 0
+    image_click_count = 0
+    
+    def on_click(event):
+        """Handle click events on both axes"""
+        nonlocal cloud_click_count, image_click_count
+        
+        if event.button != 1:  # Only left mouse button
+            return
+        
+        # ---- CLOUD CLICK ----
+        if event.inaxes is ax_cloud:
+            click_pixel = np.array([event.xdata, event.ydata])
+            
+            # Find nearest visible point
+            distances = np.linalg.norm(cloud_points_2d - click_pixel[None, :], axis=1)
+            visible_distances = distances.copy()
+            visible_distances[~cloud_vis] = np.inf
+            nearest_idx = np.argmin(visible_distances)
+            
+            if visible_distances[nearest_idx] < np.inf:
+                # Store the point index
+                cloud_selections.append(nearest_idx)
+                
+                # Get color for this cloud selection
+                current_color = colors[cloud_click_count % len(colors)]
+                cloud_click_count += 1
+                
+                # Visualize selection
+                nearest_pixel = cloud_points_2d[nearest_idx]
+                ax_cloud.plot(*nearest_pixel, marker='o', markersize=5, color=current_color, 
+                             markeredgecolor='black', markeredgewidth=0.5)
+                
+                print(f"✓ Cloud: point {nearest_idx} selected at pixel {nearest_pixel.astype(int)}")
+        
+        # ---- IMAGE CLICK ----
+        elif event.inaxes is ax_image:
+            click_pixel = np.array([event.xdata, event.ydata])
+            image_selections.append(click_pixel)
+            
+            # Get color for this image selection
+            current_color = colors[image_click_count % len(colors)]
+            image_click_count += 1
+            
+            # Visualize selection
+            ax_image.plot(*click_pixel, marker='o', markersize=5, color=current_color,
+                         markeredgecolor='black', markeredgewidth=0.5)
+            
+            print(f"✓ Image: pixel {click_pixel.astype(int)} selected")
+        
+        fig.canvas.draw_idle()
+    
+    def on_key(event):
+        """Handle key press events"""
+        if event.key in ('escape',):
+            plt.close(fig)
+    
+    # Connect event handlers
+    fig.canvas.mpl_connect('button_press_event', on_click)
+    fig.canvas.mpl_connect('key_press_event', on_key)
+    
+    print("\n" + "="*70)
+    print("INTERACTIVE SELECTION MODE")
+    print("="*70)
+    print("Left plot (Cloud):  Click to select nearest point in rendered cloud")
+    print("Right plot (Image): Click to select pixel in spectral image")
+    print("Colors cycle through with each click (same color in both windows)")
+    print("Press ESC or close window to finish")
+    print("="*70 + "\n")
+    
+    # Wait for user interaction
+    plt.ioff()
+    plt.show(block=True)
+    
+    # =====================================================================
+    # 5. Process and return results
+    # =====================================================================
+    try:
+        plt.matplotlib.use(backend)
+    except:
+        print("Warning: Could not reset matplotlib backend")
+    
+    # Convert to numpy arrays
+    if image_selections:
+        image_selections = np.array(image_selections)
+    else:
+        image_selections = np.empty((0, 2))
+    
+    cloud_selections = np.array(cloud_selections, dtype=int)
+    
+    print("\n" + "="*70)
+    print("SELECTION SUMMARY")
+    print("="*70)
+    print(f"Image selections: {len(image_selections)} pixel(s)")
+    if len(image_selections) > 0:
+        print(f"  Pixel coordinates shape: {image_selections.shape}")
+    print(f"Cloud selections: {len(cloud_selections)} point(s)")
+    print("="*70 + "\n")
+    
+    return image_selections.astype(int), cloud_selections
+
 def align_to_cloud_manual( cloud, cam, points, pixels, **kwds ):
     """
     Solve for camera location given a list of >4 manually chosen pixel -> point pairs.
