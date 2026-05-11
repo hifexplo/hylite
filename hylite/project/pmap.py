@@ -783,9 +783,9 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         wav = [scenes[0].image.get_wavelengths()[b] for b in bands]
 
         nbands = len(bands)
-        mask = np.full(scenes[0].cloud.point_count(), 0)  # these become True as valid data is added
+        mask = np.full(scenes[0].cloud.point_count(), False)  # these become True as valid data is added
         out = scenes[0].cloud.copy(data=False)  # create output cloud
-        counts = np.zeros( (len(mask), nbands), dtype=np.uint) # count how many times each point is mapped to (for QAQC)
+        counts = np.zeros( len(mask) ) # count how many times each point is mapped to (for normalisation)
 
         # loop through scenes and project bands
         for j, s in enumerate(scenes):
@@ -810,9 +810,10 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
                 if (len(chunk) == chunksize) or (i == (len(loop) - 1)):
                     data = s.push_to_cloud(chunk).data  # project bands
                     for n in range(data.shape[-1]):  # save them as individual numpy files
-                        mask = np.logical_or(mask, np.isfinite(data[:, n]))
-                        counts[np.isfinite(data[:, n]), i] += 1
+                        _valid = np.isfinite(data[:, n])
+                        mask = np.logical_or(mask, _valid)
                         np.save( str(Path(pth) / ('b%d.npy' % chunk[n])), data[:, n])
+                    counts[_valid] += 1 # N.B. assumes nans are in the same spot for all bands!
                     chunk = []
             if ooc:
                 s.free()
@@ -827,7 +828,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         for n, b in enumerate(loop):
             for j, s in enumerate(scenes):
                 pth = str(Path(tmp)/ f"{j}_{s.name}")
-                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b))) * weights[:, j] / counts[:, n])
+                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b)))*weights[:, j]/counts)
                 
     except KeyboardInterrupt as inst:
         print("Operation cancelled: cleaning up after KeyboardInterrupt.")
