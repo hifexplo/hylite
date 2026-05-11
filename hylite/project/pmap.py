@@ -787,13 +787,13 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         out = scenes[0].cloud.copy(data=False)  # create output cloud
 
         # loop through scenes and project bands
-        for s in scenes:
+        for j, s in enumerate(scenes):
 
             assert s.cloud.point_count() == mask.shape[0], "Error: scene %s has %d points, not %d" % (scene.name,
                                                                                                       scene.cloud.point_count(),
                                                                                                       mask.shape[0])
             # make output directory
-            pth = str(Path(tmp)/ s.name)
+            pth = str(Path(tmp)/ f"{j}_{s.name}")
             os.makedirs(pth, exist_ok=True)
 
             # remove zeros
@@ -824,9 +824,9 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
             loop = tqdm(loop, desc='Blending bands', leave=False)
         for n, b in enumerate(loop):
             sm = np.zeros(mask.shape[0])
-            for i, s in enumerate(scenes):
-                pth = str(Path(tmp)/ s.name)
-                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b))) * weights[:, i])
+            for j, s in enumerate(scenes):
+                pth = str(Path(tmp)/ f"{j}_{s.name}")
+                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b))) * weights[:, j])
     except KeyboardInterrupt as inst:
         print("Operation cancelled: cleaning up after KeyboardInterrupt.")
         err = inst
