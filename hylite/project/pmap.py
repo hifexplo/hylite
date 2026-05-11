@@ -785,7 +785,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         nbands = len(bands)
         mask = np.full(scenes[0].cloud.point_count(), 0)  # these become True as valid data is added
         out = scenes[0].cloud.copy(data=False)  # create output cloud
-        counts = np.zeros( (len(mask), len(wav)), dtype=np.uint) # count how many times each point is mapped to (for QAQC)
+        counts = np.zeros( (len(mask), nbands), dtype=np.uint) # count how many times each point is mapped to (for QAQC)
 
         # loop through scenes and project bands
         for j, s in enumerate(scenes):
@@ -827,7 +827,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         for n, b in enumerate(loop):
             for j, s in enumerate(scenes):
                 pth = str(Path(tmp)/ f"{j}_{s.name}")
-                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b))) * weights[:, j] / counts[:, b])
+                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b))) * weights[:, j] / counts[:, n])
                 
     except KeyboardInterrupt as inst:
         print("Operation cancelled: cleaning up after KeyboardInterrupt.")
