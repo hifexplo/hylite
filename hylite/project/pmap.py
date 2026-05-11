@@ -535,53 +535,59 @@ def push_to_cloud(pmap, bands=(0, -1), method='best', image=None, cloud=None ):
 
     # convert pmap to csc format
     pmap.csc()  # thunk; would csr format be faster??
-    pmap.remove_nan_pixels(image=image) # drop nan pixels
+    # remove_nan_pixels edits the sparse linkage in-place; callers often pass a temporary or derived
+    # image (e.g. geometric attributes in push_geomattr), so restore the original pmap afterward.
+    _pmap_backup = pmap.data.copy()
+    try:
+        pmap.remove_nan_pixels(image=image) # drop nan pixels
 
-    # build weights matrix
-    if 'closest' in method.lower():
-        # get closest pixels
-        closest = np.argmax(pmap.data, axis=1)  # find closest pixel to each point (largest 1/z along cols)
+        # build weights matrix
+        if 'closest' in method.lower():
+            # get closest pixels
+            closest = np.argmax(pmap.data, axis=1)  # find closest pixel to each point (largest 1/z along cols)
 
-        # assemble sparse matrix with closest pixels scored as 1
-        rows = np.argwhere(closest > 0)[:, 0]
-        cols = np.array(closest[rows])[:, 0]
-        vals = np.ones(rows.shape)
-        W = csc_matrix((vals, (rows, cols)), pmap.data.shape, dtype=np.float32)
-
-        # sum of weights is easy
-        n = np.ones(pmap.npoints, dtype=np.float32)
-    elif 'average' in method.lower():
-        W = (pmap.data > 0).astype(np.float32)  # weights matrix [ full of ones ]
-        n = np.array(W.sum(axis=1))[:, 0]  # sum of weights (for normalising later)
-    elif 'count' in method.lower() or 'best' in method.lower():
-        W = (pmap.data > 0).astype(np.float32)  # convert to binary adjacency matrix
-        npoints = np.array(W.sum(axis=0))[0, :]  # get number of points per pixel
-        W = W.multiply(1 / npoints)  # fill non-zero values with 1 / points in relevant pixel
-        if 'best' in method.lower():  # filter W so we keep only the best points
-            best = np.argmax(W, axis=1)  # assemble sparse matrix with best pixels scored as 1
-            rows = np.argwhere(best > 0)[:, 0]
-            cols = np.array(best[rows])[:, 0]
+            # assemble sparse matrix with closest pixels scored as 1
+            rows = np.argwhere(closest > 0)[:, 0]
+            cols = np.array(closest[rows])[:, 0]
             vals = np.ones(rows.shape)
             W = csc_matrix((vals, (rows, cols)), pmap.data.shape, dtype=np.float32)
 
-        n = np.array(W.sum(axis=1))[:, 0]  # sum of weights (for normalising later)
-    elif 'distance' in method.lower():
-        W = pmap.data  # easy!
-        n = np.array(W.sum(axis=1))[:, 0]  # sum of weights (for normalising later)
-    else:
-        assert False, "Error - %s is an invalid method." % method
+            # sum of weights is easy
+            n = np.ones(pmap.npoints, dtype=np.float32)
+        elif 'average' in method.lower():
+            W = (pmap.data > 0).astype(np.float32)  # weights matrix [ full of ones ]
+            n = np.array(W.sum(axis=1))[:, 0]  # sum of weights (for normalising later)
+        elif 'count' in method.lower() or 'best' in method.lower():
+            W = (pmap.data > 0).astype(np.float32)  # convert to binary adjacency matrix
+            npoints = np.array(W.sum(axis=0))[0, :]  # get number of points per pixel
+            W = W.multiply(1 / npoints)  # fill non-zero values with 1 / points in relevant pixel
+            if 'best' in method.lower():  # filter W so we keep only the best points
+                best = np.argmax(W, axis=1)  # assemble sparse matrix with best pixels scored as 1
+                rows = np.argwhere(best > 0)[:, 0]
+                cols = np.array(best[rows])[:, 0]
+                vals = np.ones(rows.shape)
+                W = csc_matrix((vals, (rows, cols)), pmap.data.shape, dtype=np.float32)
 
-    # calculate output
-    #V = W.dot(X) / n[:, None]
-    V = W@X / n[:, None]
+            n = np.array(W.sum(axis=1))[:, 0]  # sum of weights (for normalising later)
+        elif 'distance' in method.lower():
+            W = pmap.data  # easy!
+            n = np.array(W.sum(axis=1))[:, 0]  # sum of weights (for normalising later)
+        else:
+            assert False, "Error - %s is an invalid method." % method
 
-    # build output cloud
-    out = cloud.copy(data=False)
-    out.data = V
-    if data.has_wavelengths():
-        out.set_wavelengths(data.get_wavelengths())
+        # calculate output
+        #V = W.dot(X) / n[:, None]
+        V = W@X / n[:, None]
 
-    return out
+        # build output cloud
+        out = cloud.copy(data=False)
+        out.data = V
+        if data.has_wavelengths():
+            out.set_wavelengths(data.get_wavelengths())
+
+        return out
+    finally:
+        pmap.data = _pmap_backup
 
 def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
     """
@@ -630,6 +636,12 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
     # convert pmap to csr format
     # pmap.csr()
 
+    # build a per-pixel mask of which pixels actually have at least one point mapped to them.
+    # we use this rather than "value == 0" to flag unmapped pixels, because legitimate projected
+    # values (e.g. a surface normal of (0,0,1) or a z=0 plane) can equal zero.
+    points_per_pixel = np.array((pmap.data > 0).sum(axis=0))[0, :]
+    unmapped = points_per_pixel == 0
+
     # build weights matrix
     if 'closest' in method.lower():
         closest = np.array(np.argmax(pmap.data, axis=0))[0,
@@ -646,14 +658,17 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
         W = (pmap.data > 0).astype(np.float32)  # weights matrix [ full of ones ]
         n = np.array(W.sum(axis=0))[0, :]  # sum of weights
         #V = W.T.dot(dat) / n[:, None]  # calculate average
-        V = W.T@dat / n[:, None]  # calculate average
+        with np.errstate(invalid='ignore', divide='ignore'):
+            V = W.T@dat / n[:, None]  # calculate average
     else:
         assert False, "Error - %s is an invalid method for cloud_to_image." % method
 
     # build output image
     out = image.copy(data=False)
     out.data = np.reshape(V, (image.xdim(), image.ydim(), -1), order='F')
-    out.data[out.data == 0] = np.nan  # replace zeros with nans
+    # set unmapped pixels to NaN (broadcast across bands)
+    unmapped_2d = unmapped.reshape((image.xdim(), image.ydim()), order='F')
+    out.data[unmapped_2d] = np.nan
     out.set_wavelengths(wav)
     out.set_band_names(nam)
 
@@ -764,7 +779,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
     # check / format input
     if isinstance(weights, hylite.HyCloud):
         weights = weights.data
-    weights /= np.sum(weights, axis=-1)[:, None]  # normalise
+    weights /= np.sum(weights, axis=-1)[:, None]  # normalise so that weights sum to 1
 
     assert len(scenes) == weights.shape[1], "Error: %d scenes != %d weights" % (len(scenes), weights.shape[1])
     assert scenes[0].cloud.point_count() == weights.shape[0], "Error: scene has %d points but weights have %d" % (
@@ -785,7 +800,6 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         nbands = len(bands)
         mask = np.full(scenes[0].cloud.point_count(), False)  # these become True as valid data is added
         out = scenes[0].cloud.copy(data=False)  # create output cloud
-        counts = np.zeros( len(mask) ) # count how many times each point is mapped to (for normalisation)
 
         # loop through scenes and project bands
         for j, s in enumerate(scenes):
@@ -813,7 +827,6 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
                         _valid = np.isfinite(data[:, n])
                         mask = np.logical_or(mask, _valid)
                         np.save( str(Path(pth) / ('b%d.npy' % chunk[n])), data[:, n])
-                    counts[_valid] += 1 # N.B. assumes nans are in the same spot for all bands!
                     chunk = []
             if ooc:
                 s.free()
@@ -823,13 +836,17 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
 
         # combine data
         loop = bands
+        counts = np.zeros( (len(mask), nbands), dtype=np.float32 ) # count how many times each point is mapped to (for normalisation)
         if vb:
             loop = tqdm(loop, desc='Blending bands', leave=False)
         for n, b in enumerate(loop):
             for j, s in enumerate(scenes):
                 pth = str(Path(tmp)/ f"{j}_{s.name}")
-                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b)))*weights[:, j]/counts)
-                
+                _data = np.load(str(Path(pth)/('b%d.npy' % b)))*weights[:, j]
+                out.data[:, n] += np.nan_to_num(_data)
+                counts[:, n] += np.isfinite(_data)*weights[:, j]
+        #out.data = out.data / counts # normalise by counts to get averages
+
     except KeyboardInterrupt as inst:
         print("Operation cancelled: cleaning up after KeyboardInterrupt.")
         err = inst

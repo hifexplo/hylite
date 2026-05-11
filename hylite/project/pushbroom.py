@@ -131,8 +131,9 @@ class Pushbroom(object):
             axis: 0 (x), 1 (y) or 2 (z).
             i: the frame index to get vector for. If None (Default) a list of all vectors is returned.
         """
+        assert axis >= 0 and axis < 3, "Error - axis must be 0, 1 or 2."
         if i is not None:
-            assert i >= 0 and i < 3, "Error - i must be 0, 1 or 2."
+            assert (i >= 0) and (i < len(self.R)), f"i must be greater than 0 and less than {len(self.R)}"
             return self.R[i].as_matrix()[:, axis]
         else:
             return np.array([_R.as_matrix()[:, axis] for _R in self.R])
@@ -176,8 +177,8 @@ class Pushbroom(object):
             a (3,) array of projected points with coordinates that are:
 
              - xtrack = the position (in pixels) of the points across track (pixels on the sensor)
-             -  ltrack = the position (in pixels) of the points along track. Values between 0 and 1 will pass through the sensor slit.
-             -  depth = the depth along the view direction of each point (in meters).
+             - ltrack = the position (in pixels) of the points along track. Values between 0 and 1 will pass through the sensor slit.
+             - depth = the depth along the view direction of each point (in meters).
         """
 
         # project into camera coordinates
