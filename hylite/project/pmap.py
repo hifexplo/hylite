@@ -783,14 +783,14 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         wav = [scenes[0].image.get_wavelengths()[b] for b in bands]
 
         nbands = len(bands)
-        mask = np.full(scenes[0].cloud.point_count(), False)  # these become True as valid data is added
+        mask = np.full(scenes[0].cloud.point_count(), 0)  # these become True as valid data is added
         out = scenes[0].cloud.copy(data=False)  # create output cloud
 
         # loop through scenes and project bands
         for j, s in enumerate(scenes):
 
-            assert s.cloud.point_count() == mask.shape[0], "Error: scene %s has %d points, not %d" % (scene.name,
-                                                                                                      scene.cloud.point_count(),
+            assert s.cloud.point_count() == mask.shape[0], "Error: scene %s has %d points, not %d" % (s.name,
+                                                                                                      s.cloud.point_count(),
                                                                                                       mask.shape[0])
             # make output directory
             pth = str(Path(tmp)/ f"{j}_{s.name}")
@@ -809,7 +809,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
                 if (len(chunk) == chunksize) or (i == (len(loop) - 1)):
                     data = s.push_to_cloud(chunk).data  # project bands
                     for n in range(data.shape[-1]):  # save them as individual numpy files
-                        mask = np.logical_or(mask, np.isfinite(data[:, n]))
+                        mask[np.isfinite(data[:, n])] += 1 # update mask / counts of valid pixels
                         np.save( str(Path(pth) / ('b%d.npy' % chunk[n])), data[:, n])
                     chunk = []
             if ooc:
@@ -823,10 +823,11 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         if vb:
             loop = tqdm(loop, desc='Blending bands', leave=False)
         for n, b in enumerate(loop):
-            sm = np.zeros(mask.shape[0])
             for j, s in enumerate(scenes):
                 pth = str(Path(tmp)/ f"{j}_{s.name}")
-                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b))) * weights[:, j])
+                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b))) * weights[:, j] / mask)
+        out.data[mask == 0] = 0  # set points with no data to 0
+
     except KeyboardInterrupt as inst:
         print("Operation cancelled: cleaning up after KeyboardInterrupt.")
         err = inst
@@ -843,7 +844,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
 
     # cleanup point cloud (trim points with no data) and add wavelengths
     if trim:
-        out.filter_points(0, np.logical_not(mask))
+        out.filter_points(0, mask == 0)
     out.set_wavelengths(wav)
 
     return out  # done!
