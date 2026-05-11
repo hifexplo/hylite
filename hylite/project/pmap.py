@@ -785,6 +785,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         nbands = len(bands)
         mask = np.full(scenes[0].cloud.point_count(), 0)  # these become True as valid data is added
         out = scenes[0].cloud.copy(data=False)  # create output cloud
+        counts = np.zeros( (len(mask), len(wav)), dtype=np.uint) # count how many times each point is mapped to (for QAQC)
 
         # loop through scenes and project bands
         for j, s in enumerate(scenes):
@@ -809,7 +810,8 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
                 if (len(chunk) == chunksize) or (i == (len(loop) - 1)):
                     data = s.push_to_cloud(chunk).data  # project bands
                     for n in range(data.shape[-1]):  # save them as individual numpy files
-                        mask[np.isfinite(data[:, n])] += 1 # update mask / counts of valid pixels
+                        mask = np.logical_or(mask, np.isfinite(data[:, n]))
+                        counts[np.isfinite(data[:, n]), i] += 1
                         np.save( str(Path(pth) / ('b%d.npy' % chunk[n])), data[:, n])
                     chunk = []
             if ooc:
@@ -825,9 +827,8 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         for n, b in enumerate(loop):
             for j, s in enumerate(scenes):
                 pth = str(Path(tmp)/ f"{j}_{s.name}")
-                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b))) * weights[:, j] / mask)
-        out.data[mask == 0] = 0  # set points with no data to 0
-
+                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b))) * weights[:, j] / counts[:, b])
+                
     except KeyboardInterrupt as inst:
         print("Operation cancelled: cleaning up after KeyboardInterrupt.")
         err = inst
@@ -844,7 +845,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
 
     # cleanup point cloud (trim points with no data) and add wavelengths
     if trim:
-        out.filter_points(0, mask == 0)
+        out.filter_points(0, np.logical_not(mask))
     out.set_wavelengths(wav)
 
     return out  # done!
