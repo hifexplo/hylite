@@ -11,7 +11,7 @@ class MyTestCase(unittest.TestCase):
     def build_dummy_data(self):
 
         # build an example cloud
-        x, y = np.meshgrid(np.linspace(-10, 10), np.linspace(-10, 10))
+        x, y = np.meshgrid(np.linspace(-10, 30), np.linspace(-10, 10))
         xyz = np.vstack([x.ravel(), y.ravel(), np.zeros_like(x.ravel())]).T
         klm = np.zeros(xyz.shape)
         klm[:,2] = 1.0
@@ -34,7 +34,7 @@ class MyTestCase(unittest.TestCase):
         self.swath = HyImage(np.full((dims[0],100,3), 0.75))
         self.swath.data[:,10,:] = np.nan # add some nans
         self.swath.set_wavelengths(hylite.RGB)
-        fov = 50.
+        fov = 25.
         cp = np.zeros( (100, 3) )
         cp[:, 0] +=  np.linspace(-10, 10, 100)
         cp[:, 1] +=  np.linspace(-10, 10, 100)
@@ -92,14 +92,15 @@ class MyTestCase(unittest.TestCase):
                 self.assertEqual( O.point_count(), 2500 )
                 self.assertEqual(O.band_count(), 3)
                 self.assertAlmostEqual( np.nanmax(O.data), max( np.nanmax(self.image.data), np.nanmax(self.swath.data) ), 2 ) # check normalisation during blending / averaging is correct (we are not scaling the data)
-            
+                
             # and, finally, a single check with ooc=True
             w = get_blend_weights([S,S2], method='equal',ascloud=True) # run different weighting methods
-            O = blend_scenes([S,S2], w, (0,-1), ooc=True )
-            self.assertEqual( O.point_count(), 2500 )
+            O = blend_scenes([S,S2], w, (0,-1), ooc=True, trim=True )
+            self.assertLess( O.point_count(), self.cloud.point_count() ) # check some points were deleted
+            self.assertGreater( O.point_count(), 0 ) # some points were projected...
             self.assertEqual(O.band_count(), 3)
             self.assertAlmostEqual( np.nanmax(O.data), max( np.nanmax(self.image.data), np.nanmax(self.swath.data) ), 2 ) # check normalisation during blending / averaging is correct
-            
+            self.assertAlmostEqual( np.nanmin(O.data), min( np.nanmin(self.image.data), np.nanmin(self.swath.data) ), 2  ) # min should also be the same (check blend weights sum to 1 properly)
         except:
             shutil.rmtree(pth)  # delete temp directory
             self.assertFalse(True, "Error - could not construct HyScene instance")

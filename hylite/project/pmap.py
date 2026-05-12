@@ -779,7 +779,6 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
     # check / format input
     if isinstance(weights, hylite.HyCloud):
         weights = weights.data
-    weights /= np.sum(weights, axis=-1)[:, None]  # normalise so that weights sum to 1
 
     assert len(scenes) == weights.shape[1], "Error: %d scenes != %d weights" % (len(scenes), weights.shape[1])
     assert scenes[0].cloud.point_count() == weights.shape[0], "Error: scene has %d points but weights have %d" % (
@@ -836,16 +835,17 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
 
         # combine data
         loop = bands
-        counts = np.zeros( (len(mask), nbands), dtype=np.float32 ) # count how many times each point is mapped to (for normalisation)
+        totalWeight = np.zeros( ( len(mask), nbands), dtype=np.float32 ) # count how many times each point is mapped to (for normalisation)
         if vb:
             loop = tqdm(loop, desc='Blending bands', leave=False)
         for n, b in enumerate(loop):
             for j, s in enumerate(scenes):
                 pth = str(Path(tmp)/ f"{j}_{s.name}")
-                _data = np.load(str(Path(pth)/('b%d.npy' % b)))*weights[:, j]
-                out.data[:, n] += np.nan_to_num(_data)
-                counts[:, n] += np.isfinite(_data)*weights[:, j]
-        #out.data = out.data / counts # normalise by counts to get averages
+                _data = np.load(str(Path(pth)/('b%d.npy' % b)))
+                out.data[:, n] += np.nan_to_num(_data)*weights[:, j]
+                totalWeight[:, n] += np.isfinite(_data)*weights[:, j] # accumulate total weight for each point/band observation
+        
+        out.data[totalWeight > 0] = out.data[totalWeight > 0] / totalWeight[ totalWeight > 0] # normalise by counts to get averages
 
     except KeyboardInterrupt as inst:
         print("Operation cancelled: cleaning up after KeyboardInterrupt.")
