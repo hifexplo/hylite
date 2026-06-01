@@ -225,7 +225,10 @@ def loadWithNumpy( path, dtype=np.float32, mask_zero=True, to_nm=False ):
             offset = int(offset / data.dtype.itemsize) # convert from bytes to index
             data = data[offset:] # slice off header bytes
         expected_size = lines * bands * samples
-        if data.size != expected_size:
+        if data.size > expected_size: # assume final bits are image (and first bits are some messy header info)
+            offset = data.size - expected_size # get number of header bytes based on expected size
+            data = data[offset:] # drop header
+        if data.size != expected_size: # something went nastily wrong
             raise ValueError(f"Expected {expected_size} elements, got {data.size}. Check lines, bands and samples entries in header file.")
 
         if interleave == 'bil':
