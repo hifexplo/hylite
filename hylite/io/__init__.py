@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from hylite import HyImage, HyCloud, HyLibrary, HyCollection, HyScene, HyData, HyHeader
-from hylite._deps import optional, require
+from hylite._deps import gdal_available, optional, require
 
 from .headers import *
 from .images import *
@@ -19,7 +19,7 @@ from .libraries import *
 from .pmaps import *
 from .cameras import saveCameraTXT, loadCameraTXT
 
-usegdal = optional("osgeo") is not None
+usegdal = gdal_available()
 
 
 def _is_project_type(data, name):
@@ -202,7 +202,10 @@ def load(path, to_nm=False):
                 out.header = loadHeader(header, to_nm=to_nm)
         else:
             if usegdal:
-                out = loadWithGDAL(path, to_nm=to_nm)
+                try:
+                    out = loadWithGDAL(path, to_nm=to_nm)
+                except (AssertionError, ImportError, OSError):
+                    out = loadWithNumpy(path, to_nm=to_nm)
             else: # no gdal
                 out = loadWithNumpy(path, to_nm=to_nm)
         

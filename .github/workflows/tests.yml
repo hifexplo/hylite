@@ -26,16 +26,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gdal-bin libgdal-dev
-
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pytest
-          pip install "GDAL==$(gdal-config --version)"
           pip install -e ".[opencv]"
 
       - name: Run tests

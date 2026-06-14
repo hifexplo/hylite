@@ -8,6 +8,7 @@ import shutil
 import numpy as np
 from hylite.project.camera import Camera
 from hylite.project.pushbroom import Pushbroom
+from hylite._deps import gdal_available
 from tests._support import TEST_DATA, require_test_env, upgrade_test_env
 
 
@@ -137,7 +138,7 @@ class TestIO(unittest.TestCase):
             self.fail("Error - could not save IO data: %s" % exc)
         finally:
             from hylite._deps import optional
-            io.usegdal = optional("osgeo") is not None
+            io.usegdal = gdal_available()
             if os.path.exists(pth):
                 shutil.rmtree(pth)
 

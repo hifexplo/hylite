@@ -186,3 +186,20 @@ def optional(name, default=None):
         return importlib.import_module(name)
     except ImportError:
         return default
+
+
+def gdal_available():
+    """
+    True if GDAL is installed and can read array data (osgeo.gdal_array present).
+
+    A broken pip GDAL wheel may import ``osgeo`` but fail on ``ReadAsArray()``;
+    this probe matches what ``io.load`` needs for ENVI rasters.
+    """
+    if not _tier_available("osgeo"):
+        return False
+    try:
+        importlib.import_module("osgeo.gdal")
+        importlib.import_module("osgeo.gdal_array")
+        return True
+    except ImportError:
+        return False
