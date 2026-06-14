@@ -81,10 +81,10 @@ Note that we use the upper end of blue as this is the first band of rikola data.
 """
 
 VNIR = (800.0, 550.0, 505.0)
-"""Useful preview for VNIR data using (infrared [1972.0], green [644.0], blue [1450.0])."""
+"""Useful preview for VNIR data using (infrared [800.0], green [550.0], blue [505.0])."""
 
 SWIR = (2200.0,2250.0,2350.0)
-"""Useful preview for SWIR data (2200.0, 2250.0, 2350.0) sensitive to clay, mica, carbonate and amphibole absorbtions."""
+"""Useful preview for SWIR data (2200.0, 2250.0, 2350.0) sensitive to clay, mica, carbonate and amphibole absorptions."""
 
 BROAD = (1972.0,644.0,1450.0) #useful preview for data that covers visible VNIR and SWIR range
 """Useful preview that covers VNIR and SWIR range (1972.0,644.0,1450.0) ."""
@@ -96,7 +96,7 @@ LWIR = TIR = (10113., 9156.31, 8527.01)
 """Useful preview for TIR range (10101.01, 9174.31, 8547.01)."""
 
 band_select_threshold = 25.
-"""Maximum distance (in nanometers) to use when matching wavelengths with band indices. See HyData.get_band_index(...) for more detail."""
+"""Maximum distance (in nanometers) to use when matching wavelengths with band indices. See `hylite.hydata.HyData`.get_band_index(...) for more detail."""
 
 #import basic data classes
 from .hyheader import HyHeader

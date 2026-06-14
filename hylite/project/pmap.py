@@ -1,18 +1,19 @@
 """
 Projection maps store lookup tables (python dictionaries) that link PointIDs in a point cloud with pixelIDs in an image.
 They store many : many relationships and can store arbitrarily complicated projections ( perspective, panoramic,
-pushbroom etc.). PMaps only store the mapping function; see HyScene for functionality that pushes data between different
+pushbroom etc.). PMaps only store the mapping function; see `hylite.hyscene.HyScene` for functionality that pushes data between different
 data types. PMaps can be saved using io.save( ... ) to avoid expensive computation multiple times in a processing
 workflow.
 """
 
 import os
 import numpy as np
+from hylite._deps import require_on_load, require
+require_on_load("project.pmap", "scipy.sparse")
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 import hylite
 from tempfile import mkdtemp
 import shutil
-from tqdm import tqdm
 from pathlib import Path
 
 class PMap(object):
@@ -250,7 +251,7 @@ class PMap(object):
         Calculate how many points are in each pixel.
 
         Returns:
-            a HyImage instance containing point counts per pixel.
+            a `hylite.hyimage.HyImage` instance containing point counts per pixel.
         """
         self.csr() # use row-compressed form
         W = (self.data > 0).astype(np.float32)  # convert to binary adjacency matrix
@@ -399,7 +400,7 @@ class PMap(object):
 
 def _gather_bands(data, bands):
     """
-    Utility function used by push_to_image( ... ) and push_to_cloud( ... ) to slice data from a HyData instance.
+    Utility function used by push_to_image( ... ) and push_to_cloud( ... ) to slice data from a `hylite.hydata.HyData` instance.
 
     Returns:
         A tuple containing:
@@ -519,7 +520,7 @@ def push_to_cloud(pmap, bands=(0, -1), method='best', image=None, cloud=None ):
         cloud: the cloud to project (if different to pmap.cloud). Must have matching dimensions. Default is pmap.cloud.
 
     Returns:
-        A HyCloud instance containing the back-projected data.
+        A `hylite.hycloud.HyCloud` instance containing the back-projected data.
     """
 
     if image is None:
@@ -614,7 +615,7 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
         image: the image to project (if different to pmap.image). Must have matching dimensions. Default is pmap.image.
         cloud: the cloud to project (if different to pmap.cloud). Must have matching dimensions. Default is pmap.cloud.
     Returns:
-        A HyImage instance containing the projected data.
+        A `hylite.hyimage.HyImage` instance containing the projected data.
     """
 
     if image is None:
@@ -677,7 +678,7 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
 # functions for blending scenes together
 def push_geomattr(scene, method='best'):
     """
-    Return a HyCloud instance containing the geometric attributes of a given projection. This will have
+    Return a `hylite.hycloud.HyCloud` instance containing the geometric attributes of a given projection. This will have
     two or three bands as follows:
 
      - distance from the sensor to each point
@@ -687,10 +688,10 @@ def push_geomattr(scene, method='best'):
     These are useful for QAQC of projected results or doing weighted blending.
 
     Args:
-        scene: the HyScene instance to compute geometric attributes for.
+        scene: the `hylite.hyscene.HyScene` instance to compute geometric attributes for.
         method: the projection method used for handling duplicate pixels. See scene.push_to_cloud for details.
     Returns:
-        a HyCloud instance containing the three geometric attributes.
+        a `hylite.hycloud.HyCloud` instance containing the three geometric attributes.
     """
     # get projection map and relevant attributes (in image space)
     pmap = scene.pmap
@@ -725,7 +726,7 @@ def get_blend_weights(scenes, method, ascloud=True):
              - 'gsd' = lower ground-sampling values are given higher weight.
              - 'obliquity' = less oblique points are given higher weight.
 
-        ascloud: True if weights should be returned as a HyCloud instance. Otherwise a numpy array is returned.
+        ascloud: True if weights should be returned as a `hylite.hycloud.HyCloud` instance. Otherwise a numpy array is returned.
     Returns:
         a numpy array containing the normalised blending weight for each (point,scene).
     """
@@ -761,7 +762,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
     Args:
         scenes: a list of scenes to fuse. Data will be extracted from scene.image and pushed to the cloud using
                 scene.pmap.
-        weights: a numpy array or HyCloud instance containings weighting factors with shape (points,scenes). See
+        weights: a numpy array or `hylite.hycloud.HyCloud` instance containing weighting factors with shape (points,scenes). See
                  get_blend_weights(...) for more details.
         bands: tuple specifying the (min,max) bands of scenes.image to export. Default is all bands (0,-1).
         chunksize: the number of bands to project in any given iteration. Larger numbers are faster but require
@@ -769,11 +770,11 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         trim: True if points with no data mapped to them should be removed.
         ooc: True if hypercloud bands should be created out-of-core and then assembled. This is slower but less RAM
              intensive for large hyperclouds. If this is True, scene.free() will also be called to unload hyperspectral images
-             after they have been processed; so please save HyScenes before using!
+             after they have been processed; so please save `hylite.hyscene.HyScene` instances before using!
         vb: True if progress bars should be created.
 
     Returns:
-        a HyCloud instance contain
+        a `hylite.hycloud.HyCloud` instance containing the fused hypercloud data.
     """
 
     # check / format input
@@ -816,6 +817,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
             # push bands to disk
             loop = bands
             if vb:
+                tqdm = require("tqdm").tqdm
                 loop = tqdm(loop, desc='Projecting scene %s' % s.name, leave=False)
             chunk = []
             for i, b in enumerate(loop):
@@ -837,6 +839,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         loop = bands
         totalWeight = np.zeros( ( len(mask), nbands), dtype=np.float32 ) # count how many times each point is mapped to (for normalisation)
         if vb:
+            tqdm = require("tqdm").tqdm
             loop = tqdm(loop, desc='Blending bands', leave=False)
         for n, b in enumerate(loop):
             for j, s in enumerate(scenes):

@@ -1,9 +1,11 @@
+from hylite._deps import require_on_load
+require_on_load("reference.generate", "gfit", "skimage")
+
 from gfit import mgauss
 import numpy as np
 import hylite
 import skimage.data as skdata
 from skimage.transform import rotate, swirl, rescale
-
 
 def randomSpectra(wav: np.ndarray,
                   f: list = [2245., 2340.],
@@ -37,7 +39,6 @@ def randomSpectra(wav: np.ndarray,
                [np.random.uniform(10 * (wav[1] - wav[0]), (wav[-1] - wav[0])) for i in range(nrand)])
         R = a * (R - R2)
     return np.clip(R + np.random.rand(len(wav)) * noise, 0., 1.)
-
 
 def genImage(wav: np.ndarray = np.linspace(2100., 2400., 200),
              A: dict = dict(f=[2200., 2340.], a=1.0, nrand=0),

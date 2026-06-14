@@ -2,7 +2,7 @@
 Static classes for sensor-specific processing such as lens-correction, adjustments for sensor shift and conversions
 from digital numbers to radiance.
 """
-import matplotlib.pyplot as plt
+import numpy as np
 from .sensor import Sensor
 from .fx import FX10
 from .fx import FX17
@@ -19,12 +19,15 @@ def QAQC(image, method, dim=0, fit="minmax", checklines=[]):
     Estimate the spectral quality of a sensor according to reference measurements. Mask image first if required.
 
     Args:
-        image (hylite.HyImage): the image containing data from the sensor..
+        image (`hylite.hyimage.HyImage`): the image containing data from the sensor.
         method (str): "LDPE" for SWIR using reference LDPE foil, "FT" for VNIR using fluorescence tube.
         dim (int): dimensionality of the evaluation (0 = overall average, 1 = row-wise, 2 = full frame).
         fit (str): method for peak fitting. For details, check hylite.analyse.mapping.minimum_wavelength( ... ).
         checklines (list): define custom features to check for (list of ints or floats).
     """
+
+    from hylite._deps import require
+    plt = require("matplotlib.pyplot")
 
     image.data = image.data.astype(np.float32)
 

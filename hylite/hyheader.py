@@ -2,8 +2,28 @@
 Manage metadata and other header file information.
 """
 
-import copy
 import numpy as np
+
+
+def _sanitize_header_value(value):
+    """
+    Convert numpy scalars and list/dict contents to plain Python types for ENVI/JSON-safe headers.
+    ndarray values (e.g. wavelengths, panel spectra) are kept as arrays.
+    """
+    if isinstance(value, np.ndarray):
+        return value
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return float(value)
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_header_value(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _sanitize_header_value(v) for k, v in value.items()}
+    return value
+
 
 class HyHeader( dict ):
     """
@@ -15,6 +35,9 @@ class HyHeader( dict ):
 
         #default values
         self['file type'] = 'ENVI Standard'
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, _sanitize_header_value(value))
 
     def has_band_names(self):
         """
@@ -233,8 +256,10 @@ class HyHeader( dict ):
         Returns:
             a new header instance.
         """
-
-        return copy.deepcopy(self)
+        out = HyHeader()
+        for key, value in self.items():
+            out[key] = value
+        return out
 
     def print(self):
         """

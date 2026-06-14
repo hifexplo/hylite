@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 import hylite.io as io
 from hylite.sensors import Sensor
-from scipy.ndimage import median_filter
+from hylite._deps import require
 
 
 class OWL(Sensor):
@@ -52,7 +52,7 @@ class OWL(Sensor):
         Apply sensor corrections to an image.
 
         Args:
-            image (hylite.HyImage): a hyImage instance of an image captured using this sensor.
+            image (`hylite.hyimage.HyImage`): a `hylite.hyimage.HyImage` instance of an image captured using this sensor.
             verbose (bool): true if updates/progress should be printed to the console. Default is False.
             **kwds: Optional keywords include:
 
@@ -78,7 +78,7 @@ class OWL(Sensor):
         image.rot90() # rotate so cross-track is y-axis
 
         if rad:
-            if verbose: print("Converting to radiance... ", end="", flush="True")
+            if verbose: print("Converting to radiance... ", end="", flush=True)
 
             # convert from int to float
             image.data = image.data.astype(np.float32)
@@ -157,6 +157,7 @@ class OWL(Sensor):
         # also estimate noise per-band (useful for eg., MNFs)
         if False:
             if cls.white is not None:
+                median_filter = require("scipy.ndimage").median_filter
                 white = median_filter(white, size=(5,3,5), mode='mirror') # also apply to white panel for noise estimation
                 noise = np.nanstd(white, axis=(0, 1))
                 image.header['band noise'] = noise
@@ -179,7 +180,7 @@ class OWL(Sensor):
                 - verbose = True if print outputs should be made to update progress. Default is True.
 
         Returns:
-            A hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
+            A `hylite.hyimage.HyImage` to which all sensor-specific corrections have been applied. Note that this will generally not include
            topographic or atmospheric corrections.
 
         """

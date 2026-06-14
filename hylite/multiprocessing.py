@@ -14,10 +14,10 @@ from hylite import io
 
 def _split(data, nchunks):
     """
-    Split the specified HyCloud instance into a number of chunks.
+    Split the specified `hylite.hycloud.HyCloud` instance into a number of chunks.
 
     Args:
-        data = the complete HyData object to copy and split.
+        data = the complete `hylite.hydata.HyData` object to copy and split.
         nchunks = the number of chunks to split into.
     Returns:
         a list of split
@@ -69,12 +69,12 @@ def _split(data, nchunks):
 
 def _merge(chunks, shape):
     """
-    Merge a list of HyData objects into a combined one (aka. do the opposite of split(...)).
+    Merge a list of `hylite.hydata.HyData` objects into a combined one (aka. do the opposite of split(...)).
 
     Args:
-        chunks = a list of HyData chunks to merge.
+        chunks = a list of `hylite.hydata.HyData` chunks to merge.
         shape = the output data shape.
-    Returns: a single merged HyData instance (of the same type as the input).
+    Returns: a single merged `hylite.hydata.HyData` instance (of the same type as the input).
                The header of this instance will be a copy of chunks[0].header.
     """
 
@@ -129,9 +129,10 @@ def parallel_chunks(function, data, *args, **kwds):
     loading files from cache) are too costly.
 
     Args:
-        function: the function to run on each chunk of the dataset. Must take a HyCloud or HyImage dataset as it's first
-                  argument and also return a HyCloud or HyImage dataset (cf., mwl(...), get_hull_corrected(...)).
-        data (HyCloud or HyImage): data to run the function on.
+        function: the function to run on each chunk of the dataset. Must take a `hylite.hycloud.HyCloud` or
+                  `hylite.hyimage.HyImage` dataset as its first argument and also return a `hylite.hycloud.HyCloud` or
+                  `hylite.hyimage.HyImage` dataset (cf., mwl(...), get_hull_corrected(...)).
+        data (`hylite.hycloud.HyCloud` or `hylite.hyimage.HyImage`): data to run the function on.
         args (tuple): tuple of arguments to pass to the function.
         nthreads (int): the number of threads to spawn. Default is the number of cores - 2. Negative numbers will be subtracted
                    from the number of cores.
@@ -223,7 +224,7 @@ def _call2(func, in_paths, out_paths, kwd, n):
 
 def parallel_datasets(function, in_paths, out_paths=None, nthreads=-2, **kwds):
     """
-    Parallelise a single function across many HyData datasets.
+    Parallelise a single function across many `hylite.hydata.HyData` datasets.
 
     Args:
         function: the function to run on each dataset. This should take an input path (string) as its first input and

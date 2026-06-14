@@ -6,13 +6,13 @@ import numpy as np
 
 def hist_eq(adj, ref):
     """
-    Perform histogram normalisation on two datasets, as describe at: https://stackoverflow.com/questions/32655686/histogram-matching-of-two-images-in-python-2-x.
+    Perform histogram normalisation on two datasets, as described at: https://stackoverflow.com/questions/32655686/histogram-matching-of-two-images-in-python-2-x.
 
     Args:
         adj: the source data to transform
-        ref: data following the distribution to be matched too.
+        ref: data following the distribution to be matched to.
     Returns:
-        an array of the same shape as source that contains the transformed data.
+        an array of the same shape as adj that contains the transformed data.
     """
     olddtype = adj.dtype
     oldshape = adj.shape

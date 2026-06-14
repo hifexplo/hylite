@@ -4,15 +4,15 @@ between images and point clouds.
 """
 
 from hylite import HyCollection
-from hylite.project import PMap, Pushbroom, Camera, proj_persp, proj_pano, project_pushbroom, push_to_cloud, push_to_image
-from tqdm import tqdm
-from scipy.ndimage import grey_dilation
+from hylite.project.basic import proj_persp, proj_pano
+from hylite.project.camera import Camera
 import numpy as np
 from hylite.correct.equalize import hist_eq, norm_eq
+from hylite._deps import require
 
 class HyScene( HyCollection ):
     """
-    A special type of HyCollection and contains a projection map for transferring information between a point cloud and
+    A special type of `hylite.hycollection.HyCollection` and contains a projection map for transferring information between a point cloud and
     a hyperspectral image.
     """
     def __init__(self, name, root, header=None ):
@@ -28,8 +28,8 @@ class HyScene( HyCollection ):
 
     def getAttributes(self):
         """
-        Return a list of available attributes in this HyScene. We must override the HyCollection implementation to remove
-        functions associated with HyScene.
+        Return a list of available attributes in this `hylite.hyscene.HyScene`. We must override the
+        `hylite.hycollection.HyCollection` implementation to remove functions associated with `hylite.hyscene.HyScene`.
         """
         return list(set(dir(self)) - set(dir(HyCollection)) - set(dir(HyScene)) - set(['header', 'root', 'name', 'ext']))
 
@@ -38,15 +38,15 @@ class HyScene( HyCollection ):
         Construct a mapping between the specified image and cloud based on the camera position / orientation / track.
 
         Args:
-            image (HyImage): data to map onto the point cloud.
-            cloud (HyCloud): data/geometry to map onto the image.
+            image (`hylite.hyimage.HyImage`): data to map onto the point cloud.
+            cloud (`hylite.hycloud.HyCloud`): data/geometry to map onto the image.
             camera (hylite.project.Camera or hylite.project.Pushbroom):  Object describing the projection geometry.
             s (int): a dilation to apply when mapping point data to the image (to fill gaps/holes). Default is 1 (do not apply a dilation).
                 If s is an integer then an (s,s) dilation filter is applied. Alternatively, s can be a tuple such that s=(n,m)
                 defining the 2-D dimensions of the dilation (useful for e.g. pushbroom data).
             occ_tol (float): the distance between a point and the z-buffer before it becomes occluded. Default is 10. Set to 0 to
                     disable occlusion.
-            maxf (int): the maximum acceptible pixel footprint. Pixels containing > than this number of points will be excluded
+            maxf (int): the maximum acceptable pixel footprint. Pixels containing > than this number of points will be excluded
                    from the dataset. Set as 0 to disable (default).
             bf (bool): True if backface culling (using cloud normal vectors) should be applied during projection. Default is True.
             **kwds: Keywords are passed to project_pushbroom for pushbroom type cameras.
@@ -62,6 +62,9 @@ class HyScene( HyCollection ):
         self.camera = camera
         self.occ_tol = occ_tol
         self.maxf = maxf
+
+        from hylite.project.pmap import PMap, push_to_cloud, push_to_image
+        from hylite.project.pushbroom import Pushbroom, project_pushbroom
 
         # build projection map
         self.pmap = PMap(camera.dims[0], camera.dims[1], cloud.point_count(), cloud=cloud, image=image)
@@ -87,6 +90,7 @@ class HyScene( HyCollection ):
 
         # filter occlusions
         if vb:
+            tqdm = require("tqdm").tqdm
             prg = tqdm(total=6, leave=False)
             prg.set_description("Filtering occlusions")
         if self.occ_tol > 0:
@@ -141,6 +145,8 @@ class HyScene( HyCollection ):
                 assert len(s) == 2, "Error - s must be a tuple of shape (n,m)."
             else:
                 assert False, "Error, %s is an invalid type for s." % type(s)
+
+            grey_dilation = require("scipy.ndimage").grey_dilation
 
             # loop through attributes and apply dilation
             for a,v in zip(['xyz','normals','depth', 'view'], [self.xyz, self.normals, self.depth, self.view]):
@@ -245,16 +251,18 @@ class HyScene( HyCollection ):
                              - 'best' : use the pixel that is mapped to the fewest points (only). Default.
                              - 'average' : average with all pixels weighted equally.
 
-            image (hylite.HyImage): an alternative image to use (defaults to self.image) Shapes must match self.pmap.
-            cloud (hylite.HyCloud): an alternative cloud to use (defaults to self.cloud). Shapes must match self.pmap.
+            image (`hylite.hyimage.HyImage`): an alternative image to use (defaults to self.image) Shapes must match self.pmap.
+            cloud (`hylite.hycloud.HyCloud`): an alternative cloud to use (defaults to self.cloud). Shapes must match self.pmap.
 
         Returns:
-            A HyCloud instance containing the back-projected data.
+            A `hylite.hycloud.HyCloud` instance containing the back-projected data.
         """
         if cloud is None:
             cloud = self.cloud
         if image is None:
             image = self.image
+
+        from hylite.project.pmap import push_to_cloud
 
         return push_to_cloud( self.pmap, bands, method, image=image, cloud=cloud)
 
@@ -278,16 +286,18 @@ class HyScene( HyCollection ):
                          - 'closest': use the closest point to each pixel (default is this is fastest).
                          - 'average' : average with all pixels weighted equally. Slow.
 
-            image (hylite.HyImage): an alternative image to use (defaults to self.image) Shapes must match self.pmap.
-            cloud (hylite.HyCloud): an alternative cloud to use (defaults to self.cloud). Shapes must match self.pmap.
+            image (`hylite.hyimage.HyImage`): an alternative image to use (defaults to self.image) Shapes must match self.pmap.
+            cloud (`hylite.hycloud.HyCloud`): an alternative cloud to use (defaults to self.cloud). Shapes must match self.pmap.
 
         Returns:
-            A HyImage instance containing the projected data.
+            A `hylite.hyimage.HyImage` instance containing the projected data.
         """
         if cloud is None:
             cloud = self.cloud
         if image is None:
             image = self.image
+
+        from hylite.project.pmap import push_to_image
 
         return push_to_image( self.pmap, bands, method, image=image, cloud=cloud )
 
@@ -310,7 +320,7 @@ class HyScene( HyCollection ):
          - inplace = True if the correction should be applied to self.image in-place. If False, no correction is
                    applied, and the correction weights (cfac and mfac) returned for future use. Default is True.
          Returns:
-         - The corrected image as a HyImage object. If inplace=True (default) then this will be the same as self.image.
+         - The corrected image as a `hylite.hyimage.HyImage` object. If inplace=True (default) then this will be the same as self.image.
         """
 
         image = self.image
@@ -424,7 +434,7 @@ class HyScene( HyCollection ):
     #
     # def push_to_image(self, bands, fill_holes=False, blur=0):
     #     """
-    #     Export data from associated cloud and image to a (new) HyImage object.
+    #     Export data from associated cloud and image to a (new) `hylite.hyimage.HyImage` object.
     #
     #     Args:
     #      - bands = a list of image band indices (int) or wavelengths (float). Inherent properties of point clouds
@@ -435,7 +445,7 @@ class HyScene( HyCollection ):
     #      - fill_holes = post-processing option to fill single-pixel holes with maximum value from adjacent pixels. Default is False.
     #      - blur = size of gaussian kernel to apply to image in post-processing. Default is 0 (no blur).
     #     Returns:
-    #      - a HyImage object containing the requested data.
+    #      - a `hylite.hyimage.HyImage` object containing the requested data.
     #     """
     #
     #     # special case: individual band; wrap in list
@@ -520,7 +530,7 @@ class HyScene( HyCollection ):
     #                 - 'klm' = point normals
     #                 - 'xyz' = point coordinates
     #     Returns:
-    #      - a HyImage object containing the requested data.
+    #      - a `hylite.hyimage.HyImage` object containing the requested data.
     #     """
     #
     #     # special case: individual band; wrap in list

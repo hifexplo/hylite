@@ -1,13 +1,17 @@
 import os
 import numpy as np
-import matplotlib
 from hylite.correct.detrend import get_hull_corrected
-from gfit import initialise, gfit,evaluate
 from hylite import HyCollection, HyCloud, HyImage, HyData
+from hylite._deps import require, require_on_load
 
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-from tqdm import tqdm
+require_on_load("analyse.mwl", "gfit")
+from gfit import initialise, gfit, evaluate
+
+
+def _mpl():
+    """Matplotlib imports for MWL plotting (lazy)."""
+    matplotlib = require("matplotlib")
+    return require("matplotlib.pyplot"), matplotlib, matplotlib
 
 class MWL(HyCollection):
     """
@@ -23,7 +27,7 @@ class MWL(HyCollection):
         Band a new MWL mapping results. Essentially treat this as the constructor.
 
         Args:
-            model: the underlying HyData instance containing feature parameters.
+            model: the underlying `hylite.hydata.HyData` instance containing feature parameters.
             nfeatures: the number of features stored in the underlying model.
             x: Wavelengths that the model should be evaluated at.
             X: the underlying data that the model was fitted to. Useful for plotting / debugging. Default is None.
@@ -43,8 +47,8 @@ class MWL(HyCollection):
 
     def getAttributes(self):
         """
-        Return a list of available attributes in this HyScene. We must override the HyCollection implementation to remove
-        functions associated with HyScene.
+        Return a list of available attributes in this MWL object. We must override the `hylite.hycollection.HyCollection` implementation to remove
+        functions associated with `hylite.analyse.mwl.MWL`.
         """
         return list(set(dir(self)) - set(dir(HyCollection)) - set(dir(MWL)) - set(['header', 'root', 'name']))
 
@@ -53,7 +57,7 @@ class MWL(HyCollection):
         Slice this MWL object to return specific features or feature parameters.
 
         Options are:
-         self[n]: get the n'th feature (as a HyData instance). See self.sortByDepth(..) and self.sortByPos(..) to
+         self[n]: get the n'th feature (as a `hylite.hydata.HyData` instance). See self.sortByDepth(..) and self.sortByPos(..) to
                    change feature order.
          self[n,b]: return a numpy array containing a specific property of the n'th feature. b can be an index 0-3
                      for symmetric and 0-4 for asymmetric features, or string ('depth', 'pos', 'width', 'width2').
@@ -98,7 +102,7 @@ class MWL(HyCollection):
 
     def getFeature(self, n):
         """
-        Return a HyData instance containing bands associated with th nth minimum wavelength feature.
+        Return a `hylite.hydata.HyData` instance containing bands associated with th nth minimum wavelength feature.
         """
         return self[n]
 
@@ -140,7 +144,7 @@ class MWL(HyCollection):
 
     def deepest(self, wmin=0, wmax=-1):
         """
-        Returns a HyData instance containing the deepest feature within the specified range.
+        Returns a `hylite.hydata.HyData` instance containing the deepest feature within the specified range.
 
         Args:
             wmin: the lower bound of the wavelength range. Default is 0 (accept all positions)
@@ -178,15 +182,15 @@ class MWL(HyCollection):
 
     def closest(self, position, valid_range=None, depth_cutoff=0.05):
         """
-        Returns a HyData instance containing the closest feature within the specified range.
+        Returns a `hylite.hydata.HyData` instance containing the closest feature within the specified range.
 
         Args:
             position: the 'ideal' feature position to compare with (e.g. 2200.0 for AlOH)
-            valid_range: A tuple defining the minimum and maximum acceptible wavelengths, or None (default). Values outside
+            valid_range: A tuple defining the minimum and maximum acceptable wavelengths, or None (default). Values outside
                          of the valid range will be set to nan.
             depth_cutoff: Features with depths below this value will be discared (and set to nan).
         Returns:
-            a single HyData instance containing the closest minima.
+            a single `hylite.hydata.HyData` instance containing the closest minima.
         """
         # get valid positions
         valid_pos = np.isfinite(self[:, 'pos'])
@@ -215,29 +219,12 @@ class MWL(HyCollection):
         out.data[np.logical_not(valid_pos.any(axis=-1)), :] = np.nan  # remove invalid positions
         return out
 
-    def feature_between(self, wmin, wmax, depth_cutoff=0.05):
-        """
-        Return True if the entries in each pixel/point include a feature within the specified wavelength range,
-        and False otherwise. Useful for e.g. decision tree classifications.
-
-        Args:
-            wmin: the lower bound of the wavelength range.
-            wmax: the upper bound of the wavelength range.
-            depth_cutoff: the minimum depth required for a feature to count as existing.
-
-        Returns:
-            a numpy array  populated with False (no feature) or True (feature).
-        """
-        valid_pos = (self[:, 'pos'] > wmin) & (np.array(self[:, 'pos']) < wmax)
-        valid_depth = (self[:, 'depth'] > depth_cutoff)
-        return (valid_pos & valid_depth).any(axis=-1)
-
     def evaluate(self):
         """
-        Evaluate this model and return the result as a HyData instance.
+        Evaluate this model and return the result as a `hylite.hydata.HyData` instance.
 
         Returns:
-            A HyData instance containing the estimated spectra based on the fitted features.
+            A `hylite.hydata.HyData` instance containing the estimated spectra based on the fitted features.
         """
         out = self.model.copy(data=False)
         out.data = 1. - evaluate(self.x, self.model.data, sym=self.sym)
@@ -249,7 +236,7 @@ class MWL(HyCollection):
         Evaluate and return the residuals to the fitted minimum wavelength model.
 
         Returns:
-            A HyData instance containing the residuals in band 0.
+            A `hylite.hydata.HyData` instance containing the residuals in band 0.
         """
         out = self.model.copy(data=False)
         out.data = np.sum(np.abs(self.X.data - self.evaluate().data), axis=-1)[..., None]
@@ -269,7 +256,7 @@ class MWL(HyCollection):
         Returns:
             A tuple containing:
 
-            - labels =  a HyData instance (or numpy array if step > 1) containing integer class labels in band 0.
+            - labels =  a `hylite.hydata.HyData` instance (or numpy array if step > 1) containing integer class labels in band 0.
             - centroids = a list containing the index of each class centroid (in the dataset).
          """
 
@@ -325,10 +312,10 @@ class MWL(HyCollection):
         Returns:
             fig,ax = the figure that was plotted.
         """
+        plt, mpl, matplotlib = _mpl()
         if ax is None:
             fig, ax = plt.subplots(figsize=(10, 5))
         fig = ax.get_figure()
-
         ax.set_title('Spectral feature summary')
 
         # get data
@@ -350,7 +337,7 @@ class MWL(HyCollection):
             else:
                 n = L
 
-        c = mpl.cm.get_cmap(kwds.get('cmap', 'tab10'))(n.ravel() / np.nanmax(n))
+        c = mpl.colormaps.get_cmap(kwds.get('cmap', 'tab10'))(n.ravel() / np.nanmax(n))
 
         for i, f in enumerate(range(self.n)):
             if i >= len(symbols):
@@ -390,6 +377,7 @@ class MWL(HyCollection):
         Returns:
             fig,ax = the figure that was plotted.
         """
+        plt, mpl, matplotlib = _mpl()
         if ax is None:
             fig, ax = plt.subplots(figsize=(10, 5))
         fig = ax.get_figure()
@@ -413,7 +401,7 @@ class MWL(HyCollection):
             else:
                 n = L
 
-        c = mpl.cm.get_cmap(kwds.get('cmap', 'tab10'))(n.ravel() / np.nanmax(n))
+        c = mpl.colormaps.get_cmap(kwds.get('cmap', 'tab10'))(n.ravel() / np.nanmax(n))
 
         # draw biplot
         ax.scatter(p[..., 0].ravel()[::step], p[..., 1].ravel()[::step], c=c[::step], lw=0, s=kwds.get("point_size", 20),
@@ -432,13 +420,13 @@ class MWL(HyCollection):
         Args:
             **kwds: Keywords can include:
 
-                 - image = the image preview to plot. Can be a HyData instance, or 'resid' (default) to plots the average residuals,
+                 - image = the image preview to plot. Can be a `hylite.hydata.HyData` instance, or 'resid' (default) to plots the average residuals,
                            or 'class' to a classification [slow!].
                  - bands = the bands of image to plot (if image is provided).
                  - vmin = the vmin value for plotting 'image' (if image is provided).
                  - vmax = the vmax value for plotting 'image' (if image is provided).
                  - residual_clip = the (mn,mx) percentile colour stretch to apply to the residuals.
-                 - n = the number of clusters do create during absorbtion-feature clustering, or a list with precalculated
+                 - n = the number of clusters to create during absorption-feature clustering, or a list with precalculated
                             cluster labels.
                  - nf = the number of features to use for this clustering. Default is 2.
                  - offset = the vertical offset between spectra in the spectral summaries. Default is 0.25
@@ -455,6 +443,7 @@ class MWL(HyCollection):
         # todo; write another function for single-feature maps?
         assert self.n >= 2, "Error - quick_plot(...) can only be used for MWL instances with > 2 features."
 
+        plt, mpl, matplotlib = _mpl()
         fig = plt.figure(constrained_layout=True, figsize=kwds.get('figsize', (15, 10)))
         gs = fig.add_gridspec(3, 2)
         ax1 = fig.add_subplot(gs[0, :])
@@ -487,7 +476,7 @@ class MWL(HyCollection):
                 kwds['n'] = L.ravel()
 
         # get colormap
-        cmap = mpl.cm.get_cmap(kwds.get('cmap', 'tab10'))
+        cmap = mpl.colormaps.get_cmap(kwds.get('cmap', 'tab10'))
 
         # plot overview image
         ax1.set_xticks([])
@@ -577,6 +566,7 @@ class MWL(HyCollection):
                  - leg = True if a legend should be plotted. Default is True.
         """
 
+        plt, mpl, matplotlib = _mpl()
         if ax is None:
             fig, ax = plt.subplots(figsize=(10, 5))
         fig = ax.get_figure()
@@ -627,6 +617,7 @@ def _refine(x, X, x0, n=3, vb=False):
     # loop through n maxima
     loop = range(1, x0.shape[-1], 4)
     if vb:
+        tqdm = require("tqdm").tqdm
         loop = tqdm(loop, desc="Refining features", leave=False )
     for j in loop:
         # get fitting interval
@@ -660,7 +651,7 @@ def _refine(x, X, x0, n=3, vb=False):
 def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, log=False,
                        sym=False, minima=True, k=4, hthresh=0.025, nthreads=1, vb=True, **kwds):
     """
-    Perform minimum wavelength mapping to map the position of absorbtion features.
+    Perform minimum wavelength mapping to map the position of absorption features.
 
     Args:
         data: the hyperspectral data (e.g. image or point cloud) to perform minimum wavelength mapping on.
@@ -668,14 +659,14 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, l
         maxw: the upper limit of the range of wavelengths to search (in nanometers).
         method: the method/model used to quantify the feature. Options are:
 
-         - "minmax" - Identifies the n most prominent local minima to approximately resolve absorbtion feature positions. Fast but inaccurate.
+         - "minmax" - Identifies the n most prominent local minima to approximately resolve absorption feature positions. Fast but inaccurate.
          - "quad" - Applies the quadratic method to interpolate absorption depth using 3-bands adjacent to the local minima. See https://doi.org/10.1016/j.rse.2011.11.025 .
          - "poly" - Fits a quadratic to k bands on either side of the local minima. Similar to "quad" but with more than 3 points constraining the fitting. Hence, slower than quad but faster than gauss.
-         - "gaussian" - fits n gaussian absorbtion features to the detrended spectra. Slow but most accurate.
+         - "gaussian" - fits n gaussian absorption features to the detrended spectra. Slow but most accurate.
 
         trend: the method used to detrend the spectra. Can be 'hull' or None. Default is 'hull'.
         log: If True, absorptions are modelled to log-spectra rather than inverted spectra.
-        n: the number of features to fit. Note that this is not compatible with method = 'tpt'.
+        n: the number of features to fit.
         minima: True if features should fit minima. If False then 'maximum wavelength mapping' is performed.
         sym: True if symmetric gaussian fitting should be used. Default is False.
         k: the number of adjacent measurements to look at during detection of local minima. Default is 4. Larger numbers ignore smaller features as noise.
@@ -685,7 +676,7 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, l
         **kwds: Keywords are passed to gfit.gfit( ... ).
 
     Returns:
-        A MWL (n>1) or HyData instance containing the minimum wavelength mapping results.
+        A MWL (n>1) or `hylite.hydata.HyData` instance containing the minimum wavelength mapping results.
     """
 
     # get relevant bands and detrend
@@ -805,6 +796,7 @@ class mwl_legend(object):
             The matplotlib figure and axes that the plot was drawn to.
         """
 
+        plt, mpl, matplotlib = _mpl()
         fig, ax = plt.subplots(figsize=(7, 2))
         self.plot(ax, pos=(0.1, 0.1), s=(0.8, 0.8))
         ax.axis('off')
@@ -827,6 +819,7 @@ class mwl_legend(object):
             the axis that was added to the plot.
         """
 
+        plt, mpl, matplotlib = _mpl()
         # create axis
         pad = 0.025
         tickLeft = True
@@ -893,7 +886,7 @@ class mwl_legend(object):
         else:
             extent = (self.minh, self.maxh, self.minc, self.maxc)
             x = np.linspace(0, 1, num=int(2000 * s[0]))
-            cm = mpl.cm.get_cmap(self.cmap)
+            cm = mpl.colormaps.get_cmap(self.cmap)
             rgba = cm(x)  # compute color from cmap
             x = mpl.colors.rgb_to_hsv(rgba[:, :3])[:, 0]  # update hue value accordingly
 
@@ -917,17 +910,17 @@ class mwl_legend(object):
 
 def colourise_mwl(mwl, mode='p-d', cmap='hue', **kwds):
     """
-    Takes a HyData instance containing minimum wavelength bands (pos, depth, width and strength) and creates
+    Takes a `hylite.hydata.HyData` instance containing minimum wavelength bands (pos, depth, width and strength) and creates
     a RGB composite such that hue ~ pos, sat ~ width and val ~ strength or depth.
 
     Args:
-        mwl: the HyData instance containing minimum wavelength data.
+        mwl: the `hylite.hydata.HyData` instance containing minimum wavelength data.
         mode: the mapping from position (p), width (w) and depth and (d) to hsv. Default is 'pwd', though other options
               are 'p-d' (constant saturation of 80%), 'pdw' and 'pd-' (constant brightness of 85%).
         cmap: the colour mapping to use. Default is to map position to hue ('hue'), but any matplotlib
               colormap string can be provided here. Note that colours output by this colormap will be scaled in brightness
               and saturation according to the mode argument. Alternatively use 'swir' for customised
-              rainbow-like colour stretch optimised for clay, mica and chlorite absorbtion features in the SWIR.
+              rainbow-like colour stretch optimised for clay, mica and chlorite absorption features in the SWIR.
         **kwds: Keywords can include:
 
               - hue_map = Wavelengths (xxx.x, yyy.y) or percentiles (x,y) to use when converting wavelength to hue.
@@ -940,13 +933,15 @@ def colourise_mwl(mwl, mode='p-d', cmap='hue', **kwds):
     Returns:
         A tuple containing:
 
-        - either an RGB HyImage object (if mwl is an image) or the original HyCloud with defined rgb bands.
+        - either an RGB `hylite.hyimage.HyImage` object (if mwl is an image) or the original `hylite.hycloud.HyCloud` with defined rgb bands.
         - cmap = a mwl_legend instance for plotting colour maps.
     """
 
+    plt, mpl, matplotlib = _mpl()
+
     # extract data
     assert (mwl.band_count() == 4) or (
-                mwl.band_count() == 3), "Error - HyData instance does not contain minimum wavelength data?"
+                mwl.band_count() == 3), "Error - `hylite.hydata.HyData` instance does not contain minimum wavelength data?"
 
     h = mwl.X()[..., 1].copy()  # pos
     s = mwl.X()[..., 2].copy()  # width
@@ -1011,7 +1006,7 @@ def colourise_mwl(mwl, mode='p-d', cmap='hue', **kwds):
         idx[idx > 254] = 254
         h = lookup[idx]
     else:  # use matplotlib colormap
-        cm = mpl.cm.get_cmap(cmap)
+        cm = mpl.colormaps.get_cmap(cmap)
         rgba = cm(h)
         h = mpl.colors.rgb_to_hsv(rgba[:, :3])[:, 0]  # update hue value accordingly
 
@@ -1063,9 +1058,9 @@ def plot_ternary(F1, F2, F3, bounds, weights=[1., 1., 1.], subsample=1, depth_th
     Plot a ternary diagram comparing the depths and positions of three minimum wavelength features.
 
     Args:
-        F1 (HyData): A HyData instance containing feature depth and position as band 0 and 1 respectively.
-        F2 (HyData): A HyData instance containing feature depth and position as band 0 and 1 respectively.
-        F3 (HyData): A HyData instance containing feature depth and position as band 0 and 1 respectively.
+        F1 (`hylite.hydata.HyData`): A `hylite.hydata.HyData` instance containing feature depth and position as band 0 and 1 respectively.
+        F2 (`hylite.hydata.HyData`): A `hylite.hydata.HyData` instance containing feature depth and position as band 0 and 1 respectively.
+        F3 (`hylite.hydata.HyData`): A `hylite.hydata.HyData` instance containing feature depth and position as band 0 and 1 respectively.
         bounds: List containing min and max position values for each feature [ (min,max), (min,max), (min,max)].
         weights: weights applied to each depth. Default is [1,1,1].
         subsample: skip entries in the data features for large datasets. Default is 1 (don't skip any).
@@ -1084,6 +1079,8 @@ def plot_ternary(F1, F2, F3, bounds, weights=[1., 1., 1.], subsample=1, depth_th
              - s = the point size. Default is 4.
              - a = point alpha. Default is 0.1.
     """
+    plt, mpl, matplotlib = _mpl()
+
     # put features in a list
     features = [F1, F2, F3]
 

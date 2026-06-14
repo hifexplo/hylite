@@ -1,19 +1,16 @@
 """
-A base class for all types of hyperspectral data. Inherited by HyCloud, HyImage and HyLibrary.
+A base class for all types of hyperspectral data. Inherited by `hylite.hycloud.HyCloud`, `hylite.hyimage.HyImage`
+and `hylite.hylibrary.HyLibrary`.
 """
 
 import numpy as np
 import numpy.ma as ma
-import matplotlib.pyplot as plt
-from scipy import ndimage, signal
 import re
 import hylite
 from hylite import HyHeader
 import hylite.reference.features as ref
 from hylite.hyfeature import HyFeature, MultiFeature, MixedFeature
-from matplotlib.ticker import AutoMinorLocator
-
-from tqdm import tqdm
+from hylite._deps import require
 
 class HyData(object):
 
@@ -41,7 +38,7 @@ class HyData(object):
 
         Args:
             data (ndarray): array such that the last dimension corresponds to individual bands (e.g. data[pointID, band] or data[px,py,band])
-            header (hylite.HyHeader): associated header file. Default is None (create a new header).
+            header (`hylite.hyheader.HyHeader`): associated header file. Default is None (create a new header).
         """
 
         #copy reference to data. Note that this can be None!
@@ -54,17 +51,90 @@ class HyData(object):
         # header data
         self.set_header(header)
 
+    def _slice_has_band_descriptor(self, s):
+        """
+        True if a slice uses wavelength or band-name bounds.
+        """
+        for v in (s.start, s.stop, s.step):
+            if isinstance(v, str):
+                return True
+            if v is not None and np.issubdtype(type(v), np.floating):
+                return True
+        return False
+
+    def _parse_band_slice(self, s):
+        """
+        Convert wavelength or band-name bounds in a slice to band indices.
+        Wavelength stops are inclusive (slice stop is exclusive, so +1 is applied).
+        """
+        start = s.start
+        stop = s.stop
+        step = s.step
+        if isinstance(start, str) or (start is not None and np.issubdtype(type(start), np.floating)):
+            start = self.get_band_index(start)
+        if isinstance(stop, str) or (stop is not None and np.issubdtype(type(stop), np.floating)):
+            stop = self.get_band_index(stop) + 1
+        if isinstance(step, str) or (step is not None and np.issubdtype(type(step), np.floating)):
+            step = self.get_band_index(step)
+        return slice(start, stop, step)
+
+    def _parse_index_item(self, item, is_band_dim):
+        """
+        Parse a single index entry, converting band descriptors on the band axis.
+        """
+        if is_band_dim:
+            if isinstance(item, str) or np.issubdtype(type(item), np.floating):
+                return self.get_band_index(item)
+            if isinstance(item, slice):
+                return self._parse_band_slice(item)
+        return item
+
+    def _parse_data_key(self, key):
+        """
+        Parse an indexing key for the underlying data array. Floating-point values and
+        band names on the band axis are converted with get_band_index(...).
+        """
+        assert self.data is not None, "Error - data array is not defined."
+
+        if np.issubdtype(type(key), np.floating):
+            return self.get_band_index(key)
+
+        if isinstance(key, tuple):
+            if len(key) == 0:
+                return key
+            items = list(key)
+            last = items[-1]
+            if last is not Ellipsis:
+                items[-1] = self._parse_index_item(last, is_band_dim=True)
+            return tuple(items)
+
+        if isinstance(key, slice):
+            if self._slice_has_band_descriptor(key):
+                return (Ellipsis, self._parse_band_slice(key))
+            if self.data.ndim == 1:
+                return self._parse_band_slice(key)
+            return key
+
+        return key
+
     def __getitem__(self, key):
         """
-        Expose underlying data array when using [ ] operators
+        Return header values for string keys, otherwise slice the underlying data array.
+        Floating-point indices and band names select bands via get_band_index(...).
         """
-        return self.data.__getitem__(key)
+        if isinstance(key, str):
+            return self.header[key]
+        return self.data.__getitem__(self._parse_data_key(key))
 
     def __setitem__(self, key, value):
         """
-        Expose underlying data array when using [ ] operators
+        Set header values for string keys, otherwise assign into the underlying data array.
+        Floating-point indices and band names select bands via get_band_index(...).
         """
-        self.data.__setitem__(key, value)
+        if isinstance(key, str):
+            self.header[key] = value
+            return
+        self.data.__setitem__(self._parse_data_key(key), value)
 
     def copy(self, data=True):
         """
@@ -73,7 +143,7 @@ class HyData(object):
             data (bool): True if a copy of the data should be made, otherwise only copy header.
 
         Returns:
-            a new HyData instance.
+            a new `hylite.hydata.HyData` instance.
         """
 
         if not data or self.data is None:
@@ -86,7 +156,7 @@ class HyData(object):
         Loads associated header data into self.header.
 
         Args:
-            header (hylite.HyHeader): a HyHeader object or None.
+            header (`hylite.hyheader.HyHeader`): a `hylite.hyheader.HyHeader` object or None.
         """
 
         #no header - create one
@@ -246,7 +316,7 @@ class HyData(object):
     #############################
     def export_bands(self, bands ):
         """
-        Export a specified band range to a new HyData instance.
+        Export a specified band range to a new `hylite.hydata.HyData` instance.
 
         Args:
             bands (tuple, list): either:
@@ -379,33 +449,6 @@ class HyData(object):
         if not val is None:
             self.data[..., self.get_band_index(mn): self.get_band_index(mx)] = val
 
-    def mask_water_features(self, mask=None):
-        """
-        Removes typical water features. By default this removes bands between:
-
-          - 960 - 990 nm
-          - 1320 - 1500 nm
-          - 1780 - 2050 nm
-          - 2400 - 2500 nm
-
-        Custom wavelengths can be set using the mask keyword.
-
-        Args:
-            mask (list,tuple): mask custom bands. This should be a list of tuple band indices or wavelengths containing the
-                    minimum and maximum wavelenght/index of each region to mask.
-        """
-
-        default = [(960.0, 990.0), (1320.0, 1500.0), (1780.0, 2050.0), (2400.0, 2502.0)]
-        if mask is None:
-            mask = default
-
-        # mask bands
-        for mn, mx in mask:
-            try:
-                self.mask_bands(mn, mx)
-            except:
-                pass  # ignore errors associated with out of range etc.
-
     #########################
     ## band getters/setters
     #########################
@@ -456,7 +499,7 @@ class HyData(object):
 
     def eval(self, op : str, print=False ):
         """
-        Evaluate an arithmetic expression on the data array of this HyData instance.
+        Evaluate an arithmetic expression on the data array of this `hylite.hydata.HyData` instance.
 
         Args:
             op: The operation string to evaluate. This should follow the following syntax:
@@ -473,7 +516,7 @@ class HyData(object):
             on the data array (`a`). Hence other python or numpy (`np`) syntax may (but is not guaranteed to) also work.
 
         Returns:
-            A copy of this HyData instance but with an updated (single-band) data array.
+            A copy of this `hylite.hydata.HyData` instance but with an updated (single-band) data array.
         """
 
         if 'import' in op: # don't let people do anything toooo wild!
@@ -620,7 +663,7 @@ class HyData(object):
                 closest bands. See documentation for get_band_index(...) for more details.
 
         Returns:
-            a copy of this HyData instance resampled onto the new wavelength array.
+            a copy of this `hylite.hydata.HyData` instance resampled onto the new wavelength array.
         """
 
         out = self.copy(data=False)  # create output array
@@ -631,6 +674,7 @@ class HyData(object):
             bw = abs(w[1] - w[0])
         loop = range(len(w))
         if vb:
+            tqdm = require("tqdm").tqdm
             loop = tqdm(loop, desc='Resampling bands', leave=False)
         for i in loop:
             idx0 = None
@@ -741,6 +785,7 @@ class HyData(object):
         """
 
         assert isinstance(window, int), "Error - running window size must be integer."
+        ndimage = require("scipy").ndimage
         if len(self.data.shape) == 3:  # image data
             self.data = ndimage.median_filter(self.data, size=(1, 1, window))
         elif len(self.data.shape) == 2:  # point cloud data
@@ -764,6 +809,7 @@ class HyData(object):
         """
 
         assert isinstance(window, int), "Error - running window size must be integer."
+        signal = require("scipy").signal
 
         # extract contiguous chunks
         if chunk:
@@ -830,6 +876,9 @@ class HyData(object):
                  - median = True if the median spectra of all pixels should be plotted. Default is True.
 
         """
+
+        plt = require("matplotlib.pyplot")
+        AutoMinorLocator = require("matplotlib.ticker").AutoMinorLocator
 
         if ax is None:
             fig, ax = plt.subplots(figsize=(18, 6))
@@ -974,9 +1023,12 @@ class HyData(object):
          mask (ndarray): A binary mask to apply before fitting the PCA and k-means. Masked data will be put in their own
                      class. Data flagged with True in the mask will be retained, while those flagged as False will be removed.
          normalise (bool): If True, PCA components are normalised before k-means clustering. Default is False.
-        Returns: An index dataset (HyData) containing the class IDs, and a spectral library containing the minimum, median,
+        Returns: An index dataset (`hylite.hydata.HyData`) containing the class IDs, and a spectral library containing the minimum, median,
                   and maximum spectra of each class.
         """
+        # check sklearn available
+        sklearn = require("sklearn")
+        
         # get data
         msk = np.isfinite(self.data).all(axis=-1)  # keep only pixels that are all finite
         if mask is not None:
@@ -999,11 +1051,11 @@ class HyData(object):
             subsample = 1 # also no point subsampling
 
         # run a PCA
-        from hylite.filter import PCA
+        from hylite.transform import PCA
         nbands = int(self.band_count() / 2)
         if vthresh > 1:
             nbands = int(vthresh)
-        pca, _, _ = PCA(X, bands=nbands, step=subsample)
+        pca = PCA(n_components=nbands, normalise=False, subsample=subsample).fit(X).transform(X)
 
         # normalise and extract bands
         if normalise:
@@ -1012,7 +1064,7 @@ class HyData(object):
             ix = int(vthresh)
         else:
             ix = np.argmax(pca.get_wavelengths() > vthresh)  # get our noise cutoff
-        # print(ix)
+        ix = min(ix, pca.band_count())
 
         # fit k-means, subsampling our pixels for speed
         from sklearn.cluster import KMeans, Birch, MiniBatchKMeans
@@ -1067,11 +1119,13 @@ class HyData(object):
     @classmethod
     def fromQuanta(cls, index, library ):
         """
-        Reconstruct a HyData instance from an index and spectral library, as returned by `HyData.getQuantized(...)`.
+        Reconstruct a `hylite.hydata.HyData` instance from an index and spectral library, as returned by
+        `hylite.hydata.HyData`.getQuantized(...).
 
         Args:
-            index (HyData): A classification index of the same type (e.g., HyImage, HyCloud, etc.) as the desired output.
-            library (HyLibrary): A spectral library containing the spectral information associated with each class. Note
+            index (`hylite.hydata.HyData`): A classification index of the same type (e.g., `hylite.hyimage.HyImage`,
+                `hylite.hycloud.HyCloud`, etc.) as the desired output.
+            library (`hylite.hylibrary.HyLibrary`): A spectral library containing the spectral information associated with each class. Note
                                  that this could be a transformed (e.g., by minimum wavelength mapping) version of the
                                  spectral library created by `getQuantized( ... )`.
         """
@@ -1193,5 +1247,4 @@ class HyData(object):
         assert isinstance(position, int) or isinstance(position, float), "Error - shift position must be int (band number) or float (wavelength)."
         if isinstance(position, float):
             position = self.get_band_index(position)
-
         self.data[..., position:] += (self.data[..., (position - 1)] - self.data[..., position])[..., None]

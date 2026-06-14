@@ -53,6 +53,46 @@ and (b) a hypercloud of an open-pit mine.*
 Release notes
 --------------
 
+#### Version 1.4
+
+New features:
+* Added `hylite.analyse.fourier` for fourier-based compression, maxima and minima identification and derived querying/searching of spectral libraries.
+* `HyData`, `HyImage`, `HyCloud`, and `HyLibrary` support `[]` indexing: string keys access ENVI/header fields; floats and band names on the band axis select wavelengths via `get_band_index()` (e.g. `image[..., 680.0]`, `image['Band 1':'Band 5']`).
+* `hylite.transform.sample.Resample` for binning hyperspectral data onto satellite or other sensor bandpasses (`ASTER`, `SENTINEL`, or custom intervals).
+
+Significant spring cleaning to remove little-used code:
+* Removed `hylite.analyse.supervised` and `hylite.analyse.unsupervised` as these functions are now superceeded by [hklearn](https://github.com/samthiele/hklearn/).
+* Removed `hylite.filter.TPT` as similar analyses can now be done much better using `hylite.analyse.fourier`.
+* Removed `hylite.filter.segment` as functions there are largely redundant / unused (superceeded by e.g., `hycore`).
+* Deprecated `hylite.filter` (legacy PCA/MNF only); prefer `hylite.transform.reduction` for dimensionality reduction and `hylite.transform.overlay` for multi-image fusion (replaces `filter.combine`).
+* sklearn-dependent `PCA`, `MNF`, and `NoiseWhitener` moved to `hylite.transform.reduction`; other `hylite.transform` functions no longer require scikit-learn at import.
+
+* Refactored tests to match hylite module structure
+
+#### Version 1.3
+
+New features:
+* New `hylite.transform` submodule with scikit-learn based `PCA`, `MNF` and `NoiseWhitener` classes. These replace the legacy dimensionality reduction functions (although these are currently retained for compatability).
+* Spectral unmixing functions (`mix`, `unmix`, `endmembers`) added to `hylite.analyse.unmixing`.
+* Quick empirical line calibration via `hylite.illumination.autoELC` for fast relative reflectance correction. This should be USED WITH CARE, as it assumes
+that the brightest pixel in a scene is from the white panel, but can be useful for rapid/real-time processing.
+* Added Kubelka–Munk pseudo-absorbance conversion via `hylite.transform.convertToAbsorbance` [thanks Andrea / Tasnim!].
+* Georeferencing-aware `crop`, `tile` and `mosaic` functions on `HyImage`, plus `resize` and `drop_bbl`.
+* Interactive point cloud masking and spectral plotting from rendered views (`HyCloud.mask`, `plot_from_render`) [thanks Sandra!].
+* Added initial Telops Hypercam Nano sensor preprocessing (`hylite.sensors.TelopsNano`). Use with care (could be more robust).
+* Added numpy-based ENVI read/write and automatic wavelength unit conversion (including wavenumbers) in `io.load`.
+* Lossy data compression via `HyData.getQuantized` / `fromQuanta`. Can be useful for running expensive algorithms over large numbers of pixels, as it 
+  reduces as hyperspectral image to a classification and corresponding (comparatively small) spectral library. USE WITH CARE as the averaging associated
+  with the classification can group spectra from different materials.
+* Added faster `poly` and `quad` interpolation options for minimum wavelength mapping. `gauss` still produces the best results, but is an order-of-magnitude slower.
+
+Improvements:
+* Many bugfixes to scene blending (`blend_scenes`), projection maps and ENVI I/O (header bytes, interleave format, non-unix paths)
+* `SAM` now works directly with `HyLibrary` instances.
+* Image combination function moved to `hylite.transform.overlay` (formerly `hylite.filter.combine`), with optional optical-flow coregistration.
+* `HyCollection` supports dictionary-like indexing and JSON serialisation of attributes.
+* Expanded test coverage across transforms, unmixing, corrections and image tiling.
+
 #### Version 1.2
 
 New features:

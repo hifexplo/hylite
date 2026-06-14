@@ -1,6 +1,6 @@
 """
-Implement decision tree function for classification. This is done in a generic form using decision_tree( ... ), but also
-for specific minerals based on minimum wavelength data in subsequent functions.
+Implement decision tree function for classification. This is done in a generic form using decision_tree( ... ), but largely designed
+to be used with minimum wavelength (feature depth and position) information.
 """
 
 import numpy as np

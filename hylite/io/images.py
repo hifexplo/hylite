@@ -6,6 +6,7 @@ import sys, os
 import numpy as np
 from hylite.hyimage import HyImage, HyData
 from .headers import matchHeader, makeDirs, loadHeader, saveHeader
+from hylite._deps import require
 
 # spectral python throws depreciation warnings - ignore these!
 import warnings
@@ -19,7 +20,7 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True, to_nm=False):
         path: file path to the image to load
         mask_zero: True if zero values should be masked (replaced with nan). Default is true.
     Returns:
-        a hyImage object
+        a `hylite.hyimage.HyImage` object
     """
 
     # find GDAL
@@ -75,14 +76,11 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True, to_nm=False):
         path: file path to the image to load
         mask_zero: True if zero values should be masked (replaced with nan). Default is true.
     Returns:
-        a hyImage object
+        a `hylite.hyimage.HyImage` object
     """
     assert os.path.exists(path), "Error - %s does not exist." % path
-    try: 
-        import spectral
-    except:
-        assert False, "Error - please install spectral python using `pip install spectral` before using loadWithSPy(...)"
-        
+    spectral = require("spectral")
+
     # parse file format
     _, ext = os.path.splitext(path)
     if len(ext) == 0 or 'hdr' in ext.lower() or \
@@ -159,10 +157,7 @@ def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32):
 
         # load image with SPy  TODO - replace this with numpy loading if possible?
         assert os.path.exists(image), "Error - %s does not exist." % image
-        try: 
-            import spectral
-        except:
-            assert False, "Error - please install spectral python using `pip install spectral` before using saveWithSPy(...)"
+        spectral = require("spectral")
         try:  # try loading envi file first
             img = spectral.envi.open(header, image)  # this must be an envi file
         except:
@@ -396,11 +391,8 @@ def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
             output = None  # close file
 
 def saveWithSPy( path, image, writeHeader=True, interleave='BSQ'):
-    try: 
-        import spectral
-    except:
-        assert False, "Error - please install spectral python using `pip install spectral` before using saveWithSPy(...)"
-        
+    spectral = require("spectral")
+
     # make directories if need be
     makeDirs(path)
 

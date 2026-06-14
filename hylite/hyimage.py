@@ -4,15 +4,10 @@ Store and manipulate hyperspectral image data.
 
 import os
 import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
-from matplotlib import path
-from roipoly import MultiRoi
-import imageio
-import scipy as sp
 import hylite
 from hylite.hydata import HyData
 from hylite.hylibrary import HyLibrary
+from hylite._deps import require
 
 
 
@@ -64,7 +59,7 @@ class HyImage( HyData ):
             data (bool): True if a copy of the data should be made, otherwise only copy header.
 
         Returns:
-            a new HyImage instance.
+            a new `hylite.hyimage.HyImage` instance.
         """
         if not data:
             return HyImage(None, header=self.header.copy(), projection=self.projection, affine=self.affine)
@@ -166,7 +161,7 @@ class HyImage( HyData ):
             px (int): the pixel x-coord.
             py (int): the pixel y-coord.
             proj (str, osr.SpatialReference): the coordinate system to use. Default (None) uses the same system as this image. Otherwise
-                   an osr.SpatialReference can be passed (HyImage.project), or an EPSG string (e.g. get_projection_EPSG(...)).
+                   an osr.SpatialReference can be passed (`hylite.hyimage.HyImage`.project), or an EPSG string (e.g. get_projection_EPSG(...)).
         Returns:
             the world coordinates in the coordinate system defined by get_projection_EPSG(...).
         """
@@ -223,7 +218,7 @@ class HyImage( HyData ):
             x (float): the world x-coord.
             y (float): the world y-coord.
             proj (str, osr.SpatialReference): the coordinate system of the input coordinates. Default (None) uses the same system as this image. Otherwise
-                   an osr.SpatialReference can be passed (HyImage.project), or an EPSG string (e.g. get_projection_EPSG(...)).
+                   an osr.SpatialReference can be passed (`hylite.hyimage.HyImage`.project), or an EPSG string (e.g. get_projection_EPSG(...)).
 
         Returns:
             the pixel coordinates based on the affine transform stored in self.affine.
@@ -284,7 +279,7 @@ class HyImage( HyData ):
             bands (None, list, tuple): optional band indices or (min,max) range
 
         Returns:
-            HyImage: cropped image with updated affine transform
+            `hylite.hyimage.HyImage`: cropped image with updated affine transform
         """
 
         # ---- validate bounds ----
@@ -372,13 +367,13 @@ class HyImage( HyData ):
 
     def tile(self, tile_size):
         """
-        Break image into tiles of given size and return a list of HyImage tiles.
+        Break image into tiles of given size and return a list of `hylite.hyimage.HyImage` tiles.
         Each tile has an updated affine transform reflecting its position in the original image.
 
         Args:
             tile_size (tuple): (tile_x, tile_y) in pixels
         Returns:
-            list of HyImage
+            list of `hylite.hyimage.HyImage`
         """
         tiles = []
         tx, ty = tile_size
@@ -417,10 +412,10 @@ class HyImage( HyData ):
         out_shape=None,
     ):
         """
-        Mosaic georeferenced HyImage tiles using GDAL. Note that this assumes all tiles are in the same coordinate system.
+        Mosaic georeferenced `hylite.hyimage.HyImage` tiles using GDAL. Note that this assumes all tiles are in the same coordinate system.
 
         Args:
-            tiles (list[HyImage])
+            tiles (list[`hylite.hyimage.HyImage`])
             blend (str): 'first', 'min', 'max', 'mean', 'median'
             resampling (str): 'nearest', 'bilinear', 'cubic'
             out_affine (list): optional 6-element affine to define output grid. If None, the affine of the first tile is used.
@@ -522,11 +517,12 @@ class HyImage( HyData ):
         """
 
         # perform greyscale dilation
+        ndimage = require("scipy").ndimage
         dilate = self.data.copy()
         mask = np.logical_not(np.isfinite(dilate))
         dilate[mask] = 0
         for b in range(self.band_count()):
-            dilate[:, :, b] = sp.ndimage.grey_dilation(dilate[:, :, b], size=(3, 3))
+            dilate[:, :, b] = ndimage.grey_dilation(dilate[:, :, b], size=(3, 3))
 
         # map back to holes in dataset
         self.data[mask] = dilate[mask]
@@ -759,6 +755,8 @@ class HyImage( HyData ):
             - ax:  matplotlib axes object. If a colorbar is created, (band is an integer or a float), then this will be stored in ax.cbar.
         """
 
+        plt = require("matplotlib.pyplot")
+
         #create new axes?
         if ax is None:
             fig, ax = plt.subplots(figsize=kwds.pop('figsize', (18,18*self.ydim()/self.xdim()) ))
@@ -806,7 +804,7 @@ class HyImage( HyData ):
             # save?
             if 'path' in kwds:
                 path = kwds.pop('path')
-                from matplotlib.pyplot import imsave
+                imsave = require("matplotlib.pyplot").imsave
                 if not os.path.exists(os.path.dirname(path)):
                     os.makedirs(os.path.dirname(path)) # ensure output directory exists
                 imsave(path, data.T, **kwds)  # save the image
@@ -878,7 +876,7 @@ class HyImage( HyData ):
             # save?
             if 'path' in kwds:
                 path = kwds.pop('path')
-                from matplotlib.pyplot import imsave
+                imsave = require("matplotlib.pyplot").imsave
                 if not os.path.exists(os.path.dirname(path)):
                     os.makedirs(os.path.dirname(path)) # ensure output directory exists
                 imsave(path, np.transpose( np.clip( img*255, 0, 255).astype(np.uint8), (1, 0, 2)))  # save the image
@@ -900,52 +898,7 @@ class HyImage( HyData ):
 
         return ax.get_figure(), ax
 
-    def createGIF(self, path, bands=None, figsize=(10,10), fps=10, **kwds):
-        """
-        Create and save an animated gif that loops through the bands of the image.
-
-        Args:
-            path (str): the path to save the .gif
-            bands (tuple): Tuple containing the range of band indices to draw. Default is the whole range.
-            figsize (tuple): the size of the image to draw. Default is (10,10).
-            fps (int): the framerate (frames per second) of the gif. Default is 10.
-            **kwds: keywords are passed directly to matplotlib.imshow. Use this to specify cmap etc.
-        """
-
-        frames = []
-        if bands is None:
-            bands = (0,self.band_count())
-        else:
-            assert 0 < bands[0] < self.band_count(), "Error - invalid range."
-            assert 0 < bands[1] < self.band_count(), "Error - invalid range."
-            assert bands[1] > bands[0], "Error - invalid range."
-
-        #plot frames
-        for i in range(bands[0],bands[1]):
-            fig, ax = plt.subplots(figsize=figsize)
-            ax.imshow(self.data[:, :, i], **kwds)
-            fig.canvas.draw()
-            frames.append(np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8'))
-            frames[-1] = np.reshape(frames[-1], (fig.canvas.get_width_height()[1], fig.canvas.get_width_height()[0], 3))
-            plt.close(fig)
-
-        #save gif
-        imageio.mimsave( os.path.splitext(path)[0] + ".gif", frames, fps=fps)
-
     ## masking
-    def drop_bbl(self, drop=True):
-        """
-        Remove bad bands as stored in the 'bbl' key in the image header. Note that this operates in-place.
-
-        Args:
-            drop (bool): True if bad bands should be completely dropped. If False, these bands will be kept but replaced with nans.
-        """
-        assert 'bbl' in self.header, "Please specify a bad band list ('bbl') in the image header, as per the ENVI format definition."
-        mask = self.header.get_list('bbl') == 0
-        self.data[...,mask] = np.nan
-        if drop:
-            self.delete_nan_bands(inplace=True)
-    
     def mask(self, mask=None, flag=np.nan, invert=False, crop=False, bands=None):
         """
          Apply a mask to an image, flagging masked pixels with the specified value. Note that this applies the mask to the
@@ -992,7 +945,8 @@ class HyImage( HyData ):
             points = np.vstack([xx, yy]).T  # coordinates of each pixel
 
             # calculate per-pixel mask
-            mask = path.Path(mask).contains_points(points)
+            MplPath = require("matplotlib.path").Path
+            mask = MplPath(mask).contains_points(points)
             mask = mask.reshape((self.ydim(), self.xdim())).T
 
             # flip as we want to mask (==True) outside points (unless invert is true)
@@ -1056,6 +1010,10 @@ class HyImage( HyData ):
 
         assert isinstance(region_names, list), "Error - names must be a list or a string."
 
+        matplotlib = require("matplotlib")
+        plt = require("matplotlib.pyplot")
+        MultiRoi = require("roipoly").MultiRoi
+
         # set matplotlib backend
         backend = matplotlib.get_backend()
         matplotlib.use('Qt5Agg')  # need this backend for ROIPoly to work
@@ -1088,14 +1046,17 @@ class HyImage( HyData ):
 
         Args:
             n (int): the number of pixels to pick, or -1 if the user can select as many as they wish. Default is -1.
-            bands (tuple): the bands of the image to plot. Default is HyImage.RGB
+            bands (tuple): the bands of the image to plot. Default is `hylite.hyimage.HyImage`.RGB
             integer (bool): True if points coordinates should be cast to integers (for use as indices). Default is True.
             title (str): The title of the point picking window.
-            **kwds: Keywords are passed to HyImage.quick_plot( ... ).
+            **kwds: Keywords are passed to `hylite.hyimage.HyImage`.quick_plot( ... ).
 
         Returns:
             A list containing the picked point coordinates [ (x1,y1), (x2,y2), ... ].
         """
+
+        matplotlib = require("matplotlib")
+        plt = require("matplotlib.pyplot")
 
         # set matplotlib backend
         backend = matplotlib.get_backend()
@@ -1127,7 +1088,7 @@ class HyImage( HyData ):
         Args:
             names (str, list): the name of the sample to pick, or a list of names to pick multiple.
             store (bool): True if sample should be stored in the image header file (for later access). Default is True.
-            **kwds: Keywords are passed to HyImage.quick_plot( ... )
+            **kwds: Keywords are passed to `hylite.hyimage.HyImage`.quick_plot( ... )
 
         Returns:
             a list containing a list of points for each sample.

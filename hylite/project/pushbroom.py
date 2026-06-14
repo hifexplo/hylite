@@ -3,11 +3,12 @@ Functions for projecting between pushbroom sensors (with known orientation/posit
 """
 
 import hylite
-from hylite.project import rasterize, PMap, push_to_cloud
+from hylite._deps import require_on_load, require
+require_on_load("project.pushbroom", "scipy")
+from hylite.project.basic import rasterize
+from hylite.project.pmap import PMap, push_to_cloud
 from scipy import spatial
 import numpy as np
-import matplotlib.pyplot as plt
-from tqdm import tqdm
 import scipy as sp
 from scipy.optimize import minimize
 
@@ -170,7 +171,7 @@ class Pushbroom(object):
         Project the point cloud onto an (instantaneous) frame from this pushbroom camera.
 
         Args:
-            cloud: the point cloud to project. Must have points stored in cloud.xyz (HyCloud) or be a (n,3) array.
+            cloud: the point cloud to project. Must have points stored in cloud.xyz (`hylite.hycloud.HyCloud`) or be a (n,3) array.
             i: the camera frame (along track index) to use.
             flip: True if pixel coordinates should be flipped.
         Returns:
@@ -208,7 +209,7 @@ class Pushbroom(object):
         Args:
             start: the start frame.
             end: the end frame.
-            image: a HyImage instance to clip also, if provided (default is None). Clipping will
+            image: a `hylite.hyimage.HyImage` instance to clip also, if provided (default is None). Clipping will
                    be applied to the y-direction.
         """
         assert self.co.shape[0] > end and start > 0, "Error - invalid range %d - %d (data shape is %s)" % (start,end,self.co.shape)
@@ -233,6 +234,7 @@ class Pushbroom(object):
         Returns:
             fig,ax = the figure and a list of associated axes.
         """
+        plt = require("matplotlib.pyplot")
         if image is None:
             fig, ax = plt.subplots(6, 1, figsize=(18, 12))
             ax = [ax[0],ax[0],ax[1],ax[2],ax[3],ax[4],ax[5]]
@@ -267,10 +269,11 @@ class Pushbroom(object):
         Args:
             scale: the scale of the camera basis vectors (curtain). This is in transformed coordinates.
             alpha: the alpha value to use for the curtain. Default is 0.1.
-            ax: an external axis to plot too.
+            ax: an external axis to plot to.
             ortho: an orthoimage to use to project to pixel coordinates. Image must have a defined affine transform.
         """
 
+        plt = require("matplotlib.pyplot")
         if ax is None:
             fig, ax = plt.subplots(1, 1, figsize=(10, 10))
             ax.set_aspect('equal')
@@ -327,7 +330,7 @@ class Pushbroom(object):
         Returns:
             fig,ax = the matplotlib plot.
         """
-        import matplotlib.pyplot as plt
+        plt = require("matplotlib.pyplot")
         from mpl_toolkits.mplot3d import axes3d
         from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
@@ -387,6 +390,7 @@ class Pushbroom(object):
                     'auto' to stretch data to figure size.
         """
 
+        plt = require("matplotlib.pyplot")
         # build plot
         if cloud is None and image is None:
             assert False, "At least one dataset (cloud or image) must be passed for plotting."
@@ -440,7 +444,7 @@ def project_pushbroom(image, cloud, cam, chunk=500, step=100, near_clip=10., vb=
     camera position and orientations for each line of the image.
 
     Args:
-        image: a HyImage instance containing the data to project. This is only used to determine image dimensions.
+        image: a `hylite.hyimage.HyImage` instance containing the data to project. This is only used to determine image dimensions.
         cloud: the destination point cloud to project data onto.
         cam: a pushbroom camera instance.
         chunk: The size of chunks used to optimise the projection step. Points are culled based on the first and
@@ -480,6 +484,7 @@ def project_pushbroom(image, cloud, cam, chunk=500, step=100, near_clip=10., vb=
         mask = np.full(cloud.point_count(), False)  # mask of points visible in chunk
         loop = range(c + step, c + chunk + step, step)
         if vb:
+            tqdm = require("tqdm").tqdm
             loop = tqdm(loop, leave=False, desc="Masking chunk %d/%d" % (c / chunk + 1, image.ydim() / chunk))
         for i in loop:
             if i >= image.ydim():  # reached end of image
@@ -507,6 +512,7 @@ def project_pushbroom(image, cloud, cam, chunk=500, step=100, near_clip=10., vb=
 
         loop = range(c + 1, c + chunk + 1)
         if vb:
+            tqdm = require("tqdm").tqdm
             loop = tqdm(loop, leave=False,
                         desc="Projecting chunk %d/%d (%d points)" % (c / chunk + 1, image.ydim() / chunk, xyz.shape[0]))
         for i in loop:
@@ -665,6 +671,7 @@ def optimize_boresight(track, cloud, image, bands=(0, 1, 2), n=100, iv=np.array(
 
     # plot?
     if gf:
+        plt = require("matplotlib.pyplot")
         plt.plot(tr[:, 0], tr[:, 3], color='r', label='Roll')
         plt.plot(tr[:, 1], tr[:, 3], color='g', label='Pitch')
         plt.plot(tr[:, 2], tr[:, 3], color='b', label='Yaw')

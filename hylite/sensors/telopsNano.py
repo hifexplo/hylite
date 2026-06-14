@@ -2,8 +2,7 @@ import numpy as np
 from pathlib import Path
 import hylite.io as io
 from hylite.sensors import Sensor
-from scipy.ndimage import median_filter
-from hylite.filter import combine
+from hylite.transform.filter import overlay
 import glob
 import os
 
@@ -84,7 +83,7 @@ class TelopsNano(Sensor):
         Apply sensor corrections to an image.
 
         Args:
-            image (hylite.HyImage): a hyImage instance of an image captured using this sensor.
+            image (`hylite.hyimage.HyImage`): a `hylite.hyimage.HyImage` instance of an image captured using this sensor.
             verbose (bool): true if updates/progress should be printed to the console. Default is False.
             **kwds: Optional keywords include:
 
@@ -130,10 +129,10 @@ class TelopsNano(Sensor):
             **kwds: keywords are passed directly to correct_image, except for:
                 - verbose = True if print outputs should be made to update progress. Default is True.
         Returns:
-            A HyImage containing the corrected and averaged data.
+            A `hylite.hyimage.HyImage` containing the corrected and averaged data.
         """
         images = glob.glob(os.path.join( path, '/*.hdr') ) # get all images in directory
         images = [TelopsNano.correct_image(io.load(p)) for p in images] # load and correct them
-        median, std = combine( images, method='median', warp=False) # take a median spectra for each pixel
+        median, std = overlay(images, method='median', warp=False)
         return median
 

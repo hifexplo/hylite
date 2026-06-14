@@ -3,7 +3,8 @@ A simple data structure for storing camera pose information.
 """
 
 import numpy as np
-from scipy import spatial
+
+from hylite._deps import require
 
 class Camera( object ):
     """
@@ -90,4 +91,5 @@ class Camera( object ):
         """
         Return the rotation matrix of this camera (based on its Euler angles).
         """
+        spatial = require("scipy").spatial
         return spatial.transform.Rotation.from_euler('XYZ', -self.ori, degrees=True).as_matrix()

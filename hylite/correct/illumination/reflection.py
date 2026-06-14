@@ -11,7 +11,7 @@ def estimate_incidence(normals, sunvec):
     Utility function to estimate the cosine of incidence angles based on normals and calculated sun position.
 
     Args:
-        normals: either: (1) a HyImage with band 0 = nx, band 1 = ny and band 2 = nz, (2) HyCloud instance containing
+        normals: either: (1) a `hylite.hyimage.HyImage` with band 0 = nx, band 1 = ny and band 2 = nz, (2) `hylite.hycloud.HyCloud` instance containing
                  normals, or (3) mx3 numpy array of normal vectors.
         sunvec: a numpy array containing the sun illumination vector (as calculated by estimate_sun_vec(...)).
 

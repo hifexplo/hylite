@@ -17,26 +17,25 @@ def spectral_angles(reference, spectra):
     """
 
     # normalise spectra
-    reference = np.array(reference) / np.linalg.norm(np.array(reference), axis=1)[:, None]
-    spectra = np.array(spectra) / np.linalg.norm(spectra, axis=1)[:, None]
+    reference = np.asarray(reference, dtype=float)
+    spectra = np.asarray(spectra, dtype=float)
+    reference = reference / np.linalg.norm(reference, axis=1, keepdims=True)
+    spectra = spectra / np.linalg.norm(spectra, axis=1, keepdims=True)
 
-    # calculate angle
-    out = np.zeros((len(reference), len(spectra)))
-    for i in range(len(reference)):
-        out[i, :] = np.arccos(np.dot(reference[i], spectra.T))
-
-    return out
+    # cos(angle) for each reference/spectrum pair via dot products
+    cosang = np.clip(reference @ spectra.T, -1.0, 1.0)
+    return np.arccos(cosang)
 
 
 def SAM(data, ref_spec):
     """
     Apply a spectral angle classification based on reference spectra.
     Args:
-        data: the HyData instance (e.g. image or cloud) to apply the classification to.
+        data: the `hylite.hydata.HyData` instance (e.g. image or cloud) to apply the classification to.
         ref_spec: a list containing lists of spectra for each class. i.e.:
                     ref_spect = [ [class1_spec1, class1_spec2],[class2_spec1, class2_spec2], ... ]
     Returns:
-        a HyData instance with the same type as data containing two bands: the class index, and the spectral angle to this (closest) class.
+        a `hylite.hydata.HyData` instance with the same type as data containing two bands: the class index, and the spectral angle to this (closest) class.
     """
     if isinstance(ref_spec, hylite.HyLibrary):
         # convert a HyLibrary instance to a list of spectra

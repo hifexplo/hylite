@@ -1,12 +1,11 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 def band_ratio(data, num, den):
     """
-    Calculate a band ratio to map broad absorbion features (e.g. iron).
+    Calculate a band ratio to map broad absorption features (e.g. iron).
 
     Args:
-        data: HyData instance to calculate a band ratio for.
+        data: `hylite.hydata.HyData` instance to calculate a band ratio for.
         num: the numerator of the band ratio. Integers are treated as indices, floats as wavelengths.
 
                 If a tuple is passed then values between band1[0] and band1[1] will be averaged before computing the
@@ -14,7 +13,7 @@ def band_ratio(data, num, den):
 
         den: the denominator of the band ratio. Values are treated like in band1.
     Returns:
-        a new HyData instance containing the band ratio.
+        a new `hylite.hydata.HyData` instance containing the band ratio.
 
     """
     if not isinstance(num, list):
@@ -101,9 +100,9 @@ def NDVI(data):
     Calculate NDVI.
 
     Args:
-        data: the HyData instance to calculate a NDVI for.
+        data: the `hylite.hydata.HyData` instance to calculate a NDVI for.
     Returns:
-        a new HyData instance containing the band ratio.
+        a new `hylite.hydata.HyData` instance containing the band ratio.
     """
 
     idxNIR = data.get_band_index(800.0)
@@ -130,9 +129,9 @@ def SKY(data):
     very distance pixels due to blue scattering.
 
     Args:
-        data: the HyData instance to calculate a NDVI for.
+        data: the `hylite.hydata.HyData` instance to calculate a NDVI for.
     Returns:
-        a new HyData instance containing the SKY band ratio.
+        a new `hylite.hydata.HyData` instance containing the SKY band ratio.
     """
 
     return band_ratio(data, 479.89, 1688.64)
@@ -144,9 +143,9 @@ def SHADE(data):
     Generally this should work well, except for objects that are very blue. Luckily blue things are not common in Geology.
 
     Args:
-        data: the HyData instance to calculate SHADE for.
+        data: the `hylite.hydata.HyData` instance to calculate SHADE for.
     Returns:
-        a new HyData instance containing the SHADE band ratio.
+        a new `hylite.hydata.HyData` instance containing the SHADE band ratio.
     """
 
     return band_ratio(data, 480.0, 800.0)

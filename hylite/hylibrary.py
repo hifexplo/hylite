@@ -6,20 +6,21 @@ from hylite.hydata import HyData
 from hylite.hyfeature import HyFeature, MultiFeature, MixedFeature
 import hylite.reference.features as ref
 import numpy as np
-import matplotlib.pyplot as plt
+
+from hylite._deps import require
 
 def from_indices(data, indices, s=4, names=None, ):
     """
     Extract a spectral library by sampling and averaging pixels within the specified distance of sample points.
     Args:
-        data (HyData): a HyData instance containing the spectral data.
+        data (`hylite.hydata.HyData`): a `hylite.hydata.HyData` instance containing the spectral data.
         indices (list): a list of sample indices to extract spectra from
-        s (int): the number of adjacent points to include in each sample. For HyImage data this will be a square patch of sxs
-           pixels. For HyCloud data s is used to take adjacent points from the points list (which is assumed to be somewhat ordered).
+        s (int): the number of adjacent points to include in each sample. For `hylite.hyimage.HyImage` data this will be a square patch of sxs
+           pixels. For `hylite.hycloud.HyCloud` data s is used to take adjacent points from the points list (which is assumed to be somewhat ordered).
         names (list): a list containing names for each sample, or None to generate (numeric) sample ids.
 
     Returns:
-        a HyLibrary instance
+        a `hylite.hylibrary.HyLibrary` instance
     """
 
     if names is None:
@@ -49,8 +50,8 @@ def from_classification(data, labels, names=None, ignore=[0], subsample='all'):
     Extract a spectral library from a labelled dataset.
 
     Args:
-        data (HyData): a HyData instance containing the hyperspectral data.
-        labels (HyData): a HyData instance or numpy array containing class labels.
+        data (`hylite.hydata.HyData`): a `hylite.hydata.HyData` instance containing the hyperspectral data.
+        labels (`hylite.hydata.HyData`): a `hylite.hydata.HyData` instance or numpy array containing class labels.
         names (dict): a dictionary with numerical labels (integers) in labels.data as keys and corresponding string names
                as values. If None, class names will be pulled from the header, and if these don't exist then integer
                names will be used.
@@ -61,7 +62,7 @@ def from_classification(data, labels, names=None, ignore=[0], subsample='all'):
                 (albedo) and the spectra corresponding to the desired percentiles kept in the library. Default is 'all'.
 
     Returns:
-        a HyLibrary instance.
+        a `hylite.hylibrary.HyLibrary` instance.
     """
 
     X = data.X()
@@ -136,7 +137,7 @@ class HyLibrary(HyData):
                   a 2D array is passed (sample, band) then it will be expanded to (sample, 1, band).
             lab (list): list of sample labels (one label per sample). Default is None (labels will be integers from 0 - n).
             wav (list, ndarray): list of wavelengths in the spectra for each sample. If None this must be defined in the header file passed.
-            header (hylite.HyHeader): a HyHeader instance containing additional metadata to associate with this library.
+            header (`hylite.hyheader.HyHeader`): a `hylite.hyheader.HyHeader` instance containing additional metadata to associate with this library.
         """
 
         # checks
@@ -163,13 +164,13 @@ class HyLibrary(HyData):
 
     def copy(self,data=True):
         """
-        Make a deep copy of this HyLibrary instance.
+        Make a deep copy of this `hylite.hylibrary.HyLibrary` instance.
 
         Args:
             data (bool): True if a copy of the data should be made, otherwise only copy header.
 
         Returns:
-            a new HyLibrary instance.
+            a new `hylite.hylibrary.HyLibrary` instance.
         """
         header = self.header.copy()
         if data:
@@ -189,13 +190,14 @@ class HyLibrary(HyData):
 
     def as_image(self, shallow=False):
         """
-        Convert this library to a HyImage dataset for e.g. visualisation using HyImage.quick_plot(...).
+        Convert this library to a `hylite.hyimage.HyImage` dataset for e.g. visualisation using
+        `hylite.hyimage.HyImage`.quick_plot(...).
 
         Args:
             shallow (bool): True if the underlying data array should be shared. Default is False as copies are dangerous.
 
         Returns:
-            a HyImage instance of this dataset.
+            a `hylite.hyimage.HyImage` instance of this dataset.
         """
         from hylite.hyimage import HyImage # N.B. this import must be here to avoid circular import
         if shallow:
@@ -261,7 +263,7 @@ class HyLibrary(HyData):
 
     def get_groups(self):
         """
-        Return a list of groups that have been defined for the HyLibrary.
+        Return a list of groups that have been defined for the `hylite.hylibrary.HyLibrary`.
         """
         groups = []
         for k,v in self.header.items():
@@ -286,15 +288,15 @@ class HyLibrary(HyData):
 
     def get_group(self, name, shallow=False):
         """
-        Return a HyLibrary instance containing only the spectra associated with the specified group.
+        Return a `hylite.hylibrary.HyLibrary` instance containing only the spectra associated with the specified group.
 
         Args:
             name (str): the name of the group.
-            shallow (bool): True if the returned HyLibrary instance should be a shallow copy (share the same underlying data
+            shallow (bool): True if the returned `hylite.hylibrary.HyLibrary` instance should be a shallow copy (share the same underlying data
                       array and header file) as this instance so changes propagate. Default is False - shallow copies
                       are powerful but dangerous!.
         Returns:
-            a HyLibrary instance containing the requested group of spectra.
+            a `hylite.hylibrary.HyLibrary` instance containing the requested group of spectra.
         """
         ids = self.get_group_ids(name)
         ids = [ self.get_sample_index(i) for i in ids ]
@@ -317,32 +319,50 @@ class HyLibrary(HyData):
         assert name not in self.get_sample_names(), "Error - %s is already a sample name." % name
         self.header['group %s'%name] = indices # add group to header file
 
+    def _is_sample_merge_key(self, n):
+        """
+        True if n selects or merges samples by name/index (not multidimensional array slicing).
+        """
+        if isinstance(n, np.ndarray):
+            return n.ndim == 1 and n.size > 0
+        if isinstance(n, list):
+            return len(n) > 0
+        if isinstance(n, tuple):
+            if len(n) == 0:
+                return False
+            return all(
+                isinstance(x, (str, int, float, np.integer, np.floating))
+                for x in n
+            ) and not any(x is Ellipsis or isinstance(x, slice) for x in n)
+        return False
+
     def __getitem__(self, n):
         """
         Slice this library to extract groups or label names. Keys can be either string defining sample or group names,
-        integers (treated as indices of the sample array) or lists/arrays of the above.
+        integers (treated as indices of the sample array) or lists/arrays of the above. Other keys are passed to
+        `hylite.hydata.HyData` for array/header indexing (including wavelength-based band selection).
 
         Args:
             n (str): the group or label name to extract.
         """
-        if isinstance(n, list) or isinstance(n, tuple) or isinstance(n, np.ndarray):
+        if self._is_sample_merge_key(n):
             if len(n) == 0:
                 assert False, 'Error - %s is an invalid spectra key.' % str(n)
             out = self[n[0]] # create ouput with first entry
             for i in range(1, len(n)):
                 out += self[n[i]] # append each entry
             return out # done, return
-        else:
-            if isinstance(n, int) or isinstance(n,float): # subset using index
-                n = self.get_sample_names()[int(n)] # get corresponding name
+        if isinstance(n, int) or isinstance(n, float) or np.issubdtype(type(n), np.integer) or np.issubdtype(type(n), np.floating):
+            n = self.get_sample_names()[int(n)] # get corresponding name
+        if isinstance(n, str):
             if n in self.get_sample_names(): # this is a sample name
                 idx = self.get_sample_index(n)
                 arr = self.data[ [idx], :, : ]
-            elif isinstance(n, str):
-                return self.get_group( n ) # return group (easy)
-            else:
-                assert False, "Error - %s is an invalid spectra key." % str(n)
-            return HyLibrary(arr.copy(), lab= [n], wav=self.get_wavelengths())
+                return HyLibrary(arr.copy(), lab= [n], wav=self.get_wavelengths())
+            if 'group %s' % n in self.header:
+                return self.get_group(n)
+            return super().__getitem__(n)
+        return super().__getitem__(n)
 
     def __add__(self, other):
 
@@ -415,7 +435,7 @@ class HyLibrary(HyData):
 
     def collapse(self):
         """
-        Returns a copy of this HyLibrary with any groups collapsed into individual samples.
+        Returns a copy of this `hylite.hylibrary.HyLibrary` with any groups collapsed into individual samples.
         """
         groups = self.get_groups()
         assert len(groups) > 0, "Error - library has no groups to collapse."
@@ -435,7 +455,7 @@ class HyLibrary(HyData):
 
     def squash(self):
         """
-        Returns a copy of this HyLibrary instance with multiple measurements averaged to give a single spectra per sample.
+        Returns a copy of this `hylite.hylibrary.HyLibrary` instance with multiple measurements averaged to give a single spectra per sample.
         """
 
         data = np.nanmedian(self.data, axis=1)
@@ -451,7 +471,7 @@ class HyLibrary(HyData):
         Args:
             ax: an axis to plot to. If None (default), a new axis is created.
             band_range (tuple): the (min,max) band index (int) or wavelength (float) to plot.
-            labels (list): list of HyFeature instances to plot on spectra. Default is reference.features.DIAGNOSTIC
+            labels (list): list of `hylite.hyfeature.HyFeature` instances to plot on spectra. Default is reference.features.DIAGNOSTIC
             pad (float): the spacing to add between individual spectra. Default is 5% of the range of reflectance values.
             collapse (bool): True if groups should be plotted rather than individual samples. Default is False.
             hc (bool): True if the plotted spectra should be hull corrected first. Default is False.
@@ -486,6 +506,8 @@ class HyLibrary(HyData):
             self = get_hull_corrected(self, band_range=(minb, maxb), vb=False)
             minb = 0 # spectra has already been subset
             maxb = self.band_count() - 1
+
+        plt = require("matplotlib.pyplot")
 
         # create axes if need be
         if ax is None:

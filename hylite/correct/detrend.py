@@ -4,9 +4,7 @@ Hyperspectral detrending algorithms such as hull correction.
 
 from hylite import HyLibrary, HyData
 import numpy as np
-from gfit.util import remove_hull
-
-## TASNIM TO ADD DETRENDING FUNCTIONS HERE
+from hylite._deps import require
 
 def polynomial(data, degree = 1, method='div'):
 
@@ -43,14 +41,15 @@ def polynomial(data, degree = 1, method='div'):
 
 def get_hull_corrected(data, band_range=None, method='div', hull='upper', vb=True):
     """
-    Apply a hull correction to an entire HyData instance (HyImage, HyCloud or HyLibrary). Returns a corrected copy of
-    the input dataset. Note that noise can greatly effect hull corrections, so you should consider denoising first (see
-    HyData.smooth_median(...) and HyData.smooth_savgol(...).
+    Apply a hull correction to an entire `hylite.hydata.HyData` instance (`hylite.hyimage.HyImage`, `hylite.hycloud.HyCloud`
+    or `hylite.hylibrary.HyLibrary`). Returns a corrected copy of the input dataset. Note that noise can greatly effect hull
+    corrections, so you should consider denoising first (see `hylite.hydata.HyData`.smooth_median(...) and
+    `hylite.hydata.HyData`.smooth_savgol(...).
 
     Args:
-        data: a numpy array or HyData instance to detrend.
+        data: a numpy array or `hylite.hydata.HyData` instance to detrend.
         band_range: Tuple containing the (min,max) band indices or wavelengths to run the correction between. If None
-                     (default) then the correction is run of the entire range. Only works if data is a HyData instance.
+                     (default) then the correction is run over the entire range. Only works if data is a `hylite.hydata.HyData` instance.
         method: Trend removal method: 'divide' or 'subtract'. Default is 'divide'.
         hull: 'upper' if a hull should be fitted to the top of the data (default), or 'lower' if it should be fit to the bottom of the data.
         vb: True if this should print output.
@@ -95,6 +94,7 @@ def get_hull_corrected(data, band_range=None, method='div', hull='upper', vb=Tru
         return corrected  # quick exit for empty images
 
     # do hull correction
+    remove_hull = require("gfit.util").remove_hull
     if 'upper' in hull.lower():
         X = remove_hull( D[valid],upper=True, div=('div' in method), vb=vb)
     elif 'lower' in hull.lower():

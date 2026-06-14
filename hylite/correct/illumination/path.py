@@ -2,7 +2,6 @@
 Classes containing different occlusion models (e.g. estimators for shadows, sky view factor etc.)
 """
 import hylite
-import matplotlib.pyplot as plt
 import numpy as np
 
 from hylite.correct import get_hull_corrected
@@ -14,16 +13,16 @@ def estimate_path_radiance(image, depth, thresh=1):
     Apply the dark object subtraction (DOS) method to estimate path radiance in the provided image.
 
     Args:
-        image: the hyperspectral image (HyImage instance) to estimate path radiance for.
+        image: the hyperspectral image (`hylite.hyimage.HyImage` instance) to estimate path radiance for.
         depth: A 2-D (width,height) numpy array of pixel depths in meters. This can be easily computed using
-               a HyScene instance.
+               a `hylite.hyscene.HyScene` instance.
         thresh: the percentile threshold to use when selecting dark pixels. Default is 1%.
 
     Returns:
         A tuple containing:
 
             - spectra = a numpy array containing the estimated path radiance spectra (in radiance per meter of depth).
-            - path = a HyImage instance containing the estimated path radiance per pixel (computed by multiplying
+            - path = a `hylite.hyimage.HyImage` instance containing the estimated path radiance per pixel (computed by multiplying
                   the spectra by the depth).
     """
 
@@ -54,7 +53,7 @@ def estimate_path_radiance(image, depth, thresh=1):
 
 def correct_path_absorption(data, band_range=(0, -1), thresh=99, atabs = 1126., vb=True):
     """
-    Fit and remove a known atmospheric water feature to remove atmospheric path absorbtions from reflectance spectra.
+    Fit and remove a known atmospheric water feature to remove atmospheric path absorptions from reflectance spectra.
     See  Lorenz et al., 2018 for more details.
 
     Reference:
@@ -63,14 +62,14 @@ def correct_path_absorption(data, band_range=(0, -1), thresh=99, atabs = 1126., 
     Args:
         image: a hyperspectral image to correct
         band_range: a range of bands to do this over. Default is (0,-1), which applies the correction to all bands.
-        thresh: the percentile to apply when identifying the smallest absorbtion in any range based on hull corrected
+        thresh: the percentile to apply when identifying the smallest absorption in any range based on hull corrected
                 spectra. Lower values will remove more absorption (potentially including features of interest).
         atabs: wavelength position at which a known control feature is situated that defines the intensity of correction
                 - for atmospheric effects, this is set to default to 1126 nm
         vb: True if a progress bar should be created during hull correction steps.
 
     Returns:
-        a HyData instance containing the corrected spectra.
+        a `hylite.hydata.HyData` instance containing the corrected spectra.
     """
     assert isinstance(atabs, float), "Absorption wavelength must be float"
     # subset dataset
