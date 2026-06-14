@@ -4,10 +4,10 @@ Import and export hyperspectral data. For hyperspectral images this is mostly do
 while for point clouds and hyperspectral libraries a variety of different methods are included.
 """
 import os
+import shutil
 from pathlib import Path
 
 import numpy as np
-from distutils.dir_util import copy_tree
 
 from hylite import HyImage, HyCloud, HyLibrary, HyCollection, HyScene, HyData, HyHeader
 from hylite._deps import optional, require
@@ -112,7 +112,7 @@ def save(path, data, **kwds):
         os.makedirs( os.path.splitext(path)[0] +"."+ ext, exist_ok=True ) # make output directory (even if empty)
         if os.path.splitext(path)[0] != outdir:
             if os.path.exists( outdir+"."+ext): # if it exists...
-                copy_tree(outdir+"."+ext, os.path.splitext(path)[0]+"."+ext)
+                shutil.copytree(outdir + "." + ext, os.path.splitext(path)[0] + "." + ext, dirs_exist_ok=True)
 
 
     elif isinstance(data, np.ndarray) or isinstance(data, list):
