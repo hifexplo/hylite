@@ -437,5 +437,15 @@ class TestMWLIO(unittest.TestCase):
         self.assertTrue(df < 1e-2)
 
 
+class TestIOTierImports(unittest.TestCase):
+    def test_io_imports_without_default_deps(self):
+        """io must not pull in scipy-dependent project modules at import time."""
+        import importlib
+        require_test_env(self, "basic")
+        io_mod = importlib.import_module("hylite.io")
+        self.assertTrue(callable(io_mod.load))
+        self.assertTrue(callable(io_mod.save))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -5,8 +5,6 @@ Store projection maps binding image data to point cloud data during e.g. the cor
 import numpy as np
 import os
 
-from hylite.project import PMap
-
 def savePMap(path, pmap):
     """
     Save a PMap instance using numpy.
@@ -63,6 +61,7 @@ def loadPMap(path):
     data.close()
 
     # create new PMap and populate with data
+    from hylite.project import PMap
     pm = PMap( xdim, ydim, npoints )
     pm.set_flat( points, pixels, depths )
     return pm
