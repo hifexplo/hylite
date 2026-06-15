@@ -120,7 +120,7 @@ jobs:
         run: |
           mkdir -p _site/dev _site/wheels
           cp -r src-master/_pdoc_main/. _site/
-          cp -r src-dev/_pdoc_dev/hylite/. _site/dev/
+          cp -r src-dev/_pdoc_dev/. _site/dev/
           cp wheels/hylite-latest-py3-none-any.whl _site/wheels/
           cp wheels/hylite-dev-latest-py3-none-any.whl _site/wheels/
 
