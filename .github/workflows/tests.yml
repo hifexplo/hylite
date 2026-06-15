@@ -84,7 +84,9 @@ jobs:
 
       - name: Build stable documentation (master)
         run: |
-          pip install .
+          # master still imports distutils (removed from the stdlib in Python 3.12+)
+          pip install setuptools
+          pip install -e .
           pdoc hylite --docformat google -o _pdoc_main
         working-directory: src-master
 
