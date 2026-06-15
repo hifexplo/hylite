@@ -84,13 +84,13 @@ jobs:
 
       - name: Build stable documentation (master)
         run: |
-          pip install "./src-master[opencv]"
+          pip install .
           pdoc hylite --docformat google -o _pdoc_main
         working-directory: src-master
 
       - name: Build development documentation (dev)
         run: |
-          pip install "./src-dev[opencv]"
+          pip install .
           pdoc hylite --docformat google -o _pdoc_dev
         working-directory: src-dev
 
