@@ -107,13 +107,15 @@ jobs:
         run: |
           python -m build
           mkdir -p ../wheels
-          cp dist/hylite-*-py3-none-any.whl ../wheels/hylite-latest-py3-none-any.whl
+          cp dist/hylite-*-py3-none-any.whl ../wheels/
         working-directory: src-master
 
       - name: Build development wheel (dev)
         run: |
+          python ci/.github/scripts/pep440_dev_version.py setup.py
           python -m build
-          cp dist/hylite-*-py3-none-any.whl ../wheels/hylite-dev-latest-py3-none-any.whl
+          mkdir -p ../wheels
+          cp dist/hylite-*-py3-none-any.whl ../wheels/
         working-directory: src-dev
 
       - name: Assemble site
@@ -121,8 +123,7 @@ jobs:
           mkdir -p _site/dev _site/wheels
           cp -r src-master/_pdoc_main/. _site/
           cp -r src-dev/_pdoc_dev/. _site/dev/
-          cp wheels/hylite-latest-py3-none-any.whl _site/wheels/
-          cp wheels/hylite-dev-latest-py3-none-any.whl _site/wheels/
+          cp wheels/*.whl _site/wheels/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
