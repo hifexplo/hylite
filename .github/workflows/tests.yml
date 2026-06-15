@@ -84,9 +84,9 @@ jobs:
 
       - name: Build stable documentation (master)
         run: |
-          # master still imports distutils (removed from the stdlib in Python 3.12+)
+          # todo remove this after migrating to 1.4
           pip install setuptools
-          # master transform/__init__.py imports sklearn but setup.py omits scikit-learn
+          # todo remove this after migrating to 1.4
           pip install scikit-learn
           pip install -e .
           pdoc hylite --docformat google -o _pdoc_main
