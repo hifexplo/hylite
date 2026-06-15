@@ -319,6 +319,34 @@ class HyFourier:
         indices, _ = self._resolveSampleNames(names)
         return self._toHyDataAtIndices(indices, names, wav)
 
+    def getSpectraByName(self, name, wav=None):
+        """
+        Reconstruct spectra whose display labels match a near-exact name filter.
+
+        Matching accepts any of the label forms returned by :meth:`search`, with
+        optional archive and group prefixes omitted, e.g.
+
+        - ``[topaz] splib07b_Topaz_HS184.3B_ASDNGb_AREF``
+        - ``splib07b_Topaz_HS184.3B_ASDNGb_AREF``
+
+        An optional archive prefix ``(key)`` is ignored on :class:`HyFourier`.
+
+        Args:
+            name: sample label(s) as a string or list of strings.
+            wav: optional wavelength grid for evaluation (default: stored wavelengths).
+
+        Returns:
+            A `hylite.hylibrary.HyLibrary` containing all matching spectra.
+
+        Raises:
+            ValueError: if no valid spectra match the name(s).
+        """
+        queries = _normalizeSampleNameQueries(name)
+        indices, labels = self._matchingSampleNames(queries)
+        if not indices:
+            raise ValueError('No spectra match name(s) %r.' % (name,))
+        return self._toHyDataAtIndices(indices, labels, wav)
+
     def toHyData(self, wav=None):
         """Evaluate spectra and return the original `hylite.hydata.HyData` subtype (lossy reconstruction)."""
         if wav is None:
@@ -369,6 +397,23 @@ class HyFourier:
                 raise ValueError('Unknown sample name %r.' % label)
             indices.append(name_to_idx[label])
         return indices, all_names
+
+    def _matchingSampleNames(self, queries):
+        """Return flat indices and labels matching near-exact sample-name queries."""
+        all_names = _sampleNames(self.header, self.n_spectra, self.original_shape, self.spatial_shape)
+        indices = []
+        labels = []
+        seen = set()
+        for query in queries:
+            _, inner_query = _parseOptionalArchivePrefix(query)
+            for i, label in enumerate(all_names):
+                if i in seen or not self._valid[i]:
+                    continue
+                if _displayNameMatchesQuery(label, inner_query):
+                    indices.append(i)
+                    labels.append(label)
+                    seen.add(i)
+        return indices, labels
 
     def _toHyDataAtIndices(self, indices, labels, wav=None):
         """Reconstruct a subset of spectra as a `hylite.hylibrary.HyLibrary`."""
@@ -828,6 +873,51 @@ class FourierArchive:
                 out += self.getSpectra(entry, wav=wav)
             return out
         raise TypeError('name must be a string or list of archive-qualified sample names.')
+
+    def getSpectraByName(self, name, wav=None):
+        """
+        Reconstruct the first spectrum matching `name` across archive entries.
+
+        Entries are checked in insertion order; the first :class:`HyFourier`
+        library containing a match is used.
+
+        Matching accepts any of the label forms returned by :meth:`search`, with
+        optional prefixes omitted, e.g.
+
+        - ``(beck) [topaz] splib07b_Topaz_HS184.3B_BECKb_AREF``
+        - ``[topaz] splib07b_Topaz_HS184.3B_BECKb_AREF``
+        - ``splib07b_Topaz_HS184.3B_BECKb_AREF``
+
+        When an archive key prefix ``(key)`` is given, only that entry is searched.
+
+        Args:
+            name: sample label(s) as a string or list of strings.
+            wav: optional wavelength grid for evaluation (default: stored wavelengths).
+
+        Returns:
+            A `hylite.hylibrary.HyLibrary` containing the first matching spectrum.
+
+        Raises:
+            ValueError: if no valid spectra match the name(s) in any entry.
+        """
+        queries = _normalizeSampleNameQueries(name)
+        for query in queries:
+            query_key, _ = _parseOptionalArchivePrefix(query)
+            if query_key is not None:
+                if query_key not in self._entries:
+                    continue
+                entries = [(query_key, self._entries[query_key])]
+            else:
+                entries = self._entries.items()
+            for key, hyfourier in entries:
+                all_names = _sampleNames(
+                    hyfourier.header, hyfourier.n_spectra,
+                    hyfourier.original_shape, hyfourier.spatial_shape,
+                )
+                for i, label in enumerate(all_names):
+                    if hyfourier._valid[i] and _archiveDisplayNameMatchesQuery(key, label, query):
+                        return hyfourier._toHyDataAtIndices([i], [label], wav)
+        raise ValueError('No spectra match name(s) %r in any archive entry.' % (name,))
 
 
 def _validateArchiveName(name):
@@ -1441,6 +1531,66 @@ def _resolveGroupIndex(value, names):
             return int(float(value))
         except (TypeError, ValueError):
             return None
+
+
+def _normalizeSampleNameQueries(name):
+    """Normalise sample-name query string(s) for near-exact matching."""
+    if isinstance(name, str):
+        queries = [name.strip()]
+    elif isinstance(name, (list, tuple)):
+        queries = [str(n).strip() for n in name]
+    else:
+        raise TypeError('name must be a string or list of strings.')
+    if not queries or not any(q for q in queries):
+        raise ValueError('name must be a non-empty string or list of strings.')
+    return queries
+
+
+def _parseOptionalArchivePrefix(name):
+    """Split an optional ``(key)`` prefix from a sample label query."""
+    name = str(name).strip()
+    match = re.match(r'^\(([^)]+)\)\s+(.*)$', name)
+    if match:
+        return match.group(1), match.group(2).strip()
+    return None, name
+
+
+def _stripGroupPrefix(name):
+    """Remove a leading ``[group]`` prefix from a sample label."""
+    name = str(name).strip()
+    match = re.match(r'^\[([^\]]+)\]\s+(.*)$', name)
+    if match:
+        return match.group(2).strip()
+    return name
+
+
+def _displayNameMatchesQuery(display_name, query):
+    """Return True when `query` near-exactly matches a display or bare sample label."""
+    display_name = str(display_name).strip()
+    query = str(query).strip()
+    if not query:
+        return False
+    if display_name.lower() == query.lower():
+        return True
+    bare_display = _stripGroupPrefix(display_name)
+    if bare_display.lower() == query.lower():
+        return True
+    bare_query = _stripGroupPrefix(query)
+    if bare_query.lower() != query.lower():
+        return bare_display.lower() == bare_query.lower()
+    return False
+
+
+def _archiveDisplayNameMatchesQuery(archive_key, display_name, query):
+    """Return True when `query` near-exactly matches an archive-qualified label."""
+    query = str(query).strip()
+    query_key, inner_query = _parseOptionalArchivePrefix(query)
+    if query_key is not None and query_key != archive_key:
+        return False
+    qualified = _formatArchiveSampleName(archive_key, display_name)
+    if qualified.lower() == query.lower():
+        return True
+    return _displayNameMatchesQuery(display_name, inner_query)
 
 
 def _nameMatch(name, patterns):

@@ -16,6 +16,8 @@ from hylite.analyse.fourier import (
     _sampleNames,
     _formatArchiveSampleName,
     _parseArchiveSampleName,
+    _displayNameMatchesQuery,
+    _archiveDisplayNameMatchesQuery,
 )
 from hylite.analyse.mwl import MWL
 from hylite.hycloud import HyCloud
@@ -253,6 +255,37 @@ class TestHyFourier(unittest.TestCase):
         with self.assertRaises(ValueError):
             hyfourier.getSpectra('not-a-real-name')
 
+        by_exact = hyfourier.getSpectraByName(display_name)
+        self.assertEqual(by_exact.sample_count(), 1)
+        self.assertEqual(by_exact.get_sample_names(), [display_name])
+
+        bare_name = display_name.split(' ', 1)[-1] if display_name.startswith('[') else display_name
+        by_bare = hyfourier.getSpectraByName(bare_name)
+        self.assertEqual(by_bare.sample_count(), 1)
+        self.assertEqual(by_bare.get_sample_names()[0], display_name)
+
+        with self.assertRaises(ValueError):
+            hyfourier.getSpectraByName('am-21')
+
+        with self.assertRaises(ValueError):
+            hyfourier.getSpectraByName('not-a-real-name')
+
+    def test_get_spectra_by_name_matching(self):
+        display = '[topaz] splib07b_Topaz_HS184.3B_ASDNGb_AREF'
+        bare = 'splib07b_Topaz_HS184.3B_ASDNGb_AREF'
+        qualified = '(beck) [topaz] splib07b_Topaz_HS184.3B_BECKb_AREF'
+
+        self.assertTrue(_displayNameMatchesQuery(display, display))
+        self.assertTrue(_displayNameMatchesQuery(display, bare))
+        self.assertTrue(_displayNameMatchesQuery(display, '[topaz] ' + bare))
+        self.assertFalse(_displayNameMatchesQuery(display, 'Topaz'))
+        self.assertFalse(_displayNameMatchesQuery(display, bare[:-4]))
+
+        self.assertTrue(_archiveDisplayNameMatchesQuery('beck', display.replace('ASDNGb', 'BECKb'), qualified))
+        self.assertTrue(_archiveDisplayNameMatchesQuery('beck', display.replace('ASDNGb', 'BECKb'), display.replace('ASDNGb', 'BECKb')))
+        self.assertTrue(_archiveDisplayNameMatchesQuery('beck', display.replace('ASDNGb', 'BECKb'), bare.replace('ASDNGb', 'BECKb')))
+        self.assertFalse(_archiveDisplayNameMatchesQuery('asdng', display, qualified))
+
     def test_fourier_archive(self):
         tmp = mkdtemp()
         try:
@@ -305,6 +338,32 @@ class TestHyFourier(unittest.TestCase):
             key, inner = _parseArchiveSampleName(top_name)
             direct = archive[key].getSpectra(inner)
             np.testing.assert_allclose(subset.data, direct.data, equal_nan=True)
+
+            lib_key = 'library'
+            lib_names = _sampleNames(
+                archive[lib_key].header,
+                archive[lib_key].n_spectra,
+                archive[lib_key].original_shape,
+                archive[lib_key].spatial_shape,
+            )
+            first_lib_name = lib_names[0]
+            bare_name = first_lib_name.split(' ', 1)[-1] if first_lib_name.startswith('[') else first_lib_name
+
+            by_qualified = archive.getSpectraByName(_formatArchiveSampleName(lib_key, first_lib_name))
+            self.assertEqual(by_qualified.sample_count(), 1)
+            self.assertEqual(by_qualified.get_sample_names()[0], first_lib_name)
+
+            by_display = archive.getSpectraByName(first_lib_name)
+            self.assertEqual(by_display.get_sample_names()[0], first_lib_name)
+
+            by_bare = archive.getSpectraByName(bare_name)
+            self.assertEqual(by_bare.get_sample_names()[0], first_lib_name)
+
+            with self.assertRaises(ValueError):
+                archive.getSpectraByName(first_lib_name[:8])
+
+            with self.assertRaises(ValueError):
+                archive.getSpectraByName('not-a-real-name')
         finally:
             shutil.rmtree(tmp)
 
