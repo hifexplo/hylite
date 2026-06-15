@@ -112,7 +112,7 @@ jobs:
 
       - name: Build development wheel (dev)
         run: |
-          python ci/.github/scripts/pep440_dev_version.py setup.py
+          python ../ci/.github/scripts/pep440_dev_version.py setup.py
           python -m build
           mkdir -p ../wheels
           cp dist/hylite-*-py3-none-any.whl ../wheels/
