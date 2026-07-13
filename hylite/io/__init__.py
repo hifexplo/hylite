@@ -216,10 +216,10 @@ def load(path, to_nm=False):
     # ensure band are ordered from lowest to highest
     if hasattr(out, 'header'):
         if 'wavelength' in out.header:
-            if len(out.get_wavelengths()) == out.data.shape[-1]:
-                ixx = np.argsort( out.get_wavelengths() )
+            if len(out.header.get_wavelengths()) == out.data.shape[-1]:
+                ixx = np.argsort( out.header.get_wavelengths() )
                 out.data = out.data[..., ixx] # sort into ascending order
-                out.set_wavelengths( out.get_wavelengths()[ixx] )
+                out.header.set_wavelengths( out.header.get_wavelengths()[ixx] )
 
     return out  # return dataset
 
