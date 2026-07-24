@@ -807,7 +807,9 @@ class FourierArchive:
         Search all archive entries and return a merged, globally ranked result list.
 
         Sample names are prefixed with the archive key, e.g.
-        `(beck) [topaz] splib07b_Topaz_HS184.3B_BECKb_AREF`.
+        `(beck) [topaz] splib07b_Topaz_HS184.3B_BECKb_AREF`. Name-token searches
+        match against that archive-qualified form (so ``usgs`` matches
+        ``usgs_minerals:beck``, etc.).
 
         See :meth:`HyFourier.search` for query syntax (including ``|`` OR sub-queries)
         and other arguments.
@@ -1627,11 +1629,19 @@ def _merge_or_search_results(query_results, n_result=None):
     return merged_names, merged_scores
 
 
-def _nameMatch(name, patterns):
+def _searchableSampleName(sample_name, archive_key=None):
+    """Build the case-folded string used for name-token substring matching."""
+    sample_name = str(sample_name).strip()
+    if archive_key is not None:
+        return _formatArchiveSampleName(archive_key, sample_name).lower()
+    return sample_name.lower()
+
+
+def _nameMatch(name, patterns, archive_key=None):
     """Return the fraction of name tokens matched as case-insensitive substrings."""
     if not patterns:
         return 0.0
-    name_l = name.lower()
+    name_l = _searchableSampleName(name, archive_key)
     matched = sum(1 for pattern in patterns if pattern in name_l)
     return matched / len(patterns)
 
@@ -1646,6 +1656,7 @@ def _hyfourier_search_single(
     min_freq=None,
     max_freq=None,
     vb=False,
+    archive_key=None,
 ):
     """Run one AND-combined search on a single :class:`HyFourier` instance."""
     confidence = float(confidence)
@@ -1675,7 +1686,7 @@ def _hyfourier_search_single(
     if name_patterns:
         for i, name in enumerate(names):
             if hyfourier._valid[i]:
-                p[i] *= _nameMatch(name, name_patterns)
+                p[i] *= _nameMatch(name, name_patterns, archive_key=archive_key)
             else:
                 p[i] = 0.0
 
@@ -1722,6 +1733,7 @@ def _fourier_archive_search_merged(
             min_freq=min_freq,
             max_freq=max_freq,
             vb=vb,
+            archive_key=key,
         )
         for name, score in zip(names, scores):
             merged_names.append(_formatArchiveSampleName(key, name))

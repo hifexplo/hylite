@@ -222,6 +222,14 @@ class TestHyFourier(unittest.TestCase):
         self.assertEqual(_nameMatch(name, ['quartz', 'asdf']), 0.5)
         self.assertEqual(_nameMatch(name, ['kaolinite', 'beck']), 0.5)
         self.assertEqual(_nameMatch(name, ['kaolinite', 'asdf']), 0.0)
+        self.assertEqual(
+            _nameMatch(name, ['quartz', 'usgs'], archive_key='usgs_minerals:beck'),
+            1.0,
+        )
+        self.assertEqual(
+            _nameMatch(name, ['quartz', 'usgs'], archive_key='beck'),
+            0.5,
+        )
 
     def test_search_name_and_tokens(self):
         hyfourier = HyFourier(self.library, padding='reflect', max_freq=0.25, vb=False)
@@ -267,6 +275,17 @@ class TestHyFourier(unittest.TestCase):
         qualified_right = _formatArchiveSampleName('a', right)
         self.assertIn(qualified_left, names)
         self.assertIn(qualified_right, names)
+
+    def test_fourier_archive_search_includes_archive_key(self):
+        archive = FourierArchive()
+        archive['usgs_minerals:beck'] = HyFourier(
+            self.library, padding='reflect', max_freq=0.25, vb=False,
+        )
+        target = '2016_EH-005'
+        names, scores = archive.search('EH-005 usgs', n_result=10)
+        qualified = _formatArchiveSampleName('usgs_minerals:beck', target)
+        self.assertIn(qualified, names)
+        self.assertEqual(scores[names.index(qualified)], 1.0)
 
     def test_sample_names(self):
         header = HyHeader()
