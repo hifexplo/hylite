@@ -39,7 +39,7 @@ _GDAL = ["GDAL>=3"]
 
 setuptools.setup(
     name="hylite",
-    version="1.4",
+    version="1.41",
     author="Helmholtz Institute Freiberg",
     author_email="s.thiele@hzdr.de",
     description="Open-source toolbox for hyperspectral geology.",

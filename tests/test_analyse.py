@@ -18,6 +18,8 @@ from hylite.analyse.fourier import (
     _parseArchiveSampleName,
     _displayNameMatchesQuery,
     _archiveDisplayNameMatchesQuery,
+    _nameMatch,
+    _merge_or_search_results,
 )
 from hylite.analyse.mwl import MWL
 from hylite.hycloud import HyCloud
@@ -211,6 +213,60 @@ class TestHyFourier(unittest.TestCase):
         features, _ = _parseSearchQuery('!^2200')
         self.assertEqual(features[0]['kind'], 'maximum')
         self.assertTrue(features[0]['exclude'])
+
+    def test_name_match_and_scoring(self):
+        name = '[silica] splib07b_Quartz_GDS31_BECKa_AREF'
+        self.assertEqual(_nameMatch(name, ['quartz', 'beck']), 1.0)
+        self.assertEqual(_nameMatch(name, ['quartz']), 1.0)
+        self.assertEqual(_nameMatch(name, ['beck']), 1.0)
+        self.assertEqual(_nameMatch(name, ['quartz', 'asdf']), 0.5)
+        self.assertEqual(_nameMatch(name, ['kaolinite', 'beck']), 0.5)
+        self.assertEqual(_nameMatch(name, ['kaolinite', 'asdf']), 0.0)
+
+    def test_search_name_and_tokens(self):
+        hyfourier = HyFourier(self.library, padding='reflect', max_freq=0.25, vb=False)
+        sample_names = [str(name) for name in self.library.get_sample_names()]
+        target = '2016_EH-005'
+        self.assertIn(target, sample_names)
+
+        names, scores = hyfourier.search('EH-005 EH', n_result=10)
+        self.assertIn(target, names)
+        self.assertEqual(scores[names.index(target)], 1.0)
+        self.assertGreaterEqual(scores[0], scores[-1])
+
+        partial_names, partial_scores = hyfourier.search('EH-005', n_result=len(sample_names))
+        self.assertEqual(partial_scores[partial_names.index(target)], 1.0)
+        self.assertGreater(partial_scores[0], 0.0)
+
+    def test_search_or_subqueries(self):
+        hyfourier = HyFourier(self.library, padding='reflect', max_freq=0.25, vb=False)
+        sample_names = [str(name) for name in self.library.get_sample_names()]
+        left, right = sample_names[0], sample_names[1]
+
+        names, scores = hyfourier.search(f'{left}|{right}', n_result=5)
+        self.assertIn(left, names)
+        self.assertIn(right, names)
+        self.assertGreater(scores[names.index(left)], 0.0)
+        self.assertGreater(scores[names.index(right)], 0.0)
+
+        merged = _merge_or_search_results([
+            ([left, sample_names[2]], np.array([1.0, 0.5])),
+            ([right, sample_names[3]], np.array([1.0, 0.5])),
+        ], n_result=4)
+        self.assertEqual(merged[0], [left, right, sample_names[2], sample_names[3]])
+
+    def test_fourier_archive_or_search(self):
+        archive = FourierArchive()
+        archive['a'] = HyFourier(self.library, padding='reflect', max_freq=0.25, vb=False)
+        sample_names = [str(name) for name in self.library.get_sample_names()]
+        left, right = sample_names[0], sample_names[1]
+
+        names, scores = archive.search(f'{left}|{right}', n_result=5)
+        self.assertEqual(len(names), len(scores))
+        qualified_left = _formatArchiveSampleName('a', left)
+        qualified_right = _formatArchiveSampleName('a', right)
+        self.assertIn(qualified_left, names)
+        self.assertIn(qualified_right, names)
 
     def test_sample_names(self):
         header = HyHeader()

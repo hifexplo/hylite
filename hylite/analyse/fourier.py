@@ -605,7 +605,7 @@ class HyFourier:
         """
         Rank spectra using a naive-Bayes feature matcher and/or sample-name filter.
 
-        Query syntax (whitespace-separated tokens):
+        Query syntax (whitespace-separated tokens are combined with AND):
 
         - `2200` — absorption (minimum) near 2200 nm
         - `^2300` — reflectance peak (maximum) near 2300 nm
@@ -613,7 +613,11 @@ class HyFourier:
         - `!^2300` — absence of a reflectance peak (maximum) near 2300 nm
         - `2160-2200` — feature anywhere in the wavelength range
         - `Kaolinite` — case-insensitive substring match on sample names
+        - `beck quartz` — sample name must contain **all** name tokens (score 1.0
+          when every token matches, lower when only some match)
         - tokens can be combined, e.g. `2200 Kaolinite`
+        - `kaolinite | dolomite` — OR between ``|``-separated sub-queries (results
+          interleaved by sub-query rank)
 
         `confidence` sets the half-width (nm) used when integrating over a point query
         (default 10 nm, i.e. ±10 nm). Range queries integrate over the stated interval.
@@ -634,53 +638,34 @@ class HyFourier:
         """
         if not isinstance(query, str) or not query.strip():
             raise ValueError('query must be a non-empty string.')
-        confidence = float(confidence)
-        if confidence <= 0:
-            raise ValueError('confidence must be positive.')
-
-        features, name_patterns = _parseSearchQuery(query)
-        if not features and not name_patterns:
-            raise ValueError('Could not parse any features or names from query: %r' % query)
-
-        names = _sampleNames(self.header, self.n_spectra, self.original_shape, self.spatial_shape)
-        minw = self.wav_range[0] if minw is None else float(minw)
-        maxW = self.wav_range[1] if maxW is None else float(maxW)
-        min_freq = self.min_freq if min_freq is None else float(min_freq)
-        max_freq = self.max_freq if max_freq is None else float(max_freq)
-        kde_sidecar = self._getKDE(
-            sigma=confidence, minw=minw, maxW=maxW, min_freq=min_freq, max_freq=max_freq, vb=vb,
-        )
-
-        # naive-Bayes product of feature likelihoods (and optional name filter)
-        p = np.ones(self.n_spectra, dtype=np.float64)
-        p[~self._valid] = 0.0
-        if name_patterns:
-            for i, name in enumerate(names):
-                if not self._valid[i] or _nameMatch(name, name_patterns) == 0.0:
-                    p[i] = 0.0
-
-        for feat in features:
-            if 'point' in feat:
-                lo = feat['point'] - confidence
-                hi = feat['point'] + confidence
-            else:
-                lo, hi = feat['lo'], feat['hi']
-            lik = _gaussianWindowLikelihoodBatch(kde_sidecar, lo, hi, feat['kind'])
-            if feat['exclude']:
-                lik = 1.0 - lik
-            p *= lik
-
-        if not features and name_patterns:
-            for i, name in enumerate(names):
-                if self._valid[i]:
-                    p[i] = _nameMatch(name, name_patterns)
-
-        p[~np.isfinite(p)] = 0.0
-
-        # return top-ranked matches (unnormalised likelihoods; ranking unchanged)
-        n_result = min(int(n_result), self.n_spectra)
-        idx = np.argsort(p)[::-1][:n_result]
-        return [names[i] for i in idx], p[idx]
+        sub_queries = _split_or_queries(query)
+        if len(sub_queries) <= 1:
+            return _hyfourier_search_single(
+                self,
+                query,
+                confidence=confidence,
+                n_result=n_result,
+                minw=minw,
+                maxW=maxW,
+                min_freq=min_freq,
+                max_freq=max_freq,
+                vb=vb,
+            )
+        query_results = [
+            _hyfourier_search_single(
+                self,
+                sub_query,
+                confidence=confidence,
+                n_result=n_result,
+                minw=minw,
+                maxW=maxW,
+                min_freq=min_freq,
+                max_freq=max_freq,
+                vb=vb,
+            )
+            for sub_query in sub_queries
+        ]
+        return _merge_or_search_results(query_results, n_result=n_result)
 
     def save(self, path):
         """
@@ -824,16 +809,19 @@ class FourierArchive:
         Sample names are prefixed with the archive key, e.g.
         `(beck) [topaz] splib07b_Topaz_HS184.3B_BECKb_AREF`.
 
-        See :meth:`HyFourier.search` for query syntax and other arguments.
+        See :meth:`HyFourier.search` for query syntax (including ``|`` OR sub-queries)
+        and other arguments.
 
         Returns:
             A tuple `(names, scores)` of ranked archive-qualified labels and
             non-normalised likelihoods in `[0, 1]`.
         """
-        merged_names = []
-        merged_scores = []
-        for key, hyfourier in self._entries.items():
-            names, scores = hyfourier.search(
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError('query must be a non-empty string.')
+        sub_queries = _split_or_queries(query)
+        if len(sub_queries) <= 1:
+            return _fourier_archive_search_merged(
+                self,
                 query,
                 confidence=confidence,
                 n_result=n_result,
@@ -843,14 +831,21 @@ class FourierArchive:
                 max_freq=max_freq,
                 vb=vb,
             )
-            for name, score in zip(names, scores):
-                merged_names.append(_formatArchiveSampleName(key, name))
-                merged_scores.append(float(score))
-        if not merged_names:
-            return [], np.asarray([], dtype=np.float64)
-        merged_scores = np.asarray(merged_scores, dtype=np.float64)
-        order = np.argsort(merged_scores)[::-1][: int(n_result)]
-        return [merged_names[i] for i in order], merged_scores[order]
+        query_results = [
+            _fourier_archive_search_merged(
+                self,
+                sub_query,
+                confidence=confidence,
+                n_result=n_result,
+                minw=minw,
+                maxW=maxW,
+                min_freq=min_freq,
+                max_freq=max_freq,
+                vb=vb,
+            )
+            for sub_query in sub_queries
+        ]
+        return _merge_or_search_results(query_results, n_result=n_result)
 
     def getSpectra(self, name, wav=None):
         """
@@ -1593,13 +1588,149 @@ def _archiveDisplayNameMatchesQuery(archive_key, display_name, query):
     return _displayNameMatchesQuery(display_name, inner_query)
 
 
+def _split_or_queries(query):
+    """Split a search string on ``|`` into OR sub-queries."""
+    parts = [part.strip() for part in str(query).split('|')]
+    return [part for part in parts if part]
+
+
+def _merge_or_search_results(query_results, n_result=None):
+    """Interleave ranked results from OR sub-queries, preserving each branch's order."""
+    best_rank = {}
+    for names, scores in query_results:
+        for rank, name in enumerate(names):
+            score = float(scores[rank])
+            if name not in best_rank or rank < best_rank[name][0]:
+                best_rank[name] = (rank, score)
+
+    emitted = set()
+    merged_names = []
+    merged_scores = []
+    max_len = max((len(names) for names, _ in query_results), default=0)
+
+    for rank_index in range(max_len):
+        for names, _scores in query_results:
+            if rank_index >= len(names):
+                continue
+            name = names[rank_index]
+            if name in emitted:
+                continue
+            emitted.add(name)
+            _rank, score = best_rank[name]
+            merged_names.append(name)
+            merged_scores.append(score)
+
+    merged_scores = np.asarray(merged_scores, dtype=np.float64)
+    if n_result is not None and len(merged_names) > int(n_result):
+        merged_names = merged_names[: int(n_result)]
+        merged_scores = merged_scores[: int(n_result)]
+    return merged_names, merged_scores
+
+
 def _nameMatch(name, patterns):
-    """Return 1.0 if any query token matches case-insensitively as a substring."""
+    """Return the fraction of name tokens matched as case-insensitive substrings."""
+    if not patterns:
+        return 0.0
     name_l = name.lower()
-    for pattern in patterns:
-        if pattern in name_l:
-            return 1.0
-    return 0.0
+    matched = sum(1 for pattern in patterns if pattern in name_l)
+    return matched / len(patterns)
+
+
+def _hyfourier_search_single(
+    hyfourier,
+    query,
+    confidence=10.0,
+    n_result=10,
+    minw=None,
+    maxW=None,
+    min_freq=None,
+    max_freq=None,
+    vb=False,
+):
+    """Run one AND-combined search on a single :class:`HyFourier` instance."""
+    confidence = float(confidence)
+    if confidence <= 0:
+        raise ValueError('confidence must be positive.')
+
+    features, name_patterns = _parseSearchQuery(query)
+    if not features and not name_patterns:
+        raise ValueError('Could not parse any features or names from query: %r' % query)
+
+    names = _sampleNames(
+        hyfourier.header,
+        hyfourier.n_spectra,
+        hyfourier.original_shape,
+        hyfourier.spatial_shape,
+    )
+    minw = hyfourier.wav_range[0] if minw is None else float(minw)
+    maxW = hyfourier.wav_range[1] if maxW is None else float(maxW)
+    min_freq = hyfourier.min_freq if min_freq is None else float(min_freq)
+    max_freq = hyfourier.max_freq if max_freq is None else float(max_freq)
+    kde_sidecar = hyfourier._getKDE(
+        sigma=confidence, minw=minw, maxW=maxW, min_freq=min_freq, max_freq=max_freq, vb=vb,
+    )
+
+    p = np.ones(hyfourier.n_spectra, dtype=np.float64)
+    p[~hyfourier._valid] = 0.0
+    if name_patterns:
+        for i, name in enumerate(names):
+            if hyfourier._valid[i]:
+                p[i] *= _nameMatch(name, name_patterns)
+            else:
+                p[i] = 0.0
+
+    for feat in features:
+        if 'point' in feat:
+            lo = feat['point'] - confidence
+            hi = feat['point'] + confidence
+        else:
+            lo, hi = feat['lo'], feat['hi']
+        lik = _gaussianWindowLikelihoodBatch(kde_sidecar, lo, hi, feat['kind'])
+        if feat['exclude']:
+            lik = 1.0 - lik
+        p *= lik
+
+    p[~np.isfinite(p)] = 0.0
+
+    n_result = min(int(n_result), hyfourier.n_spectra)
+    idx = np.argsort(p)[::-1][:n_result]
+    return [names[i] for i in idx], p[idx]
+
+
+def _fourier_archive_search_merged(
+    archive,
+    query,
+    confidence=10.0,
+    n_result=10,
+    minw=None,
+    maxW=None,
+    min_freq=None,
+    max_freq=None,
+    vb=False,
+):
+    """Search all archive entries for one AND-combined sub-query."""
+    merged_names = []
+    merged_scores = []
+    for key, hyfourier in archive._entries.items():
+        names, scores = _hyfourier_search_single(
+            hyfourier,
+            query,
+            confidence=confidence,
+            n_result=n_result,
+            minw=minw,
+            maxW=maxW,
+            min_freq=min_freq,
+            max_freq=max_freq,
+            vb=vb,
+        )
+        for name, score in zip(names, scores):
+            merged_names.append(_formatArchiveSampleName(key, name))
+            merged_scores.append(float(score))
+    if not merged_names:
+        return [], np.asarray([], dtype=np.float64)
+    merged_scores = np.asarray(merged_scores, dtype=np.float64)
+    order = np.argsort(merged_scores)[::-1][: int(n_result)]
+    return [merged_names[i] for i in order], merged_scores[order]
 
 
 def _parseSearchQuery(query):
