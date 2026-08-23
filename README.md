@@ -18,6 +18,17 @@ And, for EO (satellite hyperspectral) applications, then please also see [this](
 
 Detailed documentation for *hylite* can be found at: https://hifexplo.github.io/hylite/hylite.html.
 
+#### Related tools:
+
+*hylite* forms the core of an open-source hyperspectral processing ecosystem. Other packages extending *hylite*'s core functionality include:
+
+- [crunchy](https://github.com/samthiele/crunchy): A multithreading toolbox for simple realtime processing workflows. 
+- [hycore](https://github.com/samthiele/hycore): Data organisation and mosaic construction for hyperspectral drillcore data
+- [hywiz](https://github.com/samthiele/hywiz): Visualisation of hyperspectral drillcore libraries (viewer for `hycore` hyperspectral core 'Sheds').
+- [hklearn](https://github.com/samthiele/hklearn): Flexible toolbox for multi-sensor hyperspectral machine learning tasks.
+- [ispec](https://github.com/samthiele/ispec/): Quickly and interactively query spectral libraries, create mixed spectra and identify distinguishing spectral features. 
+
+
 #### User interface:
 
 We are currently developing a user interface for some *hylite* tools using [napari](https://napari.org/stable/). Still lots to do, but this can be found here: https://github.com/samthiele/napari-hippo. 
