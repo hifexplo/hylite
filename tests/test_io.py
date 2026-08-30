@@ -161,20 +161,99 @@ class TestIO(unittest.TestCase):
             shutil.rmtree(pth)
 
     def test_subset(self):
-        require_test_env(self, "default")
-        from hylite.io.images import loadSubset
+        require_test_env(self, "basic")
+        from hylite.io.images import loadSubset, loadWithNumpy
 
-        # load whole image for reference
+        # load whole image for reference (same loader / zero-masking as the subset)
         path = os.path.join(TEST_DATA, "image.hdr")
-        image = io.load(path)
+        image = loadWithNumpy(path)
 
         # load subset and check that dimensions and values match
         subset = loadSubset(path, bands=hylite.SWIR )
         self.assertEqual(subset.xdim(), image.xdim())
         self.assertEqual(subset.ydim(), image.ydim())
         self.assertAlmostEqual(np.nanmax( np.abs(image.export_bands(hylite.SWIR).data - subset.data ) ), 0 )
+        np.testing.assert_allclose(subset.get_wavelengths(), image.export_bands(hylite.SWIR).get_wavelengths())
 
         # load a pixel and check that the dimensions and values match
+        pixels = [(10, 5), (40, 12), (100, 20)]
+        spectra = loadSubset(path, pixels=pixels)
+        self.assertEqual(spectra.data.shape[0], len(pixels))
+        self.assertEqual(spectra.band_count(), image.band_count())
+        for i, (x, y) in enumerate(pixels):
+            self.assertAlmostEqual(np.nanmax(np.abs(spectra.data[i] - image.data[x, y])), 0)
+
+    def test_load_numpy_partial(self):
+        require_test_env(self, "basic")
+        from hylite.io.images import loadWithNumpy, saveWithNumpy
+
+        path = os.path.join(TEST_DATA, "image.hdr")
+        image = loadWithNumpy(path)
+
+        # band indices, wavelengths and a slice
+        by_index = loadWithNumpy(path, bands=[0, 3, 7])
+        self.assertEqual(by_index.band_count(), 3)
+        self.assertAlmostEqual(np.nanmax(np.abs(by_index.data - image.data[..., [0, 3, 7]])), 0)
+
+        by_wav = loadWithNumpy(path, bands=hylite.SWIR)
+        self.assertAlmostEqual(np.nanmax(np.abs(by_wav.data - image.export_bands(hylite.SWIR).data)), 0)
+
+        by_slice = loadWithNumpy(path, bands=slice(2, 9, 2))
+        self.assertAlmostEqual(np.nanmax(np.abs(by_slice.data - image.data[..., 2:9:2])), 0)
+
+        # spatial and spectral stride
+        spatial = loadWithNumpy(path, step=2)
+        self.assertEqual(spatial.xdim(), image.data[::2].shape[0])
+        self.assertEqual(spatial.ydim(), image.data[:, ::2].shape[1])
+        self.assertAlmostEqual(np.nanmax(np.abs(spatial.data - image.data[::2, ::2, :])), 0)
+
+        strided = loadWithNumpy(path, step=(2, 3, 4))
+        self.assertAlmostEqual(np.nanmax(np.abs(strided.data - image.data[::2, ::3, ::4])), 0)
+        np.testing.assert_allclose(strided.get_wavelengths(), image.get_wavelengths()[::4])
+
+        # band list plus spatial stride
+        mixed = loadWithNumpy(path, bands=[1, 5, 9], step=2)
+        self.assertAlmostEqual(np.nanmax(np.abs(mixed.data - image.data[::2, ::2, [1, 5, 9]])), 0)
+
+        # same subset / stride behaviour for each ENVI interleave
+        pth = mkdtemp()
+        try:
+            cube = (np.arange(8 * 6 * 5, dtype=np.float32).reshape(8, 6, 5) + 1.0)
+            src = hylite.HyImage(cube)
+            src.set_wavelengths([400.0, 500.0, 600.0, 700.0, 800.0])
+            src.set_band_names(['A', 'B', 'C', 'D', 'E'])
+            pixels = [(1, 2), (3, 4)]
+            for interleave in ('bil', 'bsq', 'bip'):
+                out = os.path.join(pth, interleave)
+                saveWithNumpy(out, src, interleave=interleave)
+                loaded = loadWithNumpy(out + '.hdr', mask_zero=False)
+                self.assertAlmostEqual(np.nanmax(np.abs(loaded.data - cube)), 0, msg=interleave)
+
+                subset = loadWithNumpy(out + '.hdr', bands=[0, 2, 4], mask_zero=False)
+                self.assertAlmostEqual(np.nanmax(np.abs(subset.data - cube[..., [0, 2, 4]])), 0, msg=interleave)
+                self.assertListEqual(list(subset.get_band_names()), ['A', 'C', 'E'])
+
+                spectra = loadWithNumpy(out + '.hdr', pixels=pixels, mask_zero=False)
+                for i, (x, y) in enumerate(pixels):
+                    self.assertAlmostEqual(np.nanmax(np.abs(spectra.data[i] - cube[x, y])), 0, msg=interleave)
+
+                skipped = loadWithNumpy(out + '.hdr', step=(2, 2, 2), mask_zero=False)
+                self.assertAlmostEqual(np.nanmax(np.abs(skipped.data - cube[::2, ::2, ::2])), 0, msg=interleave)
+
+                # streamed block-average matches a reshape-mean of the in-RAM cube
+                averaged = loadWithNumpy(out + '.hdr', step=(2, 2, 2), average=True, mask_zero=False)
+                expected = cube[:8, :6, :4].reshape(4, 2, 3, 2, 2, 2).mean(axis=(1, 3, 5))
+                self.assertAlmostEqual(np.nanmax(np.abs(averaged.data - expected)), 0, msg=interleave)
+                np.testing.assert_allclose(averaged.get_wavelengths(), [450.0, 650.0])
+
+                typed = loadWithNumpy(out + '.hdr', dtype=np.float64, mask_zero=False)
+                self.assertEqual(typed.data.dtype, np.float64)
+
+                mapped = loadWithNumpy(out + '.hdr', memmap=True, mask_zero=False)
+                self.assertFalse(mapped.data.flags.writeable)
+                self.assertAlmostEqual(np.nanmax(np.abs(np.array(mapped.data) - cube)), 0, msg=interleave)
+        finally:
+            shutil.rmtree(pth)
 
     def test_loadSED(self):
         require_test_env(self, "lite")
