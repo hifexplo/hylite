@@ -1,6 +1,6 @@
 # Python environment for hylite
 
-Run this protocol **before** using hylite in scripts,tests or notebooks. Do **not** assume the IDE’s default `python` has `hylite`.
+Run this protocol **before** using hylite in scripts, tests or notebooks. Do **not** assume the IDE’s default `python` has `hylite`.
 
 Use one **verified interpreter** for the whole session (record `PYTHON:` from the probe). Environments may be named anything (`hylite`, `hsi`, `hifsi`, `base`, …) and may come from **mamba**, **conda**, **micromamba**, **venv**, **uv**, **Poetry**, **pipenv**, or a plain path to `bin/python`.
 
@@ -113,21 +113,19 @@ Prefer what the user’s machine already has; otherwise use a **local venv** in 
 mamba create -n ENV python=3.11 -y   # or: conda create -n ENV ...
 mamba activate ENV                   # or: conda activate ENV
 pip install --upgrade pip
-pip install torch
 ```
 
 **Option 2 — venv** (always valid if `python3` exists):
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install --upgrade pip
-pip install torch
 ```
 
 Then install hylite:
 
-- **Inside this git clone:** `pip install -e .`
+- **Inside this git clone:** `pip install -e ".[all]"` (or `pip install -e .` without extras)
 - **Elsewhere:** `pip install "hylite"` or `pip install git+https://github.com/hifexplo/hylite.git`
 
 Re-run Step 1. Report `PYTHON:` to the user.

@@ -454,6 +454,7 @@ def saveWithNumpy( path, image, writeHeader=True, interleave='BSQ'):
     header['data type'] = envi_data_type
     header['interleave'] = interleave
     header['byte order'] = '0'
+    header['header offset'] = '0'  # tofile writes a raw cube with no prefix
     header_path = path + '.hdr'
     saveHeader( header_path, header)
 

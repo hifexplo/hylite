@@ -64,7 +64,7 @@ Extends HyData. Shape `[x, y, band]`.
 | `xdim()`, `ydim()`, `aspx()`, `T()` | Spatial dims |
 | `set_projection()`, `set_projection_EPSG()`, `get_extent()` | Georeferencing |
 | `pix_to_world()`, `world_to_pix()` | Coordinate transform |
-| `crop()`, `resize()`, `tile()`, `mosaic()`, `flip()`, `rot90()` | Spatial ops |
+| `crop(xmin, xmax, ymin, ymax)`, `resize()`, `tile()`, `mosaic()`, `flip()`, `rot90()` | Spatial ops |
 | `mask()`, `crop_to_data()`, `drop_bbl()`, `fill_holes()`, `blur()`, `despeckle()` | Filtering |
 | `pickPolygons()`, `pickPoints()`, `pickSamples()` | Interactive ROI |
 | `get_keypoints()`, `match_keypoints()` | Feature matching |
@@ -129,7 +129,7 @@ collection['reflectance'] = corrected
 ## hylite.io
 
 ```python
-io.load(path, to_nm=False)   # auto-dispatch
+io.load(path, to_nm=False)   # auto-dispatch by extension; does not take bands/step
 io.save(path, data, **kwds)
 ```
 
@@ -141,6 +141,8 @@ io.save(path, data, **kwds)
 | `pmaps` | `loadPMap`, `savePMap` |
 | `cameras` | `loadCameraTXT`, `saveCameraTXT` |
 | `headers` | `matchHeader`, `loadHeader`, `saveHeader` |
+
+`loadWithNumpy(path, dtype=None, mask_zero=True, to_nm=False, bands=None, pixels=None, step=1, average=False, memmap=False)` — ENVI reader that can skip unread data. `bands` is a list of indices/wavelengths/names or a `slice`. `pixels` is a list of `(x, y)` (sample, line) and returns `HyData`. `step` is an int, `(sx, sy)`, or `(sx, sy, sb)` — stride if `average=False`, block nan-mean if `True`. `memmap=True` needs `mask_zero=False` and is incompatible with `average` / `pixels`. `loadSubset` is XOR `bands`/`pixels` wrapping the same function. `saveWithNumpy` writes a raw cube and sets `header offset = 0`.
 
 ## hylite.correct
 
@@ -155,7 +157,7 @@ io.save(path, data, **kwds)
 
 | Function | Purpose |
 |----------|---------|
-| `autoELC`, `UAC`, `ELC` | Empirical line / illumination correction |
+| `autoELC`, `UAC`, `ELC` | Empirical line / illumination correction. `ELC(panels)` then `elc.apply(data)` (in-place; returns a good-band mask) |
 | `IlluModel` | Forward radiance model |
 | `estimate_illu`, `estimate_sun_vec`, `estimate_skyview` | Illumination estimation |
 | `calcLambert`, `calcOrenNayar` | BRDF reflectance factors |
@@ -171,7 +173,7 @@ io.save(path, data, **kwds)
 | `unmixing` | `mix`, `unmix(method='nnls'/'fcls')`, `endmembers(method='nfindr'/'atgp'/...)` |
 | `sam` | `spectral_angles`, `SAM` |
 | `dtree` | `decision_tree` |
-| `fourier` | `HyFourier`, `FourierArchive` — FFT compression, extrema, library search (`.fdr`/`.fda`) |
+| `fourier` | `HyFourier`, `FourierArchive` — FFT compression, extrema, library search (`.fdr`/`.fda`). Import from `hylite.analyse.fourier` (not lazy on `hylite.analyse`) |
 
 Removed in v1.4 (use [hklearn](https://github.com/samthiele/hklearn) instead): `supervised`, `unsupervised`.
 
@@ -179,12 +181,26 @@ Removed in v1.4 (use [hklearn](https://github.com/samthiele/hklearn) instead): `
 
 ```python
 minimum_wavelength(data, minw, maxw,
-    trend='hull',      # detrend before fitting
-    method='gauss',    # 'gauss'|'poly'|'quad'|'minmax'
-    n=2,               # number of features to fit
-    step=1,            # pixel subsampling
+    trend='hull',       # 'hull' or None
+    method='gaussian',  # 'gaussian'|'poly'|'quad'|'minmax' ('gauss' also matches)
+    n=1,                # number of features to fit
+    nthreads=1,
 )
 ```
+
+### Fourier search (`HyFourier.search` / `FourierArchive.search`)
+
+Returns `(names, scores)`. Whitespace tokens AND; `|` ORs sub-queries. `confidence` is ±nm for point queries (default 10). Reconstruct hits with `getSpectra(names)` or `getSpectraByName(...)`.
+
+| Token | Meaning |
+|-------|---------|
+| `2200` | absorption near 2200 nm |
+| `^2300` | reflectance peak near 2300 nm |
+| `!2200` / `!^2300` | absence of that absorption / peak |
+| `2160-2200` | feature anywhere in the interval |
+| `Kaolinite` | case-insensitive name substring |
+| `2200 Kaolinite` | feature AND name |
+| `kaolinite \| dolomite` | OR of two sub-queries |
 
 ## hylite.filter (deprecated — do not use in new code)
 
@@ -273,7 +289,7 @@ Base `Sensor`: `name()`, `fov()`, `correct_image()`, `correct_folder()`.
 | Module | Contents |
 |--------|----------|
 | `spectra` | `Target`, `loadTarget`, `R90`, `spectralon`, `PVC`, `custom` |
-| `features` | `Features`, `Minerals`, `Themes` — predefined `HyFeature` instances |
+| `features` | `Features` (`AlOH`, `FeOH`, `MgOH`, `H2O`, …), `Themes` (`ATMOSPHERE`, `OH`, `DIAGNOSTIC`) — lists of `HyFeature`. There is no `Minerals` class. |
 | `generate` | `randomSpectra`, `genImage` — synthetic test data |
 
 ## File extensions
@@ -295,7 +311,7 @@ Base `Sensor`: `name()`, `fov()`, `correct_image()`, `correct_folder()`.
 
 | Test file | Covers |
 |-----------|--------|
-| `test_io.py` | load/save roundtrips |
+| `test_io.py` | load/save roundtrips, `loadWithNumpy` bands/pixels/stride/average/memmap |
 | `test_core.py` | HyData, HyImage, HyCloud, HyLibrary basics |
 | `test_transform.py` | PCA, MNF, overlay, resample |
 | `test_correct.py` | hull, illumination, panel |
