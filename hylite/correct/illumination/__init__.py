@@ -5,12 +5,8 @@ from radiance data.
 
 import datetime
 import numpy as np
-import pytz
-from scipy import stats
-import datetime
 from hylite.correct import get_hull_corrected
-import matplotlib.pyplot as plt
-import numpy as np
+from hylite._deps import require
 
 #####################
 ## Utility functions
@@ -23,7 +19,7 @@ from .path import *
 
 def sph2cart(az, el, r=1.0):
     """
-    Convert spherical coordiantes to cartesian ones.
+    Convert spherical coordinates to cartesian ones.
     """
 
     az = np.deg2rad(az)
@@ -70,6 +66,7 @@ def estimate_sun_vec(lat, lon, time):
 
     # get time
     if isinstance(time, tuple):  # parse time from strings
+        pytz = require("pytz")
         tz = time[2]
         time = datetime.datetime.strptime(time[0], time[1])
         tz = pytz.timezone(tz)
@@ -81,7 +78,7 @@ def estimate_sun_vec(lat, lon, time):
     assert not time.tzinfo is None, "Error - time zone must be specified (e.g. using tz='timezone')."
 
     # calculate illumination vector from time/position
-    import astral.sun
+    astral = require("astral")
     pos = astral.Observer(lat, lon, 0)
     azimuth = astral.sun.azimuth(pos, time)
     elevation = astral.sun.elevation(pos, time)
@@ -148,8 +145,7 @@ def _regress(x, y, split=True, clip=(10, 90)):
 ## Useful functions for building / doing illumination corrections
 #############################################################################
 import hylite
-import numpy as np
-from skimage.morphology import closing, opening
+
 
 def autoELC( 
     img : hylite.HyImage,
@@ -180,7 +176,7 @@ def autoELC(
     - 'overall': uses the darkest and brightest overall spectra across the scene.
 
     Args:
-        img: A hylite.HyImage instance containing the hyperspectral data to be corrected.
+        img: A `hylite.hyimage.HyImage` instance containing the hyperspectral data to be corrected.
         percentile: The percentile of the relevant image region (determined by xlim, ylim and if mode='pixel' the patch_size) that is 
                     averaged to determine the dark and bright spectra. Default is 1%. Set as 0 to use the minimum and maximum spectra for dark and light (respectively).
         ylim: Fraction of the image height (float) or pixel coordinate (int) below which calibration pixels are taken 
@@ -199,7 +195,7 @@ def autoELC(
                      the 'black' and 'white' spectra in this dictionary will be used for the ELC rather than recomputing them.
     
     Returns:
-        quickR: hylite.HyImage
+        quickR: `hylite.hyimage.HyImage`
             The "quick" ELC-corrected hyperspectral image with relative reflectance values.
         out: dict
             Dictionary containing additional information from the ELC computation:
@@ -212,9 +208,9 @@ def autoELC(
                 Extracted dark patch spectra averaged over the patch.
             - bright_spectra: np.ndarray
                 Extracted bright patch spectra averaged over the patch.
-            - dark_patch : hylite.HyImage
+            - dark_patch : `hylite.hyimage.HyImage`
                 The extracted dark patch.
-            - bright_patch : hylite.HyImage
+            - bright_patch : `hylite.hyimage.HyImage`
                 The extracted bright patch.
             - min_spectra: np.ndarray
                 Minimum spectra computed over the whole selected region.
@@ -248,6 +244,9 @@ def autoELC(
         arr = arr[::sf, ::sf, :]
 
         # --- Morphological smoothing ---
+        skimage_morph = require("skimage.morphology")
+        opening = skimage_morph.opening
+        closing = skimage_morph.closing
         footprint = np.full((int(size/sf), int(size/sf), 1), 1)
         arr_open = opening(arr, footprint=footprint, mode='ignore')
         arr_close = closing(arr, footprint=footprint, mode='ignore')
@@ -338,12 +337,12 @@ def UAC(data, band_range=(0, -1), thresh=98, vb=True):
     Args:
         image: a hyperspectral image to correct
         band_range: a range of bands to do this over. Default is (0,-1), which applies the correction to all bands.
-        thresh: the percentile to apply when identifying the smallest absorbtion in any range based on hull corrected
+        thresh: the percentile to apply when identifying the smallest absorption in any range based on hull corrected
                 spectra. Lower values will remove more absorption (potentially including features of interest).
         vb: True if a progress bar should be created during hull correction steps.
 
     Returns:
-        a HyData instance containing the corrected spectra.
+        a `hylite.hydata.HyData` instance containing the corrected spectra.
     """
     # subset dataset
     out = data.export_bands(band_range)
@@ -475,7 +474,7 @@ class IlluModel(object):
                      (if a skylight spectra is defined but skyview factors are unknown).
             rf: reflectance factors as determined by e.g. a lambertian or oren-nayar reflectance model. Default
                 is a perfect reflection (1.0).
-            o: occlusion factors that reduce the amount of incident light recieved across the scene due to e.g.
+            o: occlusion factors that reduce the amount of incident light received across the scene due to e.g.
                shadows. Reflection factors specified by the rf argument are multiplied by (1 - oc). Default is 0
                (no occlusion).
 
@@ -594,7 +593,7 @@ class IlluModel(object):
         Plot the relationship between illumination and measured radiance.
 
         Args:
-            radiance: the radiance data (HyImage or HyCloud) to compare too. Shape must match internal self.data array.
+            radiance: the radiance data (`hylite.hyimage.HyImage` or `hylite.hycloud.HyCloud`) to compare to. Shape must match internal self.data array.
             bands: the band (integer or float), band range (tuple) or bands (list) to include on the regression plot. Default
                    is None (use all bands).
             n: plot every nth point (only) to speed up plotting. Default is 100. This value does not affect the regressions.
@@ -634,6 +633,8 @@ class IlluModel(object):
         # remove any mischevous negative radiances... (these are noise)
         x[x < 0] = np.nan
 
+        plt = require("matplotlib.pyplot")
+
         # build plot
         if len( self.iboost.shape ) == 0 and len( self.rboost.shape ) == 0:  # no adjustment applied
             fig, ax = plt.subplots(2, 1, figsize=(10, 10))  # only two axes needed if no shift applied
@@ -644,7 +645,7 @@ class IlluModel(object):
         ###################
         # (a) plot points
         ###################
-        cmap = plt.get_cmap('rainbow')
+        cmap = require("matplotlib").colormaps.get_cmap('rainbow')
         kwds['s'] = kwds.get('s', 3.0)
         kwds['alpha'] = kwds.get('alpha', 0.1)
         for b in range(x.shape[-1]):
@@ -682,7 +683,7 @@ class IlluModel(object):
         #############################################
         y = y / x  # convert to reflectance
 
-        cmap = plt.get_cmap('rainbow')
+        cmap = require("matplotlib").colormaps.get_cmap('rainbow')
         kwds['s'] = kwds.get('s', 3.0)
         kwds['alpha'] = kwds.get('alpha', 0.1)
         for b in range(x.shape[-1]):
@@ -741,6 +742,7 @@ class ELC(object):
             self.slope = panels[0].get_mean_radiance() / panels[0].get_reflectance()
         else:
             # calculate regression for each band
+            stats = require("scipy.stats")
             for b, w in enumerate(self.wav):
                 _y = np.array([p.get_mean_radiance()[b] for p in panels])
                 _x = np.array([p.get_reflectance()[b] for p in panels])
@@ -775,7 +777,7 @@ class ELC(object):
         Apply this empirical line calibration to the specified image.
 
         Args:
-            data: a HyData instance to correct
+            data: a `hylite.hydata.HyData` instance to correct
             **kwds: Keywords can include:
 
                  - thresh = the threshold slope. Defaults to the 90th percentile.
@@ -809,6 +811,7 @@ class ELC(object):
 
         """
 
+        plt = require("matplotlib.pyplot")
         if ax is None:
             fig, ax = plt.subplots(figsize=kwds.pop('figsize',(15, 10)))
 

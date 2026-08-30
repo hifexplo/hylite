@@ -67,7 +67,7 @@ class Sensor(object):
         Apply sensor corrections to an image.
 
         Args:
-            image (hylite.HyImage): a hyImage instance of an image captured using this sensor.
+            image (`hylite.hyimage.HyImage`): a `hylite.hyimage.HyImage` instance of an image captured using this sensor.
             verbose (bool): true if updates/progress should be printed to the console. Default is False.
             **kwds: keywords as defined by inherited classes (sensor specific)
         """
@@ -85,7 +85,7 @@ class Sensor(object):
             **kwds: keywords as defined by inherited classes (sensor specific)
 
         Returns:
-            A hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
+            A `hylite.hyimage.HyImage` to which all sensor-specific corrections have been applied. Note that this will generally not include
             topographic or atmospheric corrections.
 
         """
@@ -121,7 +121,7 @@ class Sensor(object):
         Sets the white reference to be used for sensor corrections.
 
         Args:
-            image (hylite.HyImage): the white reference image.
+            image (`hylite.hyimage.HyImage`): the white reference image.
         """
 
         if isinstance(image, str):

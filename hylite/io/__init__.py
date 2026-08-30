@@ -3,79 +3,93 @@
 Import and export hyperspectral data. For hyperspectral images this is mostly done using GDAL,
 while for point clouds and hyperspectral libraries a variety of different methods are included.
 """
+import os
+import shutil
+from pathlib import Path
+
+import numpy as np
+
+from hylite import HyImage, HyCloud, HyLibrary, HyCollection, HyScene, HyData, HyHeader
+from hylite._deps import gdal_available, optional, require
+
 from .headers import *
 from .images import *
 from .clouds import *
 from .libraries import *
 from .pmaps import *
 from .cameras import saveCameraTXT, loadCameraTXT
-from pathlib import Path
 
-from hylite import HyImage, HyCloud, HyLibrary, HyCollection, HyScene, HyData
-from hylite.project import PMap, Camera, Pushbroom
-from hylite.analyse.mwl import MWL
-from distutils.dir_util import copy_tree
-import os
+usegdal = gdal_available()
 
-# check if gdal is installed
-try:
-    from osgeo import gdal
-    usegdal = True
-except ModuleNotFoundError:
-    usegdal = False
+
+def _is_project_type(data, name):
+    """Lazy isinstance check for project types without importing project on io load."""
+    if name == 'PMap':
+        from hylite.project.pmap import PMap
+        return isinstance(data, PMap)
+    if name == 'Camera':
+        from hylite.project.camera import Camera
+        return isinstance(data, Camera)
+    if name == 'Pushbroom':
+        from hylite.project.pushbroom import Pushbroom
+        return isinstance(data, Pushbroom)
+    return False
+
 
 def save(path, data, **kwds):
     """
-    A generic function for saving HyData instances such as HyImage, HyLibrary and HyCloud. The appropriate file format
-    will be chosen automatically.
+    A generic function for saving `hylite.hydata.HyData` instances such as `hylite.hyimage.HyImage`,
+    `hylite.hylibrary.HyLibrary` and `hylite.hycloud.HyCloud`. The appropriate file format will be chosen
+    automatically.
 
     Args:
-        path (str): the path to save the file too.
-        data (HyData or ndarray): the data to save. This must be an instance of HyImage, HyLibrary or HyCloud.
+        path (str): the path to save the file to.
+        data (`hylite.hydata.HyData` or ndarray): the data to save. This must be an instance of
+            `hylite.hyimage.HyImage`, `hylite.hylibrary.HyLibrary` or `hylite.hycloud.HyCloud`.
         **kwds: Keywords can include:
 
              - vmin = the data value that = 0 when saving RGB images.
              - vmax = the data value that = 255 when saving RGB images. Must be > vmin.
+
+        Preview formats (``.png``, ``.jpg``, ``.jpeg``, ``.bmp``, ``.pdf``) accept only
+        1-, 3- or 4-band images. Hyperspectral cubes must be saved as ENVI (``.hdr``).
     """
 
     if isinstance(data, HyImage):
 
-        # special case - save ternary image to png or jpg or bmp
+        # special case - save grey / RGB / RGBA previews
         ext = os.path.splitext(path)[1].lower()
-        if 'jpg' in ext or 'bmp' in ext or 'png' in ext or 'pdf' in ext:
-            if data.band_count() == 1 or data.band_count() == 3 or data.band_count == 4:
-                rgb = np.transpose( data.data, (1,0,2) )
-                if not ((data.is_int() and np.max(rgb) <= 255)): # handle normalisation
-                    vmin = kwds.get("vmin", np.nanpercentile(rgb, 1 ) )
-                    vmax = kwds.get("vmax", np.nanpercentile(rgb, 99) )
-                    rgb = (rgb - vmin) / (vmax-vmin)
-                    rgb = (np.clip(rgb, 0, 1) * 255).astype(np.uint8) # convert to 8 bit image
-                #from matplotlib.pyplot import imsave
-                # imsave( path, rgb )
-                from skimage import io as skio
-                skio.imsave( path, rgb ) # save the image
-                return
-        elif ((data.band_count() == 1) or (data.band_count() == 3) or (data.band_count() == 4)) and (data.data.dtype == np.uint8):
-            # save 1, 3 and 4 band uint8 arrays as png files
-            # from matplotlib.pyplot import imsave
-            # imsave( os.path.splitext(path)[0]+".png", data.data)  # save the image
-            #from skimage import io as skio
-            #skio.imsave(os.path.splitext(path)[0]+".png", np.transpose( data.data, (1,0,2) ))  # save the image
-            from PIL import Image
-            if (data.band_count() == 1):
+        n = data.band_count()
+        if ext in ('.jpg', '.jpeg', '.bmp', '.png', '.pdf'):
+            if n not in (1, 3, 4):
+                raise ValueError(
+                    "Error - %s only supports 1, 3 or 4 bands; this image has %d. "
+                    "Export an RGB subset first (e.g. image.export_bands(hylite.RGB)) or save as ENVI (.hdr)."
+                    % (ext, n)
+                )
+            rgb = np.transpose( data.data, (1,0,2) )
+            if not ((data.is_int() and np.max(rgb) <= 255)): # handle normalisation
+                vmin = kwds.get("vmin", np.nanpercentile(rgb, 1 ) )
+                vmax = kwds.get("vmax", np.nanpercentile(rgb, 99) )
+                rgb = (rgb - vmin) / (vmax-vmin)
+                rgb = (np.clip(rgb, 0, 1) * 255).astype(np.uint8) # convert to 8 bit image
+            skio = require("skimage.io")
+            skio.imsave( path, rgb ) # save the image
+            return
+        elif n in (1, 3, 4) and data.data.dtype == np.uint8:
+            Image = require("PIL").Image # save 1, 3 and 4 band uint8 arrays as png files
+            if n == 1:
                 img = Image.fromarray(data.data[..., 0].T)  # single-band PNG
             else:
-                img = Image.fromarray(np.transpose(data.data, (1, 0, 2)))  # ternary PNG
+                img = Image.fromarray(np.transpose(data.data, (1, 0, 2)))  # ternary / RGBA PNG
 
             img.save(os.path.splitext(path)[0]+".png", "PNG")
             save( os.path.splitext(path)[0] + ".hdr", data.header ) # save header
             return
         else: # save hyperspectral image
             if usegdal:
-                from osgeo import gdal  # is gdal installed?
                 save_func = saveWithGDAL
             else:  # no gdal
-                #save_func = saveWithSPy
                 save_func = saveWithNumpy
             if 'lib' in ext: # special case - we are actually saving a HyLibrary (as an image)
                 ext = 'lib'
@@ -90,13 +104,13 @@ def save(path, data, **kwds):
     elif isinstance(data, HyLibrary):
         save_func = saveLibraryLIB
         ext = 'lib'
-    elif isinstance(data, PMap ):
+    elif _is_project_type(data, 'PMap'):
         save_func = savePMap
         ext = 'npz'
-    elif isinstance(data, Camera ):
+    elif _is_project_type(data, 'Camera'):
         save_func = saveCameraTXT
         ext = 'cam'
-    elif isinstance(data, Pushbroom):
+    elif _is_project_type(data, 'Pushbroom'):
         save_func = saveCameraTXT
         ext = 'brm'
     elif isinstance(data, HyCollection):
@@ -106,11 +120,7 @@ def save(path, data, **kwds):
         os.makedirs( os.path.splitext(path)[0] +"."+ ext, exist_ok=True ) # make output directory (even if empty)
         if os.path.splitext(path)[0] != outdir:
             if os.path.exists( outdir+"."+ext): # if it exists...
-                #if sys.version_info[1] >= 8: # python 3.8 or greater
-                #    shutil.copytree( outdir+"."+ext, os.path.splitext(path)[0]+"."+ext, dirs_exist_ok=True)
-                #else:
-                #    shutil.copytree( outdir+"."+ext, os.path.splitext(path)[0]+"."+ext ) # will fail if directory already exists unfortunately.
-                copy_tree(outdir+"."+ext, os.path.splitext(path)[0]+"."+ext)
+                shutil.copytree(outdir + "." + ext, os.path.splitext(path)[0] + "." + ext, dirs_exist_ok=True)
 
 
     elif isinstance(data, np.ndarray) or isinstance(data, list):
@@ -191,10 +201,7 @@ def load(path, to_nm=False):
     else: # image
         # load conventional images with PIL
         if 'png' in ext or 'jpg' in ext or 'bmp' in ext:
-            # load image with matplotlib
-            #from matplotlib.pyplot import imread
-            #im = imread(path)
-            from skimage import io as skio
+            skio = require("skimage.io")
             im = skio.imread(data)
             if len(im.shape) == 2:
                 im = im[:,:,None] # add last dimension if greyscale image is loaded
@@ -203,23 +210,16 @@ def load(path, to_nm=False):
                 out.header = loadHeader(header, to_nm=to_nm)
         else:
             if usegdal:
-                from osgeo import gdal # is gdal installed?
-                out = loadWithGDAL(path, to_nm=to_nm)
+                try:
+                    out = loadWithGDAL(path, to_nm=to_nm)
+                except (AssertionError, ImportError, OSError):
+                    out = loadWithNumpy(path, to_nm=to_nm)
             else: # no gdal
-                #out = loadWithSPy(path)
                 out = loadWithNumpy(path, to_nm=to_nm)
         
         # special case - loading spectral library; convert image to HyData
         if 'lib' in ext:
             out = HyLibrary(out.data, header=out.header)
-
-    # ensure band are ordered from lowest to highest
-    if hasattr(out, 'header'):
-        if 'wavelength' in out.header:
-            if len(out.get_wavelengths()) == out.data.shape[-1]:
-                ixx = np.argsort( out.get_wavelengths() )
-                out.data = out.data[..., ixx] # sort into ascending order
-                out.set_wavelengths( out.get_wavelengths()[ixx] )
 
     return out  # return dataset
 
@@ -249,6 +249,7 @@ def _loadCollection(path):
     elif 'hys' in os.path.splitext(directory)[1]:
         C = HyScene(name, root, header=loadHeader(header))
     elif 'mwl' in os.path.splitext(directory)[1]:
+        from hylite.analyse.mwl import MWL
         C = MWL(name, root, header=loadHeader(header))
     else:
         # print(header, directory )

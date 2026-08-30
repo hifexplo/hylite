@@ -4,8 +4,9 @@ Perspective, panoramic and orthographic projections.
 
 
 import numpy as np
-from scipy import spatial
-from numba import jit, prange
+
+from hylite._deps import optional, require
+
 
 def proj_persp( xyz, C, a, fov, dims, normals=None):
     """
@@ -25,6 +26,8 @@ def proj_persp( xyz, C, a, fov, dims, normals=None):
         - pp = a (n,3) array containg the project point coordinates (x,y) and distance from the camera (z).
         - vis = a (n,) array scored with True if the corresponding point is visible from the camera.
     """
+
+    spatial = require("scipy").spatial
 
     #transform origin to camera position
     xyz = xyz - C[None,:]
@@ -80,6 +83,8 @@ def proj_pano(xyz, C, a, fov, dims, step=None, normals=None):
         - vis = a (n,) array scored with True if the corresponding point is visible from the camera.
     """
 
+    spatial = require("scipy").spatial
+
     # transform origin to camera position
     xyz = xyz - C[None, :]
 
@@ -118,7 +123,7 @@ def proj_pano(xyz, C, a, fov, dims, step=None, normals=None):
 
     return np.array([px, py, pz]).T, vis
 
-def proj_ortho( xyz, C, V, s=1.0 ):
+def proj_ortho(xyz, C, V, s=1.0, y_down=False, cull=True):
     """
     Project points onto a plane (orthographic projection).
 
@@ -127,6 +132,8 @@ def proj_ortho( xyz, C, V, s=1.0 ):
         C (ndarray): the position of the viewing plane origin (will become pixel 0,0).
         V (ndarray): the [x,y,z] viewing/projection vector (normal to the projection plane).
         s (float): the scale factor to transform world coordinates into image coordinates. Default is 1.0 (keep world coords).
+        y_down (bool): If True, flip the projected y axis so image row coordinates increase downward.
+        cull (bool): If True, points with non-positive depth along V are marked invisible. Default is True.
 
     Returns:
         A tuple containing:
@@ -136,13 +143,62 @@ def proj_ortho( xyz, C, V, s=1.0 ):
     """
 
     xyz = xyz - C[None, :]  # center origin on camera
-    #pz = np.dot(xyz, V)  # calculate depths (distances from plane)
-    pz = xyz@V
-    xyz -= (V[None, :] * pz[:, None])  # project onto plane (by removing depth)
-    return s*np.array([ xyz[:,0], xyz[:,1], pz]).T, pz > 0
+    pz = xyz @ V  # calculate depths (distances from plane)
+    xyz = xyz - (V[None, :] * pz[:, None])  # project onto plane (by removing depth)
+    pp = s * np.stack([xyz[:, 0], xyz[:, 1], pz], axis=-1)
+    if y_down:
+        pp[:, 1] = -pp[:, 1]
+    if cull:
+        vis = pz > 0
+    else:
+        vis = np.ones(xyz.shape[0], dtype=bool)
+    return pp, vis
 
-@jit(nopython=True)
-def _rast( points, s, dims, vals  ):
+
+def ortho_nadir_params(xyz, res=None):
+    """
+    Compute raster parameters for a nadir orthophoto of a point cloud.
+
+    Args:
+        xyz (ndarray): Nx3 point coordinates used to define the image bounds.
+        res (float): Pixel size in world coordinates. Default is max(x extent, y extent) / 1000.
+
+    Returns:
+        xmin, ymax, res, dims, C where C is the world coordinate of pixel (0, 0).
+    """
+    xmin = np.amin(xyz[:, 0])
+    xmax = np.amax(xyz[:, 0])
+    ymin = np.amin(xyz[:, 1])
+    ymax = np.amax(xyz[:, 1])
+    if res is None:
+        res = max(xmax - xmin, ymax - ymin) / 1000
+    if res <= 0:
+        res = 1.0
+    dims = (int((xmax - xmin) / res + 1), int((ymax - ymin) / res + 1))
+    C = np.array([xmin, ymax, 0.0])
+    return xmin, ymax, res, dims, C
+
+
+_NADIR_DOWN = np.array([0.0, 0.0, 1.0])
+
+
+def project_ortho_nadir(xyz, res=None, cull=False):
+    """
+    Project point coordinates to nadir orthophoto pixels (image y increases downward).
+
+    Args:
+        xyz (ndarray): Nx3 point coordinates.
+        res (float): Pixel size in world coordinates. Default is max extent / 1000.
+        cull (bool): If True, cull points behind the viewing plane. Default is False.
+
+    Returns:
+        pp, vis, dims, xmin, ymax, res
+    """
+    xmin, ymax, res, dims, C = ortho_nadir_params(xyz, res=res)
+    pp, vis = proj_ortho(xyz, C, _NADIR_DOWN, s=1.0 / res, y_down=True, cull=cull)
+    return pp, vis, dims, xmin, ymax, res
+
+def _rast_impl(points, s, dims, vals):
     """
     Fast loop function for rasterise.
     """
@@ -172,6 +228,13 @@ def _rast( points, s, dims, vals  ):
                     depth[ _x, _y ] = z
 
     return out, depth
+
+
+_numba = optional("numba")
+if _numba is not None:
+    _rast = _numba.jit(nopython=True)(_rast_impl)
+else:
+    _rast = _rast_impl
 
 
 def rasterize(points, vis, vals, dims, s=1):
@@ -278,6 +341,7 @@ def pix_to_ray_pano(x, y, fov, step, dims):
 
     # rotate it around y based on x
     alpha = (x - (dims[0] / 2.0)) * step  # map to angle coords (-180 to 180 degrees)
+    spatial = require("scipy").spatial
     R = spatial.transform.Rotation.from_euler('Y', alpha, degrees=True).as_matrix()
 
     return np.dot(ray, R)  # return rotated ray
@@ -348,6 +412,7 @@ def pnp(kxyz, kxy, fov, dims, ransac=True, **kwds):
          - inl = list of Ransac inlier indices used to estimate the position, or None if ransac == False.
     """
     import cv2 # import this here to avoid errors if opencv is not installed properly
+    spatial = require("scipy").spatial
     
     # normalize keypoints so that origin is at mean
     mean = np.mean(kxyz, axis=0)

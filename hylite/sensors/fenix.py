@@ -56,7 +56,7 @@ class Fenix(Sensor):
         Apply sensor corrections to an image.
 
         Args:
-            image (hylite.HyImage): a hyImage instance of an image captured using this sensor.
+            image (`hylite.hyimage.HyImage`): a `hylite.hyimage.HyImage` instance of an image captured using this sensor.
             verbose (bool): true if updates/progress should be printed to the console. Default is False.
             **kwds: Optional arguments include:
 
@@ -78,7 +78,7 @@ class Fenix(Sensor):
         lens = kwds.get("lens", True)
         noise = kwds.get("noise", False) # true if noise info should be calculated and returned.
         if rad:
-            if verbose: print("Converting to radiance... ", end="", flush="True")
+            if verbose: print("Converting to radiance... ", end="", flush=True)
 
             # convert from int to float
             image.data = image.data.astype(np.float32)
@@ -217,7 +217,7 @@ class Fenix(Sensor):
         # replace bad pixels with an average of the surrounding ones
         ##############################################################
         if bpr:
-            if verbose: print("Filtering bad pixels... ", end="", flush="True")
+            if verbose: print("Filtering bad pixels... ", end="", flush=True)
             invalids = np.argwhere(np.isnan(image.data) | np.isinf(image.data))  # search for bad pixels
             for px, py, band in invalids:
                 n = 0
@@ -245,7 +245,7 @@ class Fenix(Sensor):
         # sensor alignment - identify tie points and apply rigid transform to second sensor
         ######################################################################################
         if shift:
-            if verbose: print("Correcting sensor shift (SIFT)... ", end="", flush="True")
+            if verbose: print("Correcting sensor shift (SIFT)... ", end="", flush=True)
 
             # extract sift features from a band in each sensor
             m = 'sift'  # matching method
@@ -279,7 +279,7 @@ class Fenix(Sensor):
         # apply lens correction
         #############################
         if lens:
-            if verbose: print("Applying lens correction... ", end="", flush="True")
+            if verbose: print("Applying lens correction... ", end="", flush=True)
 
             # load pixel offsets
             if image.xdim() == 1024:
@@ -368,7 +368,7 @@ class Fenix(Sensor):
                  - calib = Calibration spectra for any white references found.
 
         Returns:
-            A hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
+            A `hylite.hyimage.HyImage` to which all sensor-specific corrections have been applied. Note that this will generally not include
             topographic or atmospheric corrections.
 
         """

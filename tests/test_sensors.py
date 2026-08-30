@@ -3,10 +3,12 @@ import numpy as np
 from tests import genImage
 from hylite.sensors import Fenix, FX10, Rikola_HSC2, Rikola_RSC1, Rikola
 from hylite.reference.spectra import R90
+from tests._support import require_test_env
+
 
 class TestSensors(unittest.TestCase):
     def test_fenix(self):
-        # create fake scene and dark and white reference
+        require_test_env(self, "opencv")
         scene = genImage(Fenix.ypixels(),500,450)
         dark = genImage(Fenix.ypixels(),100,450)
         white = genImage(Fenix.ypixels(),100,450)
@@ -27,6 +29,7 @@ class TestSensors(unittest.TestCase):
         self.assertEqual( np.isfinite(scene.data).any(), True )
 
     def test_fx(self):
+        require_test_env(self, "lite")
         scene = genImage(FX10.ypixels(),500,224)
         dark = genImage(FX10.ypixels(),100,224)
         white = genImage(FX10.ypixels(),100,224)

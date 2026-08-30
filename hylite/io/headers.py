@@ -30,7 +30,7 @@ def saveHeader(path, header):
 
     Args:
         path: the path to write to.
-        header: the HyHeader object to write.
+        header: the `hylite.hyheader.HyHeader` object to write.
     """
 
     if os.path.exists(path):
@@ -92,7 +92,7 @@ def loadHeader(path, to_nm=False):
         if not inblock:
             # Split line on first equals sign
             if (re.search("=", currentline) is not None):
-                linesplit = re.split("=", currentline, 1)
+                linesplit = re.split("=", currentline, maxsplit=1)
                 # key = str.lower(linesplit[0].strip())
                 key = linesplit[0].strip()
                 value = linesplit[1].strip()
@@ -100,11 +100,11 @@ def loadHeader(path, to_nm=False):
                 # If value starts with an open brace, it's the start of a block - strip the brace off and read the rest of the block
                 if (re.match("{", value) is not None):
                     inblock = True
-                    value = re.sub("^{", "", value, 1)
+                    value = re.sub("^{", "", value, count=1)
                     # If value ends with a close brace it's the end of the block as well - strip the brace off
                     if (re.search("}$", value)):
                         inblock = False
-                        value = re.sub("}$", "", value, 1)
+                        value = re.sub("}$", "", value, count=1)
                 value = value.strip()
                 header[key] = value
         else:
@@ -113,7 +113,7 @@ def loadHeader(path, to_nm=False):
             value = currentline.strip()
             if (re.search("}$", value)):
                 inblock = False
-                value = re.sub("}$", "", value, 1)
+                value = re.sub("}$", "", value, count=1)
                 value = value.strip()
             header[key] = header[key] + value + '\n' # keep the newline characters
         currentline = hdrfile.readline()

@@ -3,22 +3,32 @@ Deprecated PCA and MNF methods for dimensionality reduction. These have been rep
 submodule.
 """
 
+import warnings
+
+warnings.filterwarnings("once", category=DeprecationWarning, module=__name__)
+warnings.warn(
+    "hylite.filter.dimension_reduction is deprecated and will be removed in a future release; "
+    "use hylite.transform instead.",
+    DeprecationWarning,
+)
+
 import numpy as np
 from hylite import HyData
+from hylite._deps import require
 
 def PCA(hydata, bands=20, band_range=None, step=5, mask : np.ndarray = None):
     """
-    DEPRECATED: This function should no longer be used; see `hylite.transform.PCA` instead.  Kept only for legacy compatibility.
+    DEPRECATED: This function should no longer be used; see `hylite.transform.reduction.PCA` instead.  Kept only for legacy compatibility.
 
     Apply a PCA dimensionality reduction to the hyperspectral dataset using singular vector decomposition (SVD).
 
     Args:
-        data: the dataset (HyData object) to apply PCA to.
+        data: the dataset (`hylite.hydata.HyData` object) to apply PCA to.
         output_bands: number of bands to return (i.e. how many dimensions to retain). Default is 20.
         bands: the spectral range to perform the PCA over. If (int,int) is passed then the values are treated as
-                    min/max band IDs, if (float,float) is passed then values are treated as wavelenghts (in nm). If None is
+                    min/max band IDs, if (float,float) is passed then values are treated as wavelengths (in nm). If None is
                     passed (default) then the PCA is computed using all bands. Note that wavelengths can only be passed
-                    if image is a hyImage object.
+                    if image is a `hylite.hyimage.HyImage` object.
         step: subsample the dataset during SVD for performance reason. step = 1 will include all pixels in the calculation,
               step = n includes every nth pixel only. Default is 5 (as most images contain more than enough pixels to
               accurately estimate variance etc.).
@@ -26,11 +36,11 @@ def PCA(hydata, bands=20, band_range=None, step=5, mask : np.ndarray = None):
     Returns:
         A tuple containing:
 
-        - bands = A HyData instance containing the PCA components, ordered from highest to lowest variance.
+        - bands = A `hylite.hydata.HyData` instance containing the PCA components, ordered from highest to lowest variance.
         - factors = the factors (vector) each band is multiplied with to give the corresponding PCA band.
         - means = the means for each band that are subtracted before applying the PCA transform.
 
-        Additional info (including loadings and the per-band means) are stored in the header file of the returned HyData
+        Additional info (including loadings and the per-band means) are stored in the header file of the returned `hylite.hydata.HyData`
         instance.
     """
 
@@ -114,17 +124,17 @@ def PCA(hydata, bands=20, band_range=None, step=5, mask : np.ndarray = None):
 
 def MNF(hydata, bands=20, band_range=None, noise='diff', noise_thresh=50, denoise=False, mask : np.ndarray =None):
     """
-    DEPRECATED: This function should no longer be used; see `hylite.transform.MNF` instead.
+    DEPRECATED: This function should no longer be used; see `hylite.transform.reduction.MNF` instead.
 
     Apply a minimum noise filter to a hyperspectral image.
 
     Args:
-        hydata: A HyData instance containing the source dataset (e.g. image or point cloud).
+        hydata: A `hylite.hydata.HyData` instance containing the source dataset (e.g. image or point cloud).
         bands: the number of bands to keep after MNF for dimensionality reduction or denoising. Default is 20.
         band_range: the spectral range to perform the MNF over. If (int,int) is passed then the values are treated as
-                    min/max band IDs, if (float,float) is passed then values are treated as wavelenghts (in nm). If None is
+                    min/max band IDs, if (float,float) is passed then values are treated as wavelengths (in nm). If None is
                     passed (default) then the MNF is computed using all bands. Note that wavelengths can only be passed
-                    if image is a hyImage object.
+                    if image is a `hylite.hyimage.HyImage` object.
         noise: The noise model to use. If None (default) then the 'band noise' parameter will be retrieved from the headerinfo,
                 and if this does not exist then, this it is crudely estimated by comparing adjacent pixels / points.
                 This estimation can be forced by setting noise to 'diff'.
@@ -134,16 +144,13 @@ def MNF(hydata, bands=20, band_range=None, noise='diff', noise_thresh=50, denois
     Returns:
         A tuple containing:
 
-        - mnf = a HyData instance containing the MNF bands or denoised image.
-        - factors = A 2D numpy array containing the factors applied to the input datset. Useful
-                     for plotting/interpreting the regions each MNF band is sensitive too.
+        - mnf = a `hylite.hydata.HyData` instance containing the MNF bands or denoised image.
+        - factors = A 2D numpy array containing the factors applied to the input dataset. Useful
+                     for plotting/interpreting the regions each MNF band is sensitive to.
         - means = the means for each band that are subtracted before applying the MNF transform.
     """
-    try: 
-        import spectral
-    except:
-        assert False, "Error - please install spectral python using `pip install spectral` before using MNF(...)"
-    
+    spectral = require("spectral")
+
     np.alltrue = np.all # hack to get around numpy changes and keep compatibility with spectral python
 
 
@@ -262,13 +269,13 @@ def MNF(hydata, bands=20, band_range=None, noise='diff', noise_thresh=50, denois
 
 def from_loadings(data, L, m=None):
     """
-    DEPRECATED: This function should no longer be used; see `hylite.transform.PCA` or `hylite.transform.MNF` instead. Kept only for legacy compatibility.
+    DEPRECATED: This function should no longer be used; see `hylite.transform.reduction.PCA` or `hylite.transform.reduction.MNF` instead. Kept only for legacy compatibility.
 
     Transform a dataset using a precomputed loading vector.  This allows PCA
     transforms to be computed on one dataset and then applied to another.
 
     Args:
-       data: A dataset (HyData instance or numpy array) with b bands in the last axis.
+       data: A dataset (`hylite.hydata.HyData` instance or numpy array) with b bands in the last axis.
        L: the loadings vector of shape (k,b), such that data is projected into a
                  k-dimensional space.
        m: the mean of each dimension. Default is None ( do not apply mean offset ).

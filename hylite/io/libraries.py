@@ -8,6 +8,7 @@ import glob
 import hylite
 from hylite import HyLibrary
 from hylite.io import makeDirs
+from hylite._deps import require
 from time import gmtime, strftime
 from hylite.io.images import loadWithGDAL, saveWithGDAL, loadWithSPy, loadWithSPy
 from pathlib import Path
@@ -69,7 +70,7 @@ def loadLibrarySED(path):
     """
 
     assert os.path.isdir(path), "Error - must specify a directory, not a file."
-    import utm
+    utm = require("utm")
 
     # get sed files
     files = glob.glob(path + '/*.sed')
@@ -277,7 +278,7 @@ def loadLibraryDIR(path, wav=None):
              have differing wavelength arrays. Data that does not overlap with wav will be set to nan. If None,
              this will be set to the wavelengths of the first encounted dataset.
     Returns:
-        a HyLibrary spectral library instance.
+        a `hylite.hylibrary.HyLibrary` spectral library instance.
     """
 
     files = glob.glob(str(Path(path)/ "*/*.txt"))

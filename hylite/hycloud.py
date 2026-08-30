@@ -4,18 +4,13 @@ Store and manipulate point clouds and hyperclouds.
 
 
 import numpy as np
-import scipy.spatial as spatial
-from scipy.spatial import KDTree
-from tqdm import tqdm
 
 import hylite
 from hylite.hydata import HyData
 from hylite.hyimage import HyImage
-from hylite.project import proj_persp, proj_pano, rasterize, Camera
-
-import matplotlib.pyplot as plt
-from matplotlib import path
-from roipoly import MultiRoi
+from hylite.project.basic import proj_persp, proj_pano, project_ortho_nadir, rasterize
+from hylite.project.camera import Camera
+from hylite._deps import require
 
 
 
@@ -26,7 +21,7 @@ class HyCloud( HyData ):
 
     def __init__(self, xyz, **kwds):
         """
-        Create a HyCloud from a data array.
+        Create a `hylite.hycloud.HyCloud` from a data array.
 
         Args:
             xyz (ndarray): a numpy array such that data[i] = [ x, y, z ]
@@ -130,7 +125,6 @@ class HyCloud( HyData ):
         """
         Delete all scalar band info associated with this cloud.
         """
-
         self.data = None
         if "wavelength" in self.header:
             del self.header['wavelength']
@@ -243,10 +237,12 @@ class HyCloud( HyData ):
             function has no return value).
         """
 
+        KDTree = require("scipy.spatial").KDTree
         tree = KDTree(self.xyz, leafsize=10)  # build kdtree
         loop = range(self.xyz.shape[0])
         out = []
         if vb:
+            tqdm = require("tqdm").tqdm
             loop = tqdm(loop, leave=False)
         for n in loop:
             # get neighbours
@@ -342,7 +338,7 @@ class HyCloud( HyData ):
     def render(self, cam='ortho', bands=['rgb'], **kwds ):
 
         """
-        Renders this point cloud to a HyImage using the specified camera.
+        Renders this point cloud to a `hylite.hyimage.HyImage` using the specified camera.
 
         Args:
             cam (hylite.project.Camera, str): the camera to render with. Either a Camera instance or 'ortho' to render an orthographic top-down view (default).
@@ -372,7 +368,7 @@ class HyCloud( HyData ):
                  - depth = include the depth buffer in the output image. Default is False.
 
         Returns:
-            a HyImage object.
+            a `hylite.hyimage.HyImage` object.
         """
 
         # get keywords
@@ -390,26 +386,9 @@ class HyCloud( HyData ):
         if isinstance(cam, str):
             # project to nadir orthophoto
             if 'ortho' in cam:
-                # find world coordinate size and position
-                cloudxmin = np.amin(self.xyz[::step, 0])
-                cloudxmax = np.amax(self.xyz[::step, 0])
-                cloudymin = np.amin(self.xyz[::step, 1])
-                cloudymax = np.amax(self.xyz[::step, 1])
-
-                # compute sensible resolution
                 res = kwds.get("res", None)
-                if res is None: # use default value
-                    res = max(cloudxmax - cloudxmin, cloudymax - cloudymin) / 1000
-
-
-                cloudxsize = int(cloudxmax - cloudxmin) / res
-                cloudysize = int(cloudymax - cloudymin) / res
-
-                # project data
-                C = np.array([cloudxmin,cloudymax,0])
-                pp = np.abs(self.xyz[::step,:].copy() - C[None, :])/res
-                vis = np.ones(pp.shape[0], dtype=bool)
-                dims=(int(cloudxsize+1/res), int(cloudysize+1/res))
+                pp, vis, dims, cloudxmin, cloudymax, res = project_ortho_nadir(
+                    self.xyz[::step, :], res=res, cull=False)
             else:
                 assert False, "Error - unknown camera_type. Should be 'ortho', 'perspective' or 'panorama'."
         else:
@@ -572,7 +551,7 @@ class HyCloud( HyData ):
             blur (bool): True if a 3x3 gaussian blur kernel is used to smooth the scene. Default is False.
             despeckle (bool): True if a 5x5 median filter should be used to denoise rendered image before plotting. Default is False.
             res (float): the resolution to plot in 'ortho' mode. Default is one thousandth of the maximum dimension (in x or y).
-            **kwds: other keywords are passed to HyImage.quick_plot( ... ).
+            **kwds: other keywords are passed to `hylite.hyimage.HyImage`.quick_plot( ... ).
 
         Returns:
             Tuple containing
@@ -616,7 +595,7 @@ class HyCloud( HyData ):
             Tuple of (point_mask, polygon)
         """
         
-        from hylite.project import proj_persp, proj_pano
+        from hylite.project.basic import proj_persp, proj_pano
         
         if mask is None:
             # Interactive polygon picking
@@ -631,7 +610,9 @@ class HyCloud( HyData ):
             
             print("\nSelect masking polygon. Close window when done.")
             print("Draw polygon by clicking points, right-click to finalize.")
-            
+
+            plt = require("matplotlib.pyplot")
+            MultiRoi = require("roipoly").MultiRoi
             backend = plt.matplotlib.get_backend()
             plt.matplotlib.use('Qt5Agg')
             
@@ -670,25 +651,9 @@ class HyCloud( HyData ):
         
         # Get camera and projection parameters from the visualization render
         if isinstance(cam, str) and 'ortho' in cam:
-            # Orthographic projection - use render to get bounds
-            dummy = self.render(cam=cam, bands=['rgb'], **{k:v for k,v in kwds.items() if k != 'step'})
-            
-            # Get world bounds from render
-            cloudxmin = np.amin(self.xyz[:, 0])
-            cloudxmax = np.amax(self.xyz[:, 0])
-            cloudymin = np.amin(self.xyz[:, 1])
-            cloudymax = np.amax(self.xyz[:, 1])
-            
             res = kwds.get("res", None)
-            if res is None:
-                res = max(cloudxmax - cloudxmin, cloudymax - cloudymin) / 1000
-            
-            # Project ALL points to pixel coordinates
-            C = np.array([cloudxmin, cloudymax, 0])
-            pp = np.abs(self.xyz - C[None, :]) / res
-            vis = np.ones(self.xyz.shape[0], dtype=bool)
-            dims = (int((cloudxmax - cloudxmin) / res + 1), int((cloudymax - cloudymin) / res + 1))
-            
+            pp, vis, dims, cloudxmin, cloudymax, res = project_ortho_nadir(
+                self.xyz, res=res, cull=False)
         else:
             # Perspective or panoramic projection
             if isinstance(cam, str):
@@ -705,7 +670,8 @@ class HyCloud( HyData ):
         points_2d = pp[:, :2]  # Shape: (n_points, 2)
         
         # Check which projected points fall within the polygon
-        polygon_mask = path.Path(mask).contains_points(points_2d)
+        MplPath = require("matplotlib.path").Path
+        polygon_mask = MplPath(mask).contains_points(points_2d)
         
         # Apply inversion if requested
         if not invert:
@@ -749,7 +715,7 @@ class HyCloud( HyData ):
                 click_coord   : ndarray [x, y] of the clicked pixel
         """
 
-        from hylite.project import proj_persp, proj_pano
+        from hylite.project.basic import proj_persp, proj_pano
 
         # ------------------------------------------------------------------ #
         # 1. Render image once                                                 #
@@ -766,18 +732,8 @@ class HyCloud( HyData ):
         print("Projecting points...")
 
         if isinstance(cam, str) and 'ortho' in cam:
-            cloudxmin = np.amin(self.xyz[:, 0])
-            cloudxmax = np.amax(self.xyz[:, 0])
-            cloudymin = np.amin(self.xyz[:, 1])
-            cloudymax = np.amax(self.xyz[:, 1])
-
             res = kwds.get("res", None)
-            if res is None:
-                res = max(cloudxmax - cloudxmin, cloudymax - cloudymin) / 1000
-
-            C = np.array([cloudxmin, cloudymax, 0])
-            pp = np.abs(self.xyz - C[None, :]) / res
-            vis = np.ones(self.xyz.shape[0], dtype=bool)
+            pp, vis, _, _, _, _ = project_ortho_nadir(self.xyz, res=res, cull=False)
 
         else:
             if isinstance(cam, str):
@@ -826,6 +782,7 @@ class HyCloud( HyData ):
         # ------------------------------------------------------------------ #
         # 4. Setup Qt figure with image + empty spectrum side by side          #
         # ------------------------------------------------------------------ #
+        plt = require("matplotlib.pyplot")
         backend = plt.matplotlib.get_backend()
         plt.matplotlib.use('Qt5Agg')
 
@@ -969,7 +926,7 @@ class HyCloud( HyData ):
         Projects an image into this point cloud such that each a new scalar field is defined for each point.
 
         Args:
-            image (hylite.HyImage): the image to project (as a HyImage object) or list of images.
+            image (`hylite.hyimage.HyImage`): the image to project (as a `hylite.hyimage.HyImage` object) or list of images.
             cam (hylite.project.Camera): the camera to project through, or a list of cameras (of the same length as image).
             bands (list,float): the bands to project (a scalar field is created for each band). Default (None) projects
                    all bands.
@@ -1033,6 +990,7 @@ class HyCloud( HyData ):
 
         # loop through images
         if vb and len(image) > 1:
+            tqdm = require("tqdm").tqdm
             loop = tqdm(range(len(image)),leave=False)
         else:
             loop = range(len(image))

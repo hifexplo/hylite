@@ -1,18 +1,19 @@
 """
 Projection maps store lookup tables (python dictionaries) that link PointIDs in a point cloud with pixelIDs in an image.
 They store many : many relationships and can store arbitrarily complicated projections ( perspective, panoramic,
-pushbroom etc.). PMaps only store the mapping function; see HyScene for functionality that pushes data between different
+pushbroom etc.). PMaps only store the mapping function; see `hylite.hyscene.HyScene` for functionality that pushes data between different
 data types. PMaps can be saved using io.save( ... ) to avoid expensive computation multiple times in a processing
 workflow.
 """
 
 import os
 import numpy as np
+from hylite._deps import require_on_load, require
+require_on_load("project.pmap", "scipy.sparse")
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 import hylite
 from tempfile import mkdtemp
 import shutil
-from tqdm import tqdm
 from pathlib import Path
 
 class PMap(object):
@@ -250,7 +251,7 @@ class PMap(object):
         Calculate how many points are in each pixel.
 
         Returns:
-            a HyImage instance containing point counts per pixel.
+            a `hylite.hyimage.HyImage` instance containing point counts per pixel.
         """
         self.csr() # use row-compressed form
         W = (self.data > 0).astype(np.float32)  # convert to binary adjacency matrix
@@ -399,7 +400,7 @@ class PMap(object):
 
 def _gather_bands(data, bands):
     """
-    Utility function used by push_to_image( ... ) and push_to_cloud( ... ) to slice data from a HyData instance.
+    Utility function used by push_to_image( ... ) and push_to_cloud( ... ) to slice data from a `hylite.hydata.HyData` instance.
 
     Returns:
         A tuple containing:
@@ -519,7 +520,7 @@ def push_to_cloud(pmap, bands=(0, -1), method='best', image=None, cloud=None ):
         cloud: the cloud to project (if different to pmap.cloud). Must have matching dimensions. Default is pmap.cloud.
 
     Returns:
-        A HyCloud instance containing the back-projected data.
+        A `hylite.hycloud.HyCloud` instance containing the back-projected data.
     """
 
     if image is None:
@@ -535,53 +536,59 @@ def push_to_cloud(pmap, bands=(0, -1), method='best', image=None, cloud=None ):
 
     # convert pmap to csc format
     pmap.csc()  # thunk; would csr format be faster??
-    pmap.remove_nan_pixels(image=image) # drop nan pixels
+    # remove_nan_pixels edits the sparse linkage in-place; callers often pass a temporary or derived
+    # image (e.g. geometric attributes in push_geomattr), so restore the original pmap afterward.
+    _pmap_backup = pmap.data.copy()
+    try:
+        pmap.remove_nan_pixels(image=image) # drop nan pixels
 
-    # build weights matrix
-    if 'closest' in method.lower():
-        # get closest pixels
-        closest = np.argmax(pmap.data, axis=1)  # find closest pixel to each point (largest 1/z along cols)
+        # build weights matrix
+        if 'closest' in method.lower():
+            # get closest pixels
+            closest = np.argmax(pmap.data, axis=1)  # find closest pixel to each point (largest 1/z along cols)
 
-        # assemble sparse matrix with closest pixels scored as 1
-        rows = np.argwhere(closest > 0)[:, 0]
-        cols = np.array(closest[rows])[:, 0]
-        vals = np.ones(rows.shape)
-        W = csc_matrix((vals, (rows, cols)), pmap.data.shape, dtype=np.float32)
-
-        # sum of weights is easy
-        n = np.ones(pmap.npoints, dtype=np.float32)
-    elif 'average' in method.lower():
-        W = (pmap.data > 0).astype(np.float32)  # weights matrix [ full of ones ]
-        n = np.array(W.sum(axis=1))[:, 0]  # sum of weights (for normalising later)
-    elif 'count' in method.lower() or 'best' in method.lower():
-        W = (pmap.data > 0).astype(np.float32)  # convert to binary adjacency matrix
-        npoints = np.array(W.sum(axis=0))[0, :]  # get number of points per pixel
-        W = W.multiply(1 / npoints)  # fill non-zero values with 1 / points in relevant pixel
-        if 'best' in method.lower():  # filter W so we keep only the best points
-            best = np.argmax(W, axis=1)  # assemble sparse matrix with best pixels scored as 1
-            rows = np.argwhere(best > 0)[:, 0]
-            cols = np.array(best[rows])[:, 0]
+            # assemble sparse matrix with closest pixels scored as 1
+            rows = np.argwhere(closest > 0)[:, 0]
+            cols = np.array(closest[rows])[:, 0]
             vals = np.ones(rows.shape)
             W = csc_matrix((vals, (rows, cols)), pmap.data.shape, dtype=np.float32)
 
-        n = np.array(W.sum(axis=1))[:, 0]  # sum of weights (for normalising later)
-    elif 'distance' in method.lower():
-        W = pmap.data  # easy!
-        n = np.array(W.sum(axis=1))[:, 0]  # sum of weights (for normalising later)
-    else:
-        assert False, "Error - %s is an invalid method." % method
+            # sum of weights is easy
+            n = np.ones(pmap.npoints, dtype=np.float32)
+        elif 'average' in method.lower():
+            W = (pmap.data > 0).astype(np.float32)  # weights matrix [ full of ones ]
+            n = np.array(W.sum(axis=1))[:, 0]  # sum of weights (for normalising later)
+        elif 'count' in method.lower() or 'best' in method.lower():
+            W = (pmap.data > 0).astype(np.float32)  # convert to binary adjacency matrix
+            npoints = np.array(W.sum(axis=0))[0, :]  # get number of points per pixel
+            W = W.multiply(1 / npoints)  # fill non-zero values with 1 / points in relevant pixel
+            if 'best' in method.lower():  # filter W so we keep only the best points
+                best = np.argmax(W, axis=1)  # assemble sparse matrix with best pixels scored as 1
+                rows = np.argwhere(best > 0)[:, 0]
+                cols = np.array(best[rows])[:, 0]
+                vals = np.ones(rows.shape)
+                W = csc_matrix((vals, (rows, cols)), pmap.data.shape, dtype=np.float32)
 
-    # calculate output
-    #V = W.dot(X) / n[:, None]
-    V = W@X / n[:, None]
+            n = np.array(W.sum(axis=1))[:, 0]  # sum of weights (for normalising later)
+        elif 'distance' in method.lower():
+            W = pmap.data  # easy!
+            n = np.array(W.sum(axis=1))[:, 0]  # sum of weights (for normalising later)
+        else:
+            assert False, "Error - %s is an invalid method." % method
 
-    # build output cloud
-    out = cloud.copy(data=False)
-    out.data = V
-    if data.has_wavelengths():
-        out.set_wavelengths(data.get_wavelengths())
+        # calculate output
+        #V = W.dot(X) / n[:, None]
+        V = W@X / n[:, None]
 
-    return out
+        # build output cloud
+        out = cloud.copy(data=False)
+        out.data = V
+        if data.has_wavelengths():
+            out.set_wavelengths(data.get_wavelengths())
+
+        return out
+    finally:
+        pmap.data = _pmap_backup
 
 def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
     """
@@ -608,7 +615,7 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
         image: the image to project (if different to pmap.image). Must have matching dimensions. Default is pmap.image.
         cloud: the cloud to project (if different to pmap.cloud). Must have matching dimensions. Default is pmap.cloud.
     Returns:
-        A HyImage instance containing the projected data.
+        A `hylite.hyimage.HyImage` instance containing the projected data.
     """
 
     if image is None:
@@ -630,6 +637,12 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
     # convert pmap to csr format
     # pmap.csr()
 
+    # build a per-pixel mask of which pixels actually have at least one point mapped to them.
+    # we use this rather than "value == 0" to flag unmapped pixels, because legitimate projected
+    # values (e.g. a surface normal of (0,0,1) or a z=0 plane) can equal zero.
+    points_per_pixel = np.array((pmap.data > 0).sum(axis=0))[0, :]
+    unmapped = points_per_pixel == 0
+
     # build weights matrix
     if 'closest' in method.lower():
         closest = np.array(np.argmax(pmap.data, axis=0))[0,
@@ -646,14 +659,17 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
         W = (pmap.data > 0).astype(np.float32)  # weights matrix [ full of ones ]
         n = np.array(W.sum(axis=0))[0, :]  # sum of weights
         #V = W.T.dot(dat) / n[:, None]  # calculate average
-        V = W.T@dat / n[:, None]  # calculate average
+        with np.errstate(invalid='ignore', divide='ignore'):
+            V = W.T@dat / n[:, None]  # calculate average
     else:
         assert False, "Error - %s is an invalid method for cloud_to_image." % method
 
     # build output image
     out = image.copy(data=False)
     out.data = np.reshape(V, (image.xdim(), image.ydim(), -1), order='F')
-    out.data[out.data == 0] = np.nan  # replace zeros with nans
+    # set unmapped pixels to NaN (broadcast across bands)
+    unmapped_2d = unmapped.reshape((image.xdim(), image.ydim()), order='F')
+    out.data[unmapped_2d] = np.nan
     out.set_wavelengths(wav)
     out.set_band_names(nam)
 
@@ -662,7 +678,7 @@ def push_to_image(pmap, bands='xyz', method='closest', image=None, cloud=None):
 # functions for blending scenes together
 def push_geomattr(scene, method='best'):
     """
-    Return a HyCloud instance containing the geometric attributes of a given projection. This will have
+    Return a `hylite.hycloud.HyCloud` instance containing the geometric attributes of a given projection. This will have
     two or three bands as follows:
 
      - distance from the sensor to each point
@@ -672,10 +688,10 @@ def push_geomattr(scene, method='best'):
     These are useful for QAQC of projected results or doing weighted blending.
 
     Args:
-        scene: the HyScene instance to compute geometric attributes for.
+        scene: the `hylite.hyscene.HyScene` instance to compute geometric attributes for.
         method: the projection method used for handling duplicate pixels. See scene.push_to_cloud for details.
     Returns:
-        a HyCloud instance containing the three geometric attributes.
+        a `hylite.hycloud.HyCloud` instance containing the three geometric attributes.
     """
     # get projection map and relevant attributes (in image space)
     pmap = scene.pmap
@@ -710,7 +726,7 @@ def get_blend_weights(scenes, method, ascloud=True):
              - 'gsd' = lower ground-sampling values are given higher weight.
              - 'obliquity' = less oblique points are given higher weight.
 
-        ascloud: True if weights should be returned as a HyCloud instance. Otherwise a numpy array is returned.
+        ascloud: True if weights should be returned as a `hylite.hycloud.HyCloud` instance. Otherwise a numpy array is returned.
     Returns:
         a numpy array containing the normalised blending weight for each (point,scene).
     """
@@ -746,7 +762,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
     Args:
         scenes: a list of scenes to fuse. Data will be extracted from scene.image and pushed to the cloud using
                 scene.pmap.
-        weights: a numpy array or HyCloud instance containings weighting factors with shape (points,scenes). See
+        weights: a numpy array or `hylite.hycloud.HyCloud` instance containing weighting factors with shape (points,scenes). See
                  get_blend_weights(...) for more details.
         bands: tuple specifying the (min,max) bands of scenes.image to export. Default is all bands (0,-1).
         chunksize: the number of bands to project in any given iteration. Larger numbers are faster but require
@@ -754,17 +770,16 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         trim: True if points with no data mapped to them should be removed.
         ooc: True if hypercloud bands should be created out-of-core and then assembled. This is slower but less RAM
              intensive for large hyperclouds. If this is True, scene.free() will also be called to unload hyperspectral images
-             after they have been processed; so please save HyScenes before using!
+             after they have been processed; so please save `hylite.hyscene.HyScene` instances before using!
         vb: True if progress bars should be created.
 
     Returns:
-        a HyCloud instance contain
+        a `hylite.hycloud.HyCloud` instance containing the fused hypercloud data.
     """
 
     # check / format input
     if isinstance(weights, hylite.HyCloud):
         weights = weights.data
-    weights /= np.sum(weights, axis=-1)[:, None]  # normalise
 
     assert len(scenes) == weights.shape[1], "Error: %d scenes != %d weights" % (len(scenes), weights.shape[1])
     assert scenes[0].cloud.point_count() == weights.shape[0], "Error: scene has %d points but weights have %d" % (
@@ -787,13 +802,13 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
         out = scenes[0].cloud.copy(data=False)  # create output cloud
 
         # loop through scenes and project bands
-        for s in scenes:
+        for j, s in enumerate(scenes):
 
-            assert s.cloud.point_count() == mask.shape[0], "Error: scene %s has %d points, not %d" % (scene.name,
-                                                                                                      scene.cloud.point_count(),
+            assert s.cloud.point_count() == mask.shape[0], "Error: scene %s has %d points, not %d" % (s.name,
+                                                                                                      s.cloud.point_count(),
                                                                                                       mask.shape[0])
             # make output directory
-            pth = str(Path(tmp)/ s.name)
+            pth = str(Path(tmp)/ f"{j}_{s.name}")
             os.makedirs(pth, exist_ok=True)
 
             # remove zeros
@@ -802,6 +817,7 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
             # push bands to disk
             loop = bands
             if vb:
+                tqdm = require("tqdm").tqdm
                 loop = tqdm(loop, desc='Projecting scene %s' % s.name, leave=False)
             chunk = []
             for i, b in enumerate(loop):
@@ -809,7 +825,8 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
                 if (len(chunk) == chunksize) or (i == (len(loop) - 1)):
                     data = s.push_to_cloud(chunk).data  # project bands
                     for n in range(data.shape[-1]):  # save them as individual numpy files
-                        mask = np.logical_or(mask, np.isfinite(data[:, n]))
+                        _valid = np.isfinite(data[:, n])
+                        mask = np.logical_or(mask, _valid)
                         np.save( str(Path(pth) / ('b%d.npy' % chunk[n])), data[:, n])
                     chunk = []
             if ooc:
@@ -820,13 +837,19 @@ def blend_scenes(scenes, weights, bands=(0, -1), chunksize=25, trim=False, ooc=T
 
         # combine data
         loop = bands
+        totalWeight = np.zeros( ( len(mask), nbands), dtype=np.float32 ) # count how many times each point is mapped to (for normalisation)
         if vb:
+            tqdm = require("tqdm").tqdm
             loop = tqdm(loop, desc='Blending bands', leave=False)
         for n, b in enumerate(loop):
-            sm = np.zeros(mask.shape[0])
-            for i, s in enumerate(scenes):
-                pth = str(Path(tmp)/ s.name)
-                out.data[:, n] += np.nan_to_num(np.load(str(Path(pth)/('b%d.npy' % b))) * weights[:, i])
+            for j, s in enumerate(scenes):
+                pth = str(Path(tmp)/ f"{j}_{s.name}")
+                _data = np.load(str(Path(pth)/('b%d.npy' % b)))
+                out.data[:, n] += np.nan_to_num(_data)*weights[:, j]
+                totalWeight[:, n] += np.isfinite(_data)*weights[:, j] # accumulate total weight for each point/band observation
+        
+        out.data[totalWeight > 0] = out.data[totalWeight > 0] / totalWeight[ totalWeight > 0] # normalise by counts to get averages
+
     except KeyboardInterrupt as inst:
         print("Operation cancelled: cleaning up after KeyboardInterrupt.")
         err = inst

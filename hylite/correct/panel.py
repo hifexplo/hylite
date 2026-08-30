@@ -3,16 +3,13 @@ Utility class for storing information on calibration panels and combining measur
 reflectance spectra.
 """
 
-import matplotlib.pyplot as plt
-from matplotlib import path
 import numpy as np
-from scipy.optimize import least_squares
-import matplotlib.patches as patches
 
 import hylite
 from hylite.reference.features import HyFeature
 from hylite import HyData
-from hylite.project import pix_to_ray_pano, pix_to_ray_persp
+from hylite.project.basic import pix_to_ray_pano, pix_to_ray_persp
+from hylite._deps import require
 
 
 class Panel( HyData ):
@@ -28,13 +25,13 @@ class Panel( HyData ):
 
         Args:
             material: a hylite.reference.Target instance containing target reflectance data for this panel.
-            radiance: either a HyImage object (which contains some reference pixels) or a
+            radiance: either a `hylite.hyimage.HyImage` object (which contains some reference pixels) or a
                         NxM numpy array containing radiance values for N pixels across M bands.
             strict: True if measured radiance wavelengths must be entirely within the range of the reference material
                     spectra. Default is True. Use with care!
             **kwds: Keywords can include the following:
 
-                 - wavelengths = wavelengths corresponding to the radiance values (if radiance is an array rather than a HyImage
+                 - wavelengths = wavelengths corresponding to the radiance values (if radiance is an array rather than a `hylite.hyimage.HyImage`
                                  object).
                  - method = 'manual' (default) to manually pick reference in image (using an interactive plot). Can also be
                              'sobel' or 'laplace' to use the corresponding edge detectors to automatically identify the
@@ -78,10 +75,11 @@ class Panel( HyData ):
             if 'manual' in method.lower():  # pick region using interactive plot
                 verts = radiance.pickPolygons(region_names=['Target'], bands=bands)[0]
                 verts = np.vstack([verts, verts[0][None, :]])  # add return to first point
-                self.outline = path.Path(verts)  # make matplotlib path from selected region
+                Path = require("matplotlib.path").Path
+                self.outline = Path(verts)  # make matplotlib path from selected region
 
             else:
-                import cv2 # import this here to avoid errors if opencv is not installed properly
+                cv2 = require("cv2")
                 
                 db = kwds.get('db', False)  # draw plots?
 
@@ -95,6 +93,7 @@ class Panel( HyData ):
                 gray = cv2.GaussianBlur(gray, (3, 3), 0)  # apply slight blur to improve edge detection
 
                 if db:
+                    plt = require("matplotlib.pyplot")
                     plt.figure(figsize=(20, 10))
                     plt.imshow(gray.T, cmap='gray')
                     plt.title("Greyscale")
@@ -115,6 +114,7 @@ class Panel( HyData ):
                     assert False, "Error - %s is not a recognised extraction method. Try 'sobel' or 'laplace'." % method
 
                 if db:
+                    plt = require("matplotlib.pyplot")
                     plt.figure(figsize=(20, 10))
                     plt.imshow(edge.T)
                     plt.title("Edge")
@@ -146,6 +146,7 @@ class Panel( HyData ):
                             bright = np.nanmedian(patch)
 
                             if db:
+                                plt = require("matplotlib.pyplot")
                                 plt.imshow(gray.T, cmap='gray')
                                 plt.title("Candidate panel")
                                 plt.axvline(xmin, color='r')
@@ -160,14 +161,15 @@ class Panel( HyData ):
                                 maxBright = bright
 
                 # convert to maplotlib path
+                Path = require("matplotlib.path").Path
                 verts = np.array([maxCtr[:, 0, 1], maxCtr[:, 0, 0]]).T
                 verts = np.vstack([verts, verts[0][None, :]])  # add return to first point
-                self.outline = path.Path(verts, closed=True)  # make matplotlib path from selected region
+                self.outline = Path(verts, closed=True)  # make matplotlib path from selected region
 
                 # shrink to 40% of original size (to remove frame and dodgy edge pixels)
                 centroid = np.mean(self.outline.vertices[1::, :], axis=0)
                 verts = kwds.get("shrink", 0.4) * (self.outline.vertices - centroid) + centroid
-                self.outline = path.Path(verts, closed=True)
+                self.outline = Path(verts, closed=True)
 
             # calculate pixels within selected region
             xx, yy = np.meshgrid(np.arange(radiance.xdim()), np.arange(radiance.ydim()))
@@ -217,7 +219,8 @@ class Panel( HyData ):
             coords: the coordinates of the four panel corners.
         """
         assert len(coords) == 4 and len(coords[0]) == 2, "Error - coords must have shape (4,2) not %s" % str( np.array(coords).shape )
-        self.outline = path.Path(coords, closed=True)
+        Path = require("matplotlib.path").Path
+        self.outline = Path(coords, closed=True)
 
     def copy(self):
         """
@@ -301,6 +304,7 @@ class Panel( HyData ):
                     return np.cross(AB, BC)
 
             # get normal vector in camera coords
+            least_squares = require("scipy.optimize").least_squares
             sol = least_squares(opt, (10.0, 10.0, 10.0, 10.0))
             norm = opt(sol.x, sol=True)
 
@@ -364,9 +368,11 @@ class Panel( HyData ):
         Quickly plot the outline of this calibration target for quality checking etc.
 
         Args:
-            bands: the image bands to plot as a preview. Default is io.HyImage.RGB.
-            **kwds: keywords are passed to HyData.plot_spectra( ... ).
+            bands: the image bands to plot as a preview. Default is `hylite.hyimage.HyImage`.RGB.
+            **kwds: keywords are passed to `hylite.hydata.HyData`.plot_spectra( ... ).
         """
+        plt = require("matplotlib.pyplot")
+        patches = require("matplotlib").patches
         if self.source_image is not None: # plot including preview of panel
             fig, ax = plt.subplots(1, 2, figsize=(15, 5), gridspec_kw={'width_ratios': [1, 3]})
 
@@ -412,6 +418,7 @@ class Panel( HyData ):
             fig, ax = the figure and axes objects containing the plot.
         """
 
+        plt = require("matplotlib.pyplot")
         if ax is None:
             fig, ax = plt.subplots(figsize=(15, 10))
 

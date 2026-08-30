@@ -7,3 +7,5 @@ build/
 *.egg-info
 .pytest_cache/
 .pyc
+.tutorials
+.cursor

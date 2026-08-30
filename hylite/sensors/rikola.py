@@ -4,9 +4,7 @@ from .sensor import Sensor
 import numpy as np
 from pathlib import Path
 from multiprocessing import Pool
-from tqdm import tqdm
-import piexif
-import matplotlib.pyplot as plt
+from hylite._deps import require
 
 class Rikola(Sensor):
     """
@@ -25,7 +23,7 @@ class Rikola(Sensor):
         Apply sensor corrections to an image.
 
         Args:
-            image (hylite.HyImage): a hyImage instance of an image captured using this sensor.
+            image (`hylite.hyimage.HyImage`): a `hylite.hyimage.HyImage` instance of an image captured using this sensor.
             verbose (str): true if updates/progress should be printed to the console. Default is True.
             **kwds: Optional keywords include:
 
@@ -103,7 +101,7 @@ class Rikola(Sensor):
                 image.data = np.transpose(image.data, (1, 0, 2))
 
                 # apply lens correction
-                if verbose: print("Applying lens correction... ", end="", flush="True")
+                if verbose: print("Applying lens correction... ", end="", flush=True)
                 image.data[:,:,0:sensgap] = cv2.undistort(image.data[:,:,0:sensgap], RIKMat, RIKdist, None, m)
                 image.data[:,:,sensgap:] = cv2.undistort(image.data[:, :, sensgap::], RIKMat2, RIKdist2, None, m2)
 
@@ -111,7 +109,7 @@ class Rikola(Sensor):
                 x, y, w, h = roi2
                 image.data = image.data[x:(x + w - 10), y:(y + h - 10)]
 
-                if verbose: print("DONE.", flush="True")
+                if verbose: print("DONE.", flush=True)
 
                 # transpose back to img[x][y][b]
                 image.data = np.transpose(image.data, (1, 0, 2))
@@ -149,7 +147,7 @@ class Rikola(Sensor):
             image.data = np.transpose(image.data, (1, 0, 2))
 
             # loop through bands and apply correction
-            if verbose: print("Applying lens correction... ", end="", flush="True")
+            if verbose: print("Applying lens correction... ", end="", flush=True)
 
             # apply lens correction
             image.data = cv2.undistort(image.data, RIKMat, RIKdist, None, m)
@@ -158,7 +156,7 @@ class Rikola(Sensor):
             x, y, w, h = roi
             image.data = image.data[x:(x + w - 10), y:(y + h - 10)]
 
-            if verbose: print("DONE.", flush="True")
+            if verbose: print("DONE.", flush=True)
 
             # transpose back to img[x][y][b]
             image.data = np.transpose(image.data, (1, 0, 2))
@@ -176,12 +174,12 @@ class Rikola(Sensor):
         edge_accum = np.zeros_like(image.edge_mask)
         if align:
             # identify SIFT features for each band
-            if verbose: print("Identifying SIFT features... ", end="", flush="True")
+            if verbose: print("Identifying SIFT features... ", end="", flush=True)
             features = [image.get_keypoints(b) for b in range(image.band_count())]
 
-            if verbose: print("DONE.", flush="True")
+            if verbose: print("DONE.", flush=True)
 
-            if verbose: print("Stacking bands... ", end="", flush="True")
+            if verbose: print("Stacking bands... ", end="", flush=True)
 
             # loop through bands and find matches
             matches = []
@@ -189,7 +187,7 @@ class Rikola(Sensor):
                 if b == match_band:
                     matches.append(None)
                     continue  # skip reference band as it doesn't need to be moved...
-                if verbose: print("Matching bands... %d " % int((100 * b) / image.band_count()) + "% \r", end="", flush="True")
+                if verbose: print("Matching bands... %d " % int((100 * b) / image.band_count()) + "% \r", end="", flush=True)
 
                 # can we match this band with the reference band?
                 src_pts, dst_pts = io.HyImage.match_keypoints(features[b][0], features[match_band][0],
@@ -197,18 +195,18 @@ class Rikola(Sensor):
                                                          method='SIFT', dist=match_dist)
                 matches.append((src_pts, dst_pts))
 
-            if verbose: print("Matching bands... DONE.                          ", flush="True")
+            if verbose: print("Matching bands... DONE.                          ", flush=True)
 
             # apply transformation to each band
             for b in range(0, image.band_count()):
                 if b == match_band: continue  # skip reference band as it doesn't need to be moved...
-                if verbose: print("Stacking bands... %d " % int((100 * b) / image.band_count()) + "% \r", end="",flush="True")
+                if verbose: print("Stacking bands... %d " % int((100 * b) / image.band_count()) + "% \r", end="",flush=True)
 
                 # get match points
                 src_pts, dst_pts = matches[b]
                 if src_pts is None:  # couldn't match with reference band, try matching with one of the already aligned bands
                     print("Warning - could not directly band %d. Attempting indirect alignment... " % b, end="",
-                          flush="True")
+                          flush=True)
                     i = 1
                     while src_pts is None:
                         if b - i < 0:  # run out of bands
@@ -296,7 +294,7 @@ class Rikola(Sensor):
                          (np.nanmax(image.data[:, :, 0]) - np.nanmin(image.data[:, :, 0])))
                 for b in range(1, image.band_count()):
                     if verbose: print("Warping bands... %d " % int((100 * b) / image.band_count()) + "% \r", end="",
-                                      flush="True")
+                                      flush=True)
                     bnd2 = np.uint8(255 * (image.data[:, :, b] - np.nanmin(image.data[:, :, b])) /
                          (np.nanmax(image.data[:, :, b]) - np.nanmin(image.data[:, :, b])))
                     bnd1[bnd2 == 0.] = 0.
@@ -325,7 +323,7 @@ class Rikola(Sensor):
                     image.data[xmax:, :, :] = 0.
                     image.data[:, :ymin, :] = 0.
                     image.data[:, ymax:, :] = 0.
-            if verbose: print("Warping bands...  DONE.                         ", flush="True")
+            if verbose: print("Warping bands...  DONE.                         ", flush=True)
 
     @classmethod
     def correct_folder(cls, path, **kwds):
@@ -341,7 +339,7 @@ class Rikola(Sensor):
                 - nthreads = the number of worker threads to spawn if multithreaded is true. Default is the number of CPU cores.
 
         Returns:
-            A hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
+            A `hylite.hyimage.HyImage` to which all sensor-specific corrections have been applied. Note that this will generally not include
             topographic or atmospheric corrections.
         """
 
@@ -367,9 +365,11 @@ class Rikola(Sensor):
         corrected = []
         print("Processing %d images with the following settings: %s" % (len(images),kwds))
         if multi: #run in multithreaded
+            tqdm = require("tqdm").tqdm
             p = Pool(processes = nthread) #setup pool object with n threads
             corrected = list(tqdm( p.imap_unordered(Rikola._cmp, [(i, kwds) for i in images]), total=len(images),leave=False)) #distribute tasks
         else: #not multithreaded
+            tqdm = require("tqdm").tqdm
             for pth in tqdm(images,leave=False):
                 # noinspection PyCallByClass
                 corrected.append(Rikola._cmp( (pth, kwds) ) )#
@@ -471,6 +471,8 @@ class Rikola(Sensor):
                              29: date},  # timestamp
                          'Interop': {},
                          'thumbnail': None}
+            piexif = require("piexif")
+            plt = require("matplotlib.pyplot")
             exif_bytes = piexif.dump(exif_dict)
             plt.imsave(out,np.dstack((band1_255, band2_255, band3_255)))
             piexif.insert(exif_bytes, out)

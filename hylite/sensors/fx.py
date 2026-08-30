@@ -17,7 +17,7 @@ class FX(Sensor):
         Apply sensor corrections to an image. For the FX series sensors this just applies a dark correction.
 
         Args:
-            image (hylite.HyImage): a hyImage instance of an image captured using this sensor.
+            image (`hylite.hyimage.HyImage`): a `hylite.hyimage.HyImage` instance of an image captured using this sensor.
             verbose (bool): true if updates/progress should be printed to the console. Default is False.
         """
 
@@ -29,7 +29,7 @@ class FX(Sensor):
             image.data =image.data.astype(np.float32)
 
             #calculate pixel corrections from dark reference
-            if verbose: print("Applying dark calibration... ", end="", flush="True")
+            if verbose: print("Applying dark calibration... ", end="", flush=True)
             dref = np.mean(cls.dark.data, axis=1)
 
             #apply dark correction
@@ -52,7 +52,7 @@ class FX(Sensor):
             path (str): a path to the folder containing the sensor specific data.
 
         Returns:
-            A hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
+            A `hylite.hyimage.HyImage` to which all sensor-specific corrections have been applied. Note that this will generally not include
             topographic or atmospheric corrections.
 
         """
@@ -194,7 +194,7 @@ class FX50(FX):
         Apply sensor corrections to an image.
 
         Args:
-            image (hylite.HyImage): a hyImage instance of an image captured using this sensor.
+            image (`hylite.hyimage.HyImage`): a `hylite.hyimage.HyImage` instance of an image captured using this sensor.
             verbose (bool): true if updates/progress should be printed to the console. Default is False.
             **kwds: Optional keywords include:
 
@@ -210,7 +210,7 @@ class FX50(FX):
         bpr = kwds.get("bpr", True)
 
         if rad:
-            if verbose: print("Converting to radiance... ", end="", flush="True")
+            if verbose: print("Converting to radiance... ", end="", flush=True)
 
             # convert from int to float
             image.data = image.data.astype(np.float32)
@@ -259,7 +259,7 @@ class FX50(FX):
         # replace bad (nan) pixels with an average of the surrounding ones
         ###################################################################
         if bpr:
-            if verbose: print("Filtering bad pixels... ", end="", flush="True")
+            if verbose: print("Filtering bad pixels... ", end="", flush=True)
             invalids = np.argwhere(np.isnan(image.data) | np.isinf(image.data))  # search for bad pixels
             for px, py, band in invalids:
                 n = 0
@@ -297,7 +297,7 @@ class FX50(FX):
                 - other keywords are passed directly to correct_image.
 
         Returns:
-            A hyImage to which all sensor-specific corrections have been applied. Note that this will generally not include
+            A `hylite.hyimage.HyImage` to which all sensor-specific corrections have been applied. Note that this will generally not include
            topographic or atmospheric corrections.
 
         """

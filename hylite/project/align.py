@@ -3,6 +3,7 @@ Functions for coregistering image and/or point cloud data.
 """
 
 from hylite import HyImage
+from hylite._deps import require
 from hylite.project.basic import *
 from hylite.project.camera import Camera
 import numpy as np
@@ -15,7 +16,7 @@ def deepWarp(image,target):
 
     Args:
         source (ndarray): the image to deform. Must be numpy array.
-        target (ndarray): the target image to fit the source image too. Must be numpy array.
+        target (ndarray): the target image to fit the source image to. Must be numpy array.
 
     Returns:
         A tuple containing the:
@@ -24,7 +25,7 @@ def deepWarp(image,target):
          - displacement map of the warp.
 
     """
-    import cv2 # import this here to avoid errors if opencv is not installed properly
+    cv2 = require("cv2") # lazy import to avoid errors if opencv is not installed
 
     #convert images to greyscale uint8
     image = np.uint8(255 * (image - np.nanmin(image)) /
@@ -49,7 +50,7 @@ def align_to_cloud_manual( cloud, cam, points, pixels, **kwds ):
     Solve for camera location given a list of >4 manually chosen pixel -> point pairs.
 
     Args:
-        cloud (hylite.HyCloud): the point cloud (HyCloud instance) to match to
+        cloud (`hylite.hycloud.HyCloud`): the point cloud (`hylite.hycloud.HyCloud` instance) to match to
         cam (hylite.project.Camera): a Camera instance containing the camera parameters (fov, etc.). The cam.pos and cam.ori properties will be ignored so can be set to anything.
         points (list): a list of keypoint ids with length > 4. The position of each keypoint should thus be given by cloud.xyz[ points[i], : ].
         pixels (list): a list of corresponding pixel coordinates (after projection), such that pixels[i] = (px,py).
@@ -102,7 +103,7 @@ def resample_raster(data, src_gt, dst_gt, dst_shape, order=1):
 
     Parameters
     ----------
-    data : np.ndarray | hylite.HyImage
+    data : np.ndarray | `hylite.hyimage.HyImage`
         Source raster array, shape (x, y, band) or (x, y)
     src_gt : tuple
         Source GDAL affine (x0, px_w, rot_x, y0, rot_y, px_h)
@@ -199,7 +200,7 @@ def refine_alignment(image, cloud, cam, bands=hylite.RGB, s=2,
     if 'pano' in cam.proj.lower():
         assert not cam.step is None, "Error - angluar step ('step') must be defined for panoramic cameras."
     
-    import cv2 # import this here to avoid errors if opencv is not installed properly
+    cv2 = require("cv2") # lazy import to avoid errors if opencv is not installed
 
     # generate rendered view to get matches from
     if vb: print("Projecting scene... ", end='')
@@ -297,11 +298,11 @@ def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
     created and used to solve for the camera position.
 
     Args:
-        image (hylite.HyImage): a HyImage object to match.
-        cloud (hylite.HyCloud): a georeferenced HyCloud to match to.
+        image (`hylite.hyimage.HyImage`): a `hylite.hyimage.HyImage` object to match.
+        cloud (`hylite.hycloud.HyCloud`): a georeferenced `hylite.hycloud.HyCloud` to match to.
         cam (hylite.project.Camera): a Camera object containing camera data (fov, step, dims) and initial position/orientation estimate.
         bands (tuple): a tuple containing the 3 hyperspectral bands to match agains the RGB bands of the point cloud. Default is
-                       io.HyImage.RGB.
+                       `hylite.hyimage.HyImage`.RGB.
         method (str): the matching method to use. Can be 'sift' (default) or 'orb'.
         recurse (int): The number of rounds of matching/alignment to perform. Default is 2.
         s (int): the point size to use for rendering. Default is 2. Must be integer.
@@ -489,20 +490,20 @@ def align(image1, image2, source_bands, dest_bands=None, method='affine', matchd
     Coregister an image or numpy array to a target image using SIFT keypoints and the specified image transform.
 
     Args:
-        image1 (hylite.HyImage): the reference image.
-        image2 (hylite.HyImage): the image to transform.
+        image1 (`hylite.hyimage.HyImage`): the reference image.
+        image2 (`hylite.hyimage.HyImage`): the image to transform.
         source_bands (tuple): A tuple defining the bands to use in image 1.
         dest_bands (tuple): A tuple defining the bands to use in image 2. Defaults to source_bands.
         method (str): the method to use. Options are 'affine', 'piecewise_affine' or 'polynomial'.
         matchdist (float): the SIFT matching distance threshold. Default is 0.6.
         vb (bool): create graphical output figures for debugging. Default is False.
-        **kwds*: keywords are passed to HyImage.get_keypoints( ... ).
+        **kwds*: keywords are passed to `hylite.hyimage.HyImage`.get_keypoints( ... ).
 
     Returns:
         A transformed image
     """
     assert isinstance(image1, hylite.HyImage) and isinstance(image2,
-                                                             hylite.HyImage), "Error - images myst be HyImage instances."
+                                                             hylite.HyImage), "Error - images must be HyImage instances."
 
     if dest_bands is None:
         dest_bands = source_bands
@@ -566,99 +567,4 @@ def align(image1, image2, source_bands, dest_bands=None, method='affine', matchd
     return mapped
 
 
-#### DEPRECTIATED
-def align_images(image1, image2, warp=True, **kwds):
-    """
-    Coregister an image or numpy array to a target image.
-
-    Args:
-        image1 (hylite.HyImage): the image to transform
-        image2 (hylite.HyImage): the reference image to fit too.
-        **kwds: Optional keywords include:
-
-             - image_bands = the band(s) in the image to use for matching. If an integer or wavelength is
-                             passed then a single band will be used. A tuple contingin a minimum index or
-                             wavelength can also be passed, in which case bands will be averaged. Default is
-                             (0,3) (i.e. the first 3-bands).
-             - target_bands = the band(s) in the target image to use, in the same format as image_bands. Default
-                              is (0,3) (i.e. the first 3-bands).
-             - method = the method used for image warping. Default is 'affine'.
-             - features = the feature detector to use. Can be 'sift' (default) or 'orb'.
-             - warp = use dense flow to warp the image to better fit the target. Default is True.
-             - dist = the distance threshold used for keypoint matching. Default is 0.75.
-             - rthresh = the ransac inlier threshold for ransac outlier detection. Default is 10.0. Increase for more tolerance.
-
-    Returns:
-        A numpy array containing the coregistered image data.
-    """
-    print("Warning: align_images is depreciated. Please use piecewise_align, polynomial_align or affine_align instead.")
-
-    import cv2 # import this here to avoid errors if opencv is not installed properly
-    assert isinstance(image1,HyImage) and isinstance(image2,HyImage), "Error - images myst be HyImage instances."
-
-    #get image features
-    bands = kwds.get("image_bands",(0,3))
-    k_image, d_image = image1.get_keypoints(bands,method=kwds.get('features', 'sift'), mask=True)
-
-    #get target features
-    bands = kwds.get("target_bands",(0,3))
-    k_target, d_target = image2.get_keypoints(bands,method=kwds.get('features', 'sift'), mask=True)
-
-    #match features
-    k_image,k_target = image2.match_keypoints(k_image, k_target,
-                                              d_image, d_target,
-                                              method=kwds.get('features', 'sift'), dist=kwds.get('dist',0.75))
-
-    #filter dodgy points using ransac model
-    src_pts = k_image
-    dst_pts = k_target
-
-    #filter dodgy points using ransac model
-    assert (src_pts is not None) and (dst_pts is not None), "Error - no valid matches found."
-    H, status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, kwds.get('rthresh', 10.0))
-    dst_mask = dst_pts[:, 0, :] * status
-    src_mask = src_pts[:, 0, :] * status
-    dst_mask = dst_mask[dst_mask.all(1)]
-    src_mask = src_mask[src_mask.all(1)]
-
-    method = kwds.get('method', 'affine').lower() # get transform method
-    if 'affine' in method: # warp with affine transform
-        dst_mask = np.expand_dims(dst_mask, axis=1)
-        src_mask = np.expand_dims(src_mask, axis=1)
-        #M = cv2.estimateRigidTransform(src_mask, dst_mask, False) # estimate affine transform
-        M = cv2.estimateAffinePartial2D(src_mask, dst_mask)[0]
-
-        # if > 512 bands, cut in half for open-cv compatability
-        if image1.band_count() > 1025:
-            assert False, "Too many baaaands!!!"
-        if image1.band_count() < 512: # easy
-            #mapped = cv2.warpPerspective(image1.data, M, (image2.ydim(), image2.xdim()))
-            mapped = cv2.warpAffine(image1.data, M, (image2.data.shape[1], image2.data.shape[0])) # apply
-        else: # slightly less easy
-            div = int(image1.data.shape[2] / 2) # split dataset
-
-            # map each part
-            mapped1 = cv2.warpAffine(image1.data[...,:div], M, (image2.data.shape[1], image2.data.shape[0]))
-            mapped2 = cv2.warpAffine(image1.data[...,div:], M, (image2.data.shape[1], image2.data.shape[0]))
-            #mapped1 = cv2.warpPerspective(image1.data[..., :div], H, (image2.ydim(), image2.xdim()))
-            #mapped2 = cv2.warpPerspective(image1.data[..., div:], H, (image2.ydim(), image2.xdim()))
-
-            # rejoin
-            mapped = np.concatenate((mapped1, mapped2), axis=2)
-
-    elif 'poly' in method: # warp with polynomial
-        try:
-            from skimage import transform as tf
-        except:
-            assert False, "Error - please install scikit image to use poly mode: pip install scikit-image"
-        tform3 = tf.estimate_transform('polynomial', dst_mask, src_mask)
-        mapped = tf.warp(image1.data, tform3, output_shape=(image2.xdim(), image2.ydim()))
-    else:
-        assert False, "Unknown transform method %s." % method
-
-    #refine using deep flow?
-    if warp:
-        _, dmap = deepWarp( np.nanmean( mapped, axis=2 ), np.nanmean( image2.data, axis=2) )
-        mapped = cv2.remap( mapped, dmap, None, cv2.INTER_LINEAR)
-    return mapped
 

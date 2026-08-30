@@ -1,5 +1,5 @@
 """
-Simplify file input and output using HyCollection directory structures.
+Simplify file input and output using `hylite.hycollection.HyCollection` directory structures.
 """
 
 import os
@@ -7,12 +7,13 @@ import hylite
 import numpy as np
 import shutil
 import re
-from natsort import natsorted
 from pathlib import Path
+
+from hylite._deps import require
 
 class External(object):
     """
-    Small wrapper class for storing external objects in HyCollections.
+    Small wrapper class for storing external objects in `hylite.hycollection.HyCollection` instances.
     """
     def __init__( self, path, base=None ):
         self.path = path
@@ -41,18 +42,17 @@ class HyCollection(object):
     """
     A utility class for mapping data stored in a special file system (.hyc directory or similar) between RAM and disk storage.
     Useful for (1) reducing IO code and (2) writing out-of-core analyses. The underlying .hyc directory can contain any
-    data that can be read and written by hylite.io, including: numpy arrays, numbers, strings and hylite.HyData instances.
+    data that can be read and written by hylite.io, including: numpy arrays, numbers, strings and `hylite.hydata.HyData` instances.
     """
 
     def __init__(self, name, root, header=None, vb=False):
         """
-        Create a new HyCollection.
+        Create a new `hylite.hycollection.HyCollection`.
 
         Args:
-            name (str): a name for this HyCollection. Names of HyCollections stored in any given directory must be
-                  be unique to avoid conflicts.
-            root (str): the location of this HyCollection on disk.
-            header (hylite.HyHeader): a header file for this HyCollection. If None (default) a new header will be created.
+            name (str): a name for this `hylite.hycollection.HyCollection`. Names of `hylite.hycollection.HyCollection` instances stored in any given directory must be unique to avoid conflicts.
+            root (str): the location of this `hylite.hycollection.HyCollection` on disk.
+            header (`hylite.hyheader.HyHeader`): a header file for this `hylite.hycollection.HyCollection`. If None (default) a new header will be created.
             vb (bool): True if print notifications should be written when data is being loaded from disk. Default is False.
         """
         self.name = os.path.splitext(name)[0]  # trim extension just in case
@@ -70,9 +70,9 @@ class HyCollection(object):
         Note that primitive attributes (string, integer, etc.) will be stored in the header file.
 
         Args:
-            root (str): the directory to store this HyCollection in. Defaults to the root directory specified when
-                  this HyCollection was initialised, but this can be overriden for e.g. saving in a new location.
-            name (str): the name to use for the HyCollection in the file dictionary. If None (default) then this instance's
+            root (str): the directory to store this `hylite.hycollection.HyCollection` in. Defaults to the root directory specified when
+                  this `hylite.hycollection.HyCollection` was initialised, but this can be overriden for e.g. saving in a new location.
+            name (str): the name to use for the `hylite.hycollection.HyCollection` in the file dictionary. If None (default) then this instance's
                   name will be used, but this can be overriden for e.g. saving in a new location.
         Returns:
             a dictionary such that dict[ path ] = object.
@@ -220,7 +220,7 @@ class HyCollection(object):
     def get_path(self, name: str):
         """
         Return the path of the specified attribute. Note that this file may or may not exist, depending
-        on if this HyCollection has been saved previously. Also note that this path will exclude the file extension.
+        on if this `hylite.hycollection.HyCollection` has been saved previously. Also note that this path will exclude the file extension.
         """
         if name == 'header' or name in self.header:
             return os.path.splitext( self.getDirectory() )[0]
@@ -230,12 +230,12 @@ class HyCollection(object):
 
     def getDirectory(self, root=None, name=None, makedirs=False):
         """
-        Return the directory files associated with the HyCollection are stored in.
+        Return the directory files associated with the `hylite.hycollection.HyCollection` are stored in.
 
         Args:
-            root (str): the directory to store this HyCollection in. Defaults to the root directory specified when
-                  this HyCollection was initialised, but this can be overriden for e.g. saving in a new location.
-            name (str): the name to use for the HyCollection in the file dictionary. If None (default) then this instance's
+            root (str): the directory to store this `hylite.hycollection.HyCollection` in. Defaults to the root directory specified when
+                  this `hylite.hycollection.HyCollection` was initialised, but this can be overriden for e.g. saving in a new location.
+            name (str): the name to use for the `hylite.hycollection.HyCollection` in the file dictionary. If None (default) then this instance's
                   name will be used, but this can be overriden for e.g. saving in a new location.
             makedirs (bool): True if this directory should be created if it doesn't exist. Default is False.
         """
@@ -252,7 +252,7 @@ class HyCollection(object):
 
     def getAttributes(self, ram_only=True, file_formats=False):
         """
-        Return a list of available attributes in this HyCollection.
+        Return a list of available attributes in this `hylite.hycollection.HyCollection`.
 
         Args:
             ram = True if only attributes loaded in RAM should be included. Default is True.
@@ -299,7 +299,7 @@ class HyCollection(object):
 
     def query(self, *, name_pattern=None, ext_pattern=None, recurse=False, recurse_matches=False, ram_only=False):
         """
-        Finds attributes of this HyCollection with names or types matching the specified patterns. Note that (1)
+        Finds attributes of this `hylite.hycollection.HyCollection` with names or types matching the specified patterns. Note that (1)
         if both name_pattern and ext_pattern are provided then attributes must match both filters to be included in the
         results, and (2)
 
@@ -308,13 +308,13 @@ class HyCollection(object):
                           matches against any of the provided patterns then it will be included in the output.
                           Default is None (match all attributes).
             ext_pattern (list, str) = A regex pattern (string) or list of regex pattern strings to match against. Matches will be evaluated
-                         against file extensions for attributes on the disk (e.g., ".hdr") and type names (e.g., "HyImage") for
+                         against file extensions for attributes on the disk (e.g., ".hdr") and type names (e.g., "`hylite.hyimage.HyImage`") for
                          attributes loaded in RAM (as we cannot guess what their file extension may be). Note that class inheritance
-                         is not considered during this matching, so e.g., "HyData" will not match with "HyImage".
+                         is not considered during this matching, so e.g., "`hylite.hydata.HyData`" will not match with "`hylite.hyimage.HyImage`".
                          Default is None (match all attributes).
-            recurse (bool) = True if (all) child HyCollections should also be queried to search the entire HyCollection tree for
+            recurse (bool) = True if (all) child `hylite.hycollection.HyCollection` instances should also be queried to search the entire `hylite.hycollection.HyCollection` tree for
                      matches. Default is False.
-            recurse_matches (bool) = True if HyCollections that match the provided filters should also be queried recursively. Default
+            recurse_matches (bool) = True if `hylite.hycollection.HyCollection` instances that match the provided filters should also be queried recursively. Default
                     is False.
             ram_only (bool) = True if only attributes already loaded into memory should be queried. Default is False.
         """
@@ -359,7 +359,7 @@ class HyCollection(object):
                                                       ram_only = ram_only )
                     except:
                         pass # continue, this was not a HyCollection
-        return natsorted(out) # sort alphabetically for consistency
+        return require("natsort").natsorted(out) # sort alphabetically for consistency
 
     def loaded(self, name):
         """
@@ -412,7 +412,7 @@ class HyCollection(object):
 
     def save_attr(self, attr):
         """
-        Save a single attribute in this HyCollection.
+        Save a single attribute in this `hylite.hycollection.HyCollection`.
         """
         from hylite import io  # occasionally io doesn't seem to get loaded unless we call this ... strange?
         if attr in self.header:
@@ -422,7 +422,7 @@ class HyCollection(object):
 
     def free(self):
         """
-        Free all attributes in RAM. To avoid losing data, be sure to save this HyCollection first (e.g. using
+        Free all attributes in RAM. To avoid losing data, be sure to save this `hylite.hycollection.HyCollection` first (e.g. using
         self.save(...).
         """
         attr = self.getAttributes()
@@ -438,7 +438,7 @@ class HyCollection(object):
 
     def addExternal(self, name, path, relative=True):
         """
-        Add an external link (that is saved/loaded by this HyCollection instance, but not stored in its data folder).
+        Add an external link (that is saved/loaded by this `hylite.hycollection.HyCollection` instance, but not stored in its data folder).
 
         Args:
             name: the name of the attribute to add.
@@ -462,7 +462,7 @@ class HyCollection(object):
             name (str): the name of the subcollection to add.
 
         Returns:
-            a HyCollection object representing the subcollection.
+            a `hylite.hycollection.HyCollection` object representing the subcollection.
         """
 
         if self.root is None: # no path defined
@@ -491,7 +491,7 @@ class HyCollection(object):
 
         Args:
             name = the name of the variable to set.
-            value = the value to set this variable too.
+            value = the value to set this variable to.
             save = True if the variable should immediately be saved to disk.
         """
         self.__setattr__(name, value)

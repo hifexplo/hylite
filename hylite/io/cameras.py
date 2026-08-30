@@ -5,7 +5,7 @@ Save and load viewing positions associated with data acquisition or rendering 3D
 import numpy as np
 
 from hylite.io import makeDirs
-from hylite.project import Camera, Pushbroom
+from hylite.project.camera import Camera
 
 
 def saveCameraTXT( path, camera ):
@@ -22,6 +22,7 @@ def saveCameraTXT( path, camera ):
     makeDirs( path )
 
     with open(path,'w') as f:
+        from hylite.project import Pushbroom
 
         if isinstance( camera, Camera ):
             f.write("Camera # camera type\n")
@@ -68,6 +69,7 @@ def loadCameraTXT( path ):
                 step = float( lines[6] )
             return Camera(pos, ori, proj, fov, dims, step)
         elif 'pushbroom' in lines[0].lower():
+            from hylite.project import Pushbroom
 
             xfov, lfov = np.fromstring( lines[1], sep=',')
             dims = tuple( np.fromstring( lines[2], sep=',').astype(int))

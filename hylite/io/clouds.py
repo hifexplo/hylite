@@ -5,6 +5,7 @@ Read common point cloud formats (.ply, .laz, .csv).
 import os
 import numpy as np
 from hylite import HyCloud
+from hylite._deps import require
 from .headers import matchHeader, makeDirs, saveHeader, loadHeader
 from .images import loadWithGDAL
 
@@ -27,7 +28,7 @@ def saveCloudCSV(path, cloud, delimeter=' ', fmt='%.3f', writeHeader=True):
 
     # add file extention to path if need be
     pth, ext = os.path.splitext(path)
-    if ext is '': path += ".csv"
+    if ext == '': path += ".csv"
 
     # build header and data arrays
     d = delimeter
@@ -103,7 +104,7 @@ def loadCloudCSV(path, delimiter=' ', order='xyzrgbklm'):
         Default is 'xyzrgbklm'.
 
     Returns:
-        A HyCloud instance.
+        A `hylite.hycloud.HyCloud` instance.
     """
 
     # look for/load header file if one exists
@@ -159,13 +160,10 @@ def saveCloudLAS(path, cloud):
 
     Args:
         path: the .las file to save to.
-        cloud: a HyCloud instance containing data to save
+        cloud: a `hylite.hycloud.HyCloud` instance containing data to save
     """
 
-    try:
-        import laspy
-    except:
-        assert False, "Please install laspy (pip install laspy) to export to LAS."
+    laspy = require("laspy")
 
     # make directories if need be
     makeDirs( path )
@@ -210,10 +208,7 @@ def loadCloudLAS(path):
     Loads a LAS file from the specified path.
     """
 
-    try:
-        import laspy
-    except:
-        assert False, "Please install laspy (pip install laspy) to load LAS."
+    laspy = require("laspy")
 
     # look for/load header file if one exists
     header, data = matchHeader(path)
@@ -240,7 +235,7 @@ def saveCloudPLY(path, cloud, sfmt=None):
 
     Args:
         path: the .ply file to save to.
-        cloud: a HyCloud instance containing data to save
+        cloud: a `hylite.hycloud.HyCloud` instance containing data to save
         sfmt: the format for scalar field data. Can be 'u1', 'u2' or 'f4':
 
             - 'u1' uses one byte per point per scalar field (255 possible values). This results in smaller file size.
@@ -253,10 +248,8 @@ def saveCloudPLY(path, cloud, sfmt=None):
     # make directories if need be
     makeDirs( path )
 
-    try:
-        from plyfile import PlyData, PlyElement
-    except:
-        assert False, "Please install plyfile (pip install plyfile) to export to PLY."
+    plyfile = require("plyfile")
+    PlyData, PlyElement = plyfile.PlyData, plyfile.PlyElement
 
     # calculate format?
     if cloud.has_bands():
@@ -373,10 +366,8 @@ def loadCloudPLY(path):
     Loads a PLY file from the specified path.
     """
 
-    try:
-        from plyfile import PlyData, PlyElement
-    except:
-        assert False, "Please install plyfile (pip install plyfile) to load PLY."
+    plyfile = require("plyfile")
+    PlyData, PlyElement = plyfile.PlyData, plyfile.PlyElement
 
     # look for/load header file if one exists
     header, data = matchHeader(path)

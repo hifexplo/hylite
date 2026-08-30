@@ -18,6 +18,17 @@ And, for EO (satellite hyperspectral) applications, then please also see [this](
 
 Detailed documentation for *hylite* can be found at: https://hifexplo.github.io/hylite/hylite.html.
 
+#### Related tools:
+
+*hylite* forms the core of an open-source hyperspectral processing ecosystem. Other packages extending *hylite*'s core functionality include:
+
+- [crunchy](https://github.com/samthiele/crunchy): A multithreading toolbox for simple realtime processing workflows. 
+- [hycore](https://github.com/samthiele/hycore): Data organisation and mosaic construction for hyperspectral drillcore data
+- [hywiz](https://github.com/samthiele/hywiz): Visualisation of hyperspectral drillcore libraries (viewer for `hycore` hyperspectral core 'Sheds').
+- [hklearn](https://github.com/samthiele/hklearn): Flexible toolbox for multi-sensor hyperspectral machine learning tasks.
+- [ispec](https://github.com/samthiele/ispec/): Quickly and interactively query spectral libraries, create mixed spectra and identify distinguishing spectral features. 
+
+
 #### User interface:
 
 We are currently developing a user interface for some *hylite* tools using [napari](https://napari.org/stable/). Still lots to do, but this can be found here: https://github.com/samthiele/napari-hippo. 
@@ -53,6 +64,53 @@ and (b) a hypercloud of an open-pit mine.*
 Release notes
 --------------
 
+#### Version 1.41 (1.4)
+
+New features:
+* Added `hylite.analyse.fourier` (`HyFourier`, `FourierArchive`) for Fourier-based compression of images, clouds and libraries (`.fdr` / `.fda` archives), extrema extraction, and spectral-library search. Query syntax supports absorptions (`2200`), peaks (`^2300`), absences (`!2200`), ranges (`2160-2200`), name tokens, and OR (`kaolinite | dolomite`). `getSpectra` / `getSpectraByName` reconstruct matching spectra.
+* `HyData`, `HyImage`, `HyCloud`, and `HyLibrary` support `[]` indexing: string keys access ENVI/header fields; floats and band names on the **band axis** select wavelengths via `get_band_index()` (e.g. `image[..., 680.0]`, `image['Band 1':'Band 5']`). Prefer an explicit band axis (`[..., wav]`) rather than a bare float.
+* `hylite.transform.sample.Resample` for binning hyperspectral data onto satellite or other sensor bandpasses (`ASTER`, `SENTINEL`, or custom intervals).
+* Optional install extras: `pip install hylite[opencv]`, `hylite[gdal]`, or `hylite[all]`. The default install no longer requires GDAL or OpenCV.
+
+Significant spring cleaning to remove little-used code:
+* Removed `hylite.analyse.supervised` and `hylite.analyse.unsupervised` as these functions are now superseded by [hklearn](https://github.com/samthiele/hklearn/).
+* Removed `hylite.filter.TPT` as similar analyses can now be done much better using `hylite.analyse.fourier`.
+* Removed `hylite.filter.segment` as functions there are largely redundant / unused (superseded by e.g., `hycore`).
+* Deprecated `hylite.filter` (legacy PCA/MNF only); prefer `hylite.transform.reduction` for dimensionality reduction and `hylite.transform.overlay` for multi-image fusion (replaces `filter.combine`).
+* sklearn-dependent `PCA`, `MNF`, and `NoiseWhitener` moved to `hylite.transform.reduction`; other `hylite.transform` functions no longer require scikit-learn at import.
+
+Fixes and packaging:
+* Scene blending and projection-map fixes (`blend_scenes`, `pmap`): overlap, same-name scenes, blend weighting.
+* ENVI I/O: numpy reader handles header `bits`; `io.load` falls back from a broken GDAL install to the numpy reader; wavelengths are sorted from the header (not a reconstructed wavelength array).
+* PEP 440 package version (`1.41`) and CI wheels / versioned docs for `master` (stable) and `dev`.
+* Tests restructured to match the hylite module layout; optional-dependency tiers are simulated in tests.
+
+#### Version 1.3
+
+#### Version 1.3
+
+New features:
+* New `hylite.transform` submodule with scikit-learn based `PCA`, `MNF` and `NoiseWhitener` classes. These replace the legacy dimensionality reduction functions (although these are currently retained for compatability).
+* Spectral unmixing functions (`mix`, `unmix`, `endmembers`) added to `hylite.analyse.unmixing`.
+* Quick empirical line calibration via `hylite.illumination.autoELC` for fast relative reflectance correction. This should be USED WITH CARE, as it assumes
+that the brightest pixel in a scene is from the white panel, but can be useful for rapid/real-time processing.
+* Added Kubelka–Munk pseudo-absorbance conversion via `hylite.transform.convertToAbsorbance` [thanks Andrea / Tasnim!].
+* Georeferencing-aware `crop`, `tile` and `mosaic` functions on `HyImage`, plus `resize` and `drop_bbl`.
+* Interactive point cloud masking and spectral plotting from rendered views (`HyCloud.mask`, `plot_from_render`) [thanks Sandra!].
+* Added initial Telops Hypercam Nano sensor preprocessing (`hylite.sensors.TelopsNano`). Use with care (could be more robust).
+* Added numpy-based ENVI read/write and automatic wavelength unit conversion (including wavenumbers) in `io.load`.
+* Lossy data compression via `HyData.getQuantized` / `fromQuanta`. Can be useful for running expensive algorithms over large numbers of pixels, as it 
+  reduces as hyperspectral image to a classification and corresponding (comparatively small) spectral library. USE WITH CARE as the averaging associated
+  with the classification can group spectra from different materials.
+* Added faster `poly` and `quad` interpolation options for minimum wavelength mapping. `gauss` still produces the best results, but is an order-of-magnitude slower.
+
+Improvements:
+* Many bugfixes to scene blending (`blend_scenes`), projection maps and ENVI I/O (header bytes, interleave format, non-unix paths)
+* `SAM` now works directly with `HyLibrary` instances.
+* Image combination function moved to `hylite.transform.overlay` (formerly `hylite.filter.combine`), with optional optical-flow coregistration.
+* `HyCollection` supports dictionary-like indexing and JSON serialisation of attributes.
+* Expanded test coverage across transforms, unmixing, corrections and image tiling.
+
 #### Version 1.2
 
 New features:
@@ -83,9 +141,19 @@ conda activate hylite
 
 ------------
 
-2 Install *hylite* with pip.
+2. Install *hylite* with pip.
 
-`pip install hylite`
+```
+pip install hylite
+```
+
+Optional extras (only needed for some workflows):
+
+```
+pip install "hylite[opencv]"   # SIFT/ORB alignment, DeepFlow, sensor band matching
+pip install "hylite[gdal]"     # georeferenced ENVI/GeoTIFF I/O, mosaic / resample_raster
+pip install "hylite[all]"      # opencv + gdal
+```
 
 
 Installation (from GitHub)
@@ -102,7 +170,10 @@ conda activate hylite
 
 3. Navigate into the hylite directory using terminal and install it using pip:
 
-`pip install .`
+```
+pip install .
+pip install ".[all]"   # optional: opencv + gdal
+```
 
 
 Optional dependencies:

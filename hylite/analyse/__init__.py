@@ -1,19 +1,31 @@
 """
 This package implements common analysis methods for hyperspectral datasets, including:
 
-- supervised and unsupervised classification.
 - minimum wavelength mapping.
 - endmember extraction and unmixing.
+- fourier analysis, filtering and compression.
 - commonly used band ratios (e.g. NDVI).
 """
 
-from .indices import *
-from .mwl import *
-from .unmixing import *
-from .sam import *
-from .dtree import *
+import importlib
+import os
 
-import matplotlib.pyplot as plt
+import numpy as np
+
+from .indices import *
+from .sam import *
+
+
+def __getattr__(name):
+    for submodule in ("mwl", "unmixing", "dtree"):
+        try:
+            mod = importlib.import_module(".%s" % submodule, __name__)
+        except ImportError:
+            continue
+        if hasattr(mod, name):
+            return getattr(mod, name)
+    raise AttributeError("module %r has no attribute %r" % (__name__, name))
+
 
 def saveLegend(red: str, green: str, blue: str, path: str):
     """
@@ -25,7 +37,9 @@ def saveLegend(red: str, green: str, blue: str, path: str):
         - blue: String containing the description / label for the blue channel.
         - path: The output path to save the image to.
     """
+    from hylite._deps import require
 
+    plt = require("matplotlib.pyplot")
     tr = [np.nan, np.nan, np.nan]
     plt.figure(figsize=(4, 0.5))
     plt.fill(tr, tr, label=red, color='r')

@@ -6,6 +6,7 @@ import sys, os
 import numpy as np
 from hylite.hyimage import HyImage, HyData
 from .headers import matchHeader, makeDirs, loadHeader, saveHeader
+from hylite._deps import require
 
 # spectral python throws depreciation warnings - ignore these!
 import warnings
@@ -19,7 +20,7 @@ def loadWithGDAL(path, dtype=np.float32, mask_zero = True, to_nm=False):
         path: file path to the image to load
         mask_zero: True if zero values should be masked (replaced with nan). Default is true.
     Returns:
-        a hyImage object
+        a `hylite.hyimage.HyImage` object
     """
 
     # find GDAL
@@ -75,14 +76,11 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True, to_nm=False):
         path: file path to the image to load
         mask_zero: True if zero values should be masked (replaced with nan). Default is true.
     Returns:
-        a hyImage object
+        a `hylite.hyimage.HyImage` object
     """
     assert os.path.exists(path), "Error - %s does not exist." % path
-    try: 
-        import spectral
-    except:
-        assert False, "Error - please install spectral python using `pip install spectral` before using loadWithSPy(...)"
-        
+    spectral = require("spectral")
+
     # parse file format
     _, ext = os.path.splitext(path)
     if len(ext) == 0 or 'hdr' in ext.lower() or \
@@ -130,7 +128,7 @@ def loadWithSPy( path, dtype=np.float32, mask_zero = True, to_nm=False):
 
 def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32):
     """
-    Load either specific bands (bands!=None) or pixels (pixels != None) from an ENVI file using spy to facilitate e.g. out-of-core
+    Load either specific bands (bands!=None) or pixels (pixels != None) from an ENVI file to facilitate e.g. out-of-core
     processing routines.
 
     Args:
@@ -142,45 +140,31 @@ def loadSubset( path, *, bands=None, pixels=None, dtype=np.float32):
     assert os.path.exists(path), "Error - %s does not exist." % path
     assert (pixels is not None) or (bands is not None), "Error - either pixels OR bands must be specified"
     assert not ((pixels is not None) and (bands is not None)), "Error - pixels AND bands cannot both be specified"
+    return loadWithNumpy(path, dtype=dtype, bands=bands, pixels=pixels)
 
-    # parse file format
-    _, ext = os.path.splitext(path)
-    if len(ext) == 0 or 'hdr' in ext.lower() or \
-            'dat' in ext.lower() or \
-            'img' in ext.lower() or \
-            'lib' in ext.lower():
-        header, image = matchHeader(path)
+def loadWithNumpy( path, dtype=None, mask_zero=True, to_nm=False, bands=None, pixels=None, step=1, average=False, memmap=False ):
+    """
+    Load an ENVI image with NumPy. Optionally read only some bands, some pixels, or a spatially / spectrally
+    reduced subset (stride or block-average) without materialising the full cube.
 
-        # load header and convert bands to band indices
-        imageheader = loadHeader(header)
-        if bands is not None:
-            bands = [ HyImage( np.zeros((3,3,imageheader.band_count())),
-                        header=imageheader, wav=imageheader.get_wavelengths() ).get_band_index(b) for b in bands ]
-
-        # load image with SPy  TODO - replace this with numpy loading if possible?
-        assert os.path.exists(image), "Error - %s does not exist." % image
-        try: 
-            import spectral
-        except:
-            assert False, "Error - please install spectral python using `pip install spectral` before using saveWithSPy(...)"
-        try:  # try loading envi file first
-            img = spectral.envi.open(header, image)  # this must be an envi file
-        except:
-            img = spectral.open_image(header)  # load unknown image type
-
-        if bands is not None:  # get bands and put in HyImage
-            data = np.dstack( [ img.read_band( b ).T for b in bands ] )
-            out = HyImage( data, projection=None, affine=None, header=imageheader, dtype=dtype)
-            out.set_wavelengths( imageheader.get_wavelengths()[bands] )
-            if out.has_band_names():
-                out.set_band_names( imageheader.get_band_names()[bands])
-        if pixels is not None:  # get pixels and put in HyCloud
-            data = np.array( [ img.read_pixel( *p[::-1] ) for p in pixels ] )
-            out = HyData( data )
-            out.header=imageheader
-        return out
-
-def loadWithNumpy( path, dtype=np.float32, mask_zero=True, to_nm=False ):
+    Args:
+        path: file path to the image (or its .hdr) to load.
+        dtype: output array dtype, or None to keep the on-disk type (average always accumulates in float32).
+        mask_zero: True if zero values should be masked (replaced with nan) in floating-point data. Default is True.
+        to_nm: if True, convert header wavelengths to nanometres.
+        bands: optional band subset — a list of indices, wavelengths or band names, or a slice. If set, this
+            replaces any spectral `step`. Cannot be combined with `average=True`.
+        pixels: optional list of `(x, y)` pixel coordinates (hylite / sample, line). Returns a `HyData` of spectra
+            instead of a `HyImage`. `step` and `average` are ignored when pixels are specified.
+        step: spatial / spectral factor. An int `n` applies to x and y. A `(sx, sy)` tuple applies to samples and
+            lines. A `(sx, sy, sb)` tuple also reduces bands. Default is 1 (no reduction).
+        average: if False (default), `step` is a stride (keep every n-th sample). If True, `step` is a block size
+            and each output value is the nan-mean of the corresponding block (streamed in native interleave).
+        memmap: if True, return a transposed view of the on-disk memmap (no copy). Incompatible with `average`,
+            `mask_zero`, pixel loads, and a `dtype` that differs from the file.
+    Returns:
+        a `hylite.HyImage` (image load) or `hylite.HyData` (pixel load).
+    """
     # parse file format
     _, ext = os.path.splitext(path)
     if len(ext) == 0 or 'hdr' in ext.lower() or \
@@ -195,7 +179,7 @@ def loadWithNumpy( path, dtype=np.float32, mask_zero=True, to_nm=False ):
         header = loadHeader(header, to_nm=to_nm)
         samples = int(header['samples']) # read relevant bits of header file
         lines = int(header['lines'])
-        bands = int(header['bands'])
+        n_bands = int(header['bands'])
         data_type = int(header['data type'])
         interleave = header.get('interleave', 'bil').lower()
 
@@ -217,32 +201,208 @@ def loadWithNumpy( path, dtype=np.float32, mask_zero=True, to_nm=False ):
     
         if data_type not in dtype_map:
             raise ValueError(f"Unsupported data type: {data_type}")
-        dtype = dtype_map[data_type]
-    
-        # Load binary data
-        data = np.fromfile(image, dtype=dtype)
-        if offset > 0:
-            offset = int(offset / data.dtype.itemsize) # convert from bytes to index
-            data = data[offset:] # slice off header bytes
-        expected_size = lines * bands * samples
-        if data.size != expected_size:
-            raise ValueError(f"Expected {expected_size} elements, got {data.size}. Check lines, bands and samples entries in header file.")
+        np_dtype = dtype_map[data_type]
+        if memmap and (average or pixels is not None):
+            raise ValueError("memmap=True cannot be combined with average=True or pixels=")
+        if memmap and mask_zero:
+            raise ValueError("memmap=True requires mask_zero=False")
+        if average and bands is not None:
+            raise ValueError("average=True cannot be combined with a band list")
+
+        # parse spatial / spectral factor (pixels ignore step / average)
+        if np.isscalar(step):
+            step_x = step_y = int(step)
+            step_b = 1
+        else:
+            step = tuple(int(v) for v in step)
+            if len(step) == 2:
+                step_x, step_y = step
+                step_b = 1
+            elif len(step) == 3:
+                step_x, step_y, step_b = step
+            else:
+                raise ValueError("step must be an int or a (x, y) or (x, y, band) tuple")
+        if min(step_x, step_y, step_b) < 1:
+            raise ValueError("step values must be >= 1")
+
+        # resolve band selectors to integer indices (None = all, possibly strided)
+        if average:
+            band_idx = None
+        elif bands is None:
+            band_idx = None if step_b == 1 else np.arange(0, n_bands, step_b)
+        elif isinstance(bands, slice):
+            band_idx = np.arange(n_bands)[bands]
+        else:
+            if isinstance(bands, (int, float, str)) or np.isscalar(bands):
+                bands = [bands]
+            ref = HyImage(np.zeros((1, 1, n_bands)), header=header.copy())
+            band_idx = np.array([ref.get_band_index(b) for b in bands], dtype=int)
+        if band_idx is not None and len(band_idx) == 0:
+            raise ValueError("Band selection is empty.")
+
+        # map file (trust a declared header offset; only guess an undeclared prefix when offset is 0)
+        itemsize = np.dtype(np_dtype).itemsize
+        expected_bytes = lines * n_bands * samples * itemsize
+        file_size = os.path.getsize(image)
+        if offset == 0 and file_size > expected_bytes:
+            offset = file_size - expected_bytes
+        if file_size - offset < expected_bytes:
+            raise ValueError(f"Expected {expected_bytes} bytes, got {file_size - offset}. Check lines, bands and samples entries in header file.")
 
         if interleave == 'bil':
-            data = data.reshape((lines, bands, samples))
-            data = np.transpose(data, (0, 2, 1))  # (lines, samples, bands)
+            native = (lines, n_bands, samples)
         elif interleave == 'bsq':
-            data = data.reshape((bands, lines, samples))
-            data = np.transpose(data, (1, 2, 0))  # (lines, samples, bands)
+            native = (n_bands, lines, samples)
         elif interleave == 'bip':
-            data = data.reshape((lines, samples, bands))  # already in correct order
+            native = (lines, samples, n_bands)
         else:
             raise ValueError(f"Unsupported interleave format: {interleave}")
+        mmap = np.memmap(image, dtype=np_dtype, mode='r', offset=offset, shape=native)
 
-        # flip from row-column to x-y layout
-        data = np.transpose( data, (1,0,2) )
-        return HyImage(data, header=header)
+        # trim or average header metadata to the bands we will actually load
+        header = header.copy()
+        if average and step_b > 1:
+            out_b = n_bands // step_b
+            n_keep = out_b * step_b
+            if header.has_wavelengths():
+                header.set_wavelengths(header.get_wavelengths()[:n_keep].reshape(out_b, step_b).mean(axis=-1))
+            if header.has_band_names():
+                names = np.asarray(header.get_band_names())[:n_keep].reshape(out_b, step_b)[:, 0]
+                header.set_band_names(names)
+            if header.has_fwhm():
+                header.set_fwhm(header.get_fwhm()[:n_keep].reshape(out_b, step_b).mean(axis=-1))
+            if header.has_bbl():
+                header.set_bbl(header.get_bbl()[:n_keep].reshape(out_b, step_b).all(axis=-1))
+        elif band_idx is not None:
+            if header.has_wavelengths():
+                header.set_wavelengths(header.get_wavelengths()[band_idx])
+            if header.has_band_names():
+                header.set_band_names(np.asarray(header.get_band_names())[band_idx])
+            if header.has_fwhm():
+                header.set_fwhm(header.get_fwhm()[band_idx])
+            if header.has_bbl():
+                header.set_bbl(header.get_bbl()[band_idx])
+
+        # extract spectra at (x, y) = (sample, line) and return HyData
+        if pixels is not None:
+            xs = np.asarray([p[0] for p in pixels], dtype=int)
+            ys = np.asarray([p[1] for p in pixels], dtype=int)
+            if np.any(xs < 0) or np.any(xs >= samples) or np.any(ys < 0) or np.any(ys >= lines):
+                raise IndexError("Pixel coordinates are out of bounds.")
+            if interleave == 'bil':
+                data = np.array(mmap[ys, :, xs], copy=True, order='C')
+            elif interleave == 'bsq':
+                data = np.array(mmap[:, ys, xs].T, copy=True, order='C')
+            else:
+                data = np.array(mmap[ys, xs, :], copy=True, order='C')
+            if band_idx is not None:
+                data = data[:, band_idx]
+            if dtype is not None:
+                data = np.asarray(data, dtype=dtype)
+            out = HyData(data, header=header)
+            out.push_to_header()
+            if mask_zero and (out.dtype == np.float32 or out.dtype == np.float64):
+                out.data[out.data == 0] = np.nan
+            return out
+
+        # block-average in native interleave (one output line / band-group at a time)
+        if average:
+            out_x = samples // step_x
+            out_y = lines // step_y
+            out_b = n_bands // step_b
+            if min(out_x, out_y, out_b) < 1:
+                raise ValueError("step exceeds image dimensions")
+            ignore = header.get('data ignore value', None)
+            if ignore is not None and str(ignore).strip() != '':
+                ignore = float(ignore)
+            else:
+                ignore = None
+            data = np.empty((out_x, out_y, out_b), dtype=np.float32)
+            chunk = 32  # output lines (or band-groups for BSQ) per streamed read
+            if interleave == 'bil':
+                for iy0 in range(0, out_y, chunk):
+                    iy1 = min(iy0 + chunk, out_y)
+                    n = iy1 - iy0
+                    block = np.array(mmap[iy0 * step_y:iy1 * step_y, :out_b * step_b, :out_x * step_x],
+                                     dtype=np.float32, copy=True)
+                    if ignore is not None:
+                        block[block == ignore] = np.nan
+                    if mask_zero:
+                        block[block == 0] = np.nan
+                    block = block.reshape(n, step_y, out_b, step_b, out_x, step_x)
+                    data[:, iy0:iy1, :] = np.nanmean(block, axis=(1, 3, 5)).transpose(2, 0, 1)
+            elif interleave == 'bsq':
+                for ib0 in range(0, out_b, chunk):
+                    ib1 = min(ib0 + chunk, out_b)
+                    n = ib1 - ib0
+                    block = np.array(mmap[ib0 * step_b:ib1 * step_b, :out_y * step_y, :out_x * step_x],
+                                     dtype=np.float32, copy=True)
+                    if ignore is not None:
+                        block[block == ignore] = np.nan
+                    if mask_zero:
+                        block[block == 0] = np.nan
+                    block = block.reshape(n, step_b, out_y, step_y, out_x, step_x)
+                    data[:, :, ib0:ib1] = np.nanmean(block, axis=(1, 3, 5)).transpose(2, 1, 0)
+            else:
+                for iy0 in range(0, out_y, chunk):
+                    iy1 = min(iy0 + chunk, out_y)
+                    n = iy1 - iy0
+                    block = np.array(mmap[iy0 * step_y:iy1 * step_y, :out_x * step_x, :out_b * step_b],
+                                     dtype=np.float32, copy=True)
+                    if ignore is not None:
+                        block[block == ignore] = np.nan
+                    if mask_zero:
+                        block[block == 0] = np.nan
+                    block = block.reshape(n, step_y, out_x, step_x, out_b, step_b)
+                    data[:, iy0:iy1, :] = np.nanmean(block, axis=(1, 3, 5)).transpose(1, 0, 2)
+            if dtype is not None and np.dtype(dtype) != data.dtype:
+                data = np.asarray(data, dtype=dtype)
+            img = HyImage(data, header=header)
+            img.push_to_header()
+            return img
+
+        # slice in native interleave so unused lines / samples / bands are not copied
+        regular_band_step = bands is None and step_b > 1 and band_idx is not None
+        if interleave == 'bil':
+            if regular_band_step:
+                view = mmap[::step_y, ::step_b, ::step_x]
+            else:
+                view = mmap[::step_y, :, ::step_x]
+                if band_idx is not None:
+                    view = view[:, band_idx, :]
+            axes = (2, 0, 1)  # (x, y, band)
+        elif interleave == 'bsq':
+            if regular_band_step:
+                view = mmap[::step_b, ::step_y, ::step_x]
+            else:
+                view = mmap[:, ::step_y, ::step_x]
+                if band_idx is not None:
+                    view = view[band_idx, :, :]
+            axes = (2, 1, 0)
+        else:
+            if regular_band_step:
+                view = mmap[::step_y, ::step_x, ::step_b]
+            else:
+                view = mmap[::step_y, ::step_x, :]
+                if band_idx is not None:
+                    view = view[:, :, band_idx]
+            axes = (1, 0, 2)
+        if memmap:
+            if dtype is not None and np.dtype(dtype) != view.dtype:
+                raise ValueError("memmap=True requires dtype=None or the on-disk dtype")
+            data = np.transpose(view, axes)
+        else:
+            data = np.array(np.transpose(view, axes), copy=True, order='C')
+            if dtype is not None:
+                data = np.asarray(data, dtype=dtype)
+        img = HyImage(data, header=header)
+        img.push_to_header()
+        if (not memmap) and mask_zero and (img.dtype == np.float32 or img.dtype == np.float64):
+            img.data[img.data == 0] = np.nan
+        return img
     elif 'tif' in ext.lower() or 'png' in ext.lower() or 'jpg' in ext.lower():  # standard image formats
+        if bands is not None or pixels is not None or step != 1 or average or memmap:
+            raise ValueError("bands, pixels, step, average and memmap are only supported for ENVI images.")
         # load with matplotlib
         import matplotlib.image as mpimg
         data = mpimg.imread(path)
@@ -294,6 +454,7 @@ def saveWithNumpy( path, image, writeHeader=True, interleave='BSQ'):
     header['data type'] = envi_data_type
     header['interleave'] = interleave
     header['byte order'] = '0'
+    header['header offset'] = '0'  # tofile writes a raw cube with no prefix
     header_path = path + '.hdr'
     saveHeader( header_path, header)
 
@@ -393,11 +554,8 @@ def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
             output = None  # close file
 
 def saveWithSPy( path, image, writeHeader=True, interleave='BSQ'):
-    try: 
-        import spectral
-    except:
-        assert False, "Error - please install spectral python using `pip install spectral` before using saveWithSPy(...)"
-        
+    spectral = require("spectral")
+
     # make directories if need be
     makeDirs(path)
 

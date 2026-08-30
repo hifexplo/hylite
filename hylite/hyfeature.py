@@ -3,12 +3,8 @@ Fit and visualise individual hyperspectral features.
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.optimize import least_squares
-from scipy.signal import argrelmin
-from tqdm import tqdm
 
-from gfit import gfit, initialise, evaluate
+from hylite._deps import require
 
 class HyFeature(object):
     """
@@ -90,6 +86,7 @@ class HyFeature(object):
         if asym is None:
             asym = np.ones( len(width) )
         M = np.hstack( [[depth[i], pos[i], width[i], width[i]*asym[i]] for i in range(len(depth))] )
+        evaluate = require("gfit").evaluate
         y = evaluate( x, M, sym=False )
         return 1 - y
 
@@ -119,6 +116,8 @@ class HyFeature(object):
             - fig: the figure that was plotted to.
             - ax: the axis that was plotted to.
         """
+
+        plt = require("matplotlib.pyplot")
 
         if ax is None:
             fig, ax = plt.subplots()
@@ -198,7 +197,7 @@ class MultiFeature(HyFeature):
     def __init__(self, name, endmembers):
         """
         Args:
-            endmembers (list): a list of HyFeature objects representing each end-member.
+            endmembers (list): a list of `hylite.hyfeature.HyFeature` objects representing each end-member.
         """
 
         # init this feature so that it ~ covers all of its 'sub-features'
@@ -240,6 +239,8 @@ class MultiFeature(HyFeature):
             - ax: the axis that was plotted to
          """
 
+        plt = require("matplotlib.pyplot")
+
         if ax is None:
             fig, ax = plt.subplots()
 
@@ -277,7 +278,7 @@ class MixedFeature(HyFeature):
     def __init__(self, name, components, **kwds):
         """
         Args:
-            components: a list of HyFeature objects representing each end-member.
+            components: a list of `hylite.hyfeature.HyFeature` objects representing each end-member.
             **kwds: keywords are passed to HyFeature.init()
         """
 
