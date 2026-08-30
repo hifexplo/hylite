@@ -142,6 +142,24 @@ class TestIO(unittest.TestCase):
             if os.path.exists(pth):
                 shutil.rmtree(pth)
 
+    def test_save_preview_formats(self):
+        require_test_env(self, "default")
+        pth = mkdtemp()
+        try:
+            rgb = hylite.HyImage(np.random.rand(8, 6, 3).astype(np.float32))
+            io.save(os.path.join(pth, "rgb.png"), rgb)
+            self.assertTrue(os.path.isfile(os.path.join(pth, "rgb.png")))
+
+            rgba = hylite.HyImage(np.random.rand(8, 6, 4).astype(np.float32))
+            io.save(os.path.join(pth, "rgba.png"), rgba)
+            self.assertTrue(os.path.isfile(os.path.join(pth, "rgba.png")))
+
+            cube = hylite.HyImage(np.random.rand(8, 6, 10).astype(np.float32))
+            with self.assertRaises(ValueError):
+                io.save(os.path.join(pth, "cube.png"), cube)
+        finally:
+            shutil.rmtree(pth)
+
     def test_subset(self):
         require_test_env(self, "default")
         from hylite.io.images import loadSubset
@@ -382,6 +400,13 @@ class TestHyCollection(unittest.TestCase):
             io.save(os.path.join(pth, "testC.hdr"), C)
             self.assertTrue(os.path.exists(os.path.join(pth, "testC.hyc", "arr.npy")))
             self.assertTrue(os.path.exists(os.path.join(pth, "testC.hyc", "img.hdr")))
+
+            # collection headers may list wavelengths without a data cube
+            C.header['wavelength'] = image.get_wavelengths()
+            io.save(os.path.join(pth, "testC.hdr"), C)
+            C_wav = io.load(os.path.join(pth, "testC.hdr"))
+            self.assertTrue(isinstance(C_wav, hylite.HyCollection))
+            np.testing.assert_allclose(C_wav.header.get_wavelengths(), image.get_wavelengths())
 
             C2 = io.load(os.path.join(pth, "testC.hdr"))
             self.assertEqual(C2.val, C.val)

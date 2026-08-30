@@ -64,21 +64,28 @@ and (b) a hypercloud of an open-pit mine.*
 Release notes
 --------------
 
-#### Version 1.4
+#### Version 1.41 (1.4)
 
 New features:
-* Added `hylite.analyse.fourier` for fourier-based compression, maxima and minima identification and derived querying/searching of spectral libraries.
-* `HyData`, `HyImage`, `HyCloud`, and `HyLibrary` support `[]` indexing: string keys access ENVI/header fields; floats and band names on the band axis select wavelengths via `get_band_index()` (e.g. `image[..., 680.0]`, `image['Band 1':'Band 5']`).
+* Added `hylite.analyse.fourier` (`HyFourier`, `FourierArchive`) for Fourier-based compression of images, clouds and libraries (`.fdr` / `.fda` archives), extrema extraction, and spectral-library search. Query syntax supports absorptions (`2200`), peaks (`^2300`), absences (`!2200`), ranges (`2160-2200`), name tokens, and OR (`kaolinite | dolomite`). `getSpectra` / `getSpectraByName` reconstruct matching spectra.
+* `HyData`, `HyImage`, `HyCloud`, and `HyLibrary` support `[]` indexing: string keys access ENVI/header fields; floats and band names on the **band axis** select wavelengths via `get_band_index()` (e.g. `image[..., 680.0]`, `image['Band 1':'Band 5']`). Prefer an explicit band axis (`[..., wav]`) rather than a bare float.
 * `hylite.transform.sample.Resample` for binning hyperspectral data onto satellite or other sensor bandpasses (`ASTER`, `SENTINEL`, or custom intervals).
+* Optional install extras: `pip install hylite[opencv]`, `hylite[gdal]`, or `hylite[all]`. The default install no longer requires GDAL or OpenCV.
 
 Significant spring cleaning to remove little-used code:
-* Removed `hylite.analyse.supervised` and `hylite.analyse.unsupervised` as these functions are now superceeded by [hklearn](https://github.com/samthiele/hklearn/).
+* Removed `hylite.analyse.supervised` and `hylite.analyse.unsupervised` as these functions are now superseded by [hklearn](https://github.com/samthiele/hklearn/).
 * Removed `hylite.filter.TPT` as similar analyses can now be done much better using `hylite.analyse.fourier`.
-* Removed `hylite.filter.segment` as functions there are largely redundant / unused (superceeded by e.g., `hycore`).
+* Removed `hylite.filter.segment` as functions there are largely redundant / unused (superseded by e.g., `hycore`).
 * Deprecated `hylite.filter` (legacy PCA/MNF only); prefer `hylite.transform.reduction` for dimensionality reduction and `hylite.transform.overlay` for multi-image fusion (replaces `filter.combine`).
 * sklearn-dependent `PCA`, `MNF`, and `NoiseWhitener` moved to `hylite.transform.reduction`; other `hylite.transform` functions no longer require scikit-learn at import.
 
-* Refactored tests to match hylite module structure
+Fixes and packaging:
+* Scene blending and projection-map fixes (`blend_scenes`, `pmap`): overlap, same-name scenes, blend weighting.
+* ENVI I/O: numpy reader handles header `bits`; `io.load` falls back from a broken GDAL install to the numpy reader; wavelengths are sorted from the header (not a reconstructed wavelength array).
+* PEP 440 package version (`1.41`) and CI wheels / versioned docs for `master` (stable) and `dev`.
+* Tests restructured to match the hylite module layout; optional-dependency tiers are simulated in tests.
+
+#### Version 1.3
 
 #### Version 1.3
 
@@ -134,9 +141,19 @@ conda activate hylite
 
 ------------
 
-2 Install *hylite* with pip.
+2. Install *hylite* with pip.
 
-`pip install hylite`
+```
+pip install hylite
+```
+
+Optional extras (only needed for some workflows):
+
+```
+pip install "hylite[opencv]"   # SIFT/ORB alignment, DeepFlow, sensor band matching
+pip install "hylite[gdal]"     # georeferenced ENVI/GeoTIFF I/O, mosaic / resample_raster
+pip install "hylite[all]"      # opencv + gdal
+```
 
 
 Installation (from GitHub)
@@ -153,7 +170,10 @@ conda activate hylite
 
 3. Navigate into the hylite directory using terminal and install it using pip:
 
-`pip install .`
+```
+pip install .
+pip install ".[all]"   # optional: opencv + gdal
+```
 
 
 Optional dependencies:

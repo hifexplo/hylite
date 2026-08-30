@@ -112,11 +112,35 @@ class TestFilterAndSample(unittest.TestCase):
 
         band = custom.get_band(image, 1)
         self.assertEqual(band.shape, image.data.shape[:2])
+        i0 = image.get_band_index(500.0, thresh=np.inf)
+        i1 = image.get_band_index(600.0, thresh=np.inf)
+        sl = image.data[..., i0:i1 + 1]
+        n = np.isfinite(sl).sum(axis=-1)
+        expected = np.full(sl.shape[:-1], np.nan, dtype=np.float64)
+        np.divide(np.nansum(sl, axis=-1), n, out=expected, where=n > 0)
+        np.testing.assert_allclose(band, expected)
+        # out-of-range interval is nan, not an empty-slice mean
+        np.testing.assert_array_equal(
+            Resample([(8000.0, 9000.0)]).get_band(image, 1),
+            np.full(image.data.shape[:2], np.nan),
+        )
 
         aster = ASTER.apply(image)
         self.assertEqual(aster.band_count(), len(ASTER.bands))
         sentinel = SENTINEL.apply(image)
         self.assertEqual(sentinel.band_count(), len(SENTINEL.bands))
+
+        from tests import genCloud
+        cloud = genCloud(npoints=40, nbands=10)
+        cloud_out = custom.apply(cloud)
+        self.assertEqual(cloud_out.band_count(), 2)
+        self.assertEqual(cloud_out.data.shape[0], cloud.data.shape[0])
+        np.testing.assert_allclose(cloud_out.get_wavelengths(), [550.0, 750.0])
+
+        lib = io.load(os.path.join(TEST_DATA, "library.csv"))
+        lib_out = custom.apply(lib)
+        self.assertEqual(lib_out.band_count(), 2)
+        self.assertEqual(lib_out.data.shape[:-1], lib.data.shape[:-1])
 
 
 class TestAbsorbance(unittest.TestCase):

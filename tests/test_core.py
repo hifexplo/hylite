@@ -505,6 +505,7 @@ class TestHyLibrary(unittest.TestCase):
         lib['custom field'] = 'value'
         self.assertEqual(lib['custom field'], 'value')
         self.assertTrue(np.allclose(lib[0, :, 550.0], lib.data[0, :, lib.get_band_index(550.0)]))
+        self.assertTrue(np.allclose(lib[0, 0, 550.0], lib.data[0, 0, lib.get_band_index(550.0)]))
 
         # add groups
         lib.add_group("Group1", ['A','B'])

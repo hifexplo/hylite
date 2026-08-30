@@ -31,18 +31,21 @@ class Resample(object):
                STANDARD SATELLITE NOTATION!
         """
         assert n >= 1 and (n - 1) < len(self.bands), "Error - Band %d is not defined in this resampling scheme." % n
-        idx0 = data.get_band_index(self.bands[n - 1][0], thresh=np.inf)
-        idx1 = data.get_band_index(self.bands[n - 1][1], thresh=np.inf)
+        bmin, bmax = self.bands[n - 1]
+        wav = data.get_wavelengths()
+        data_min, data_max = float(np.nanmin(wav)), float(np.nanmax(wav))
+        # interval is entirely outside the source wavelength range
+        if bmax < data_min or bmin > data_max:
+            return np.full(data.data.shape[:-1], np.nan)
 
-        if idx1 != idx0:
-            return np.nanmean(data.data[..., idx0:idx1], axis=-1)
-        else:
-            minw, maxw = data.get_wavelengths()[[0, -1]]
-            if (minw > self.bands[n - 1][0]) and (maxw > self.bands[n - 1][0]) \
-                    or (minw < self.bands[n - 1][0]) and (maxw < self.bands[n - 1][0]):
-                return np.full(data.data.shape[:-1], np.nan)
-            else:
-                return data.data[..., idx0]
+        idx0 = data.get_band_index(bmin, thresh=np.inf)
+        idx1 = data.get_band_index(bmax, thresh=np.inf)
+        lo, hi = (idx0, idx1) if idx0 <= idx1 else (idx1, idx0)
+        sl = data.data[..., lo:hi + 1]
+        n = np.isfinite(sl).sum(axis=-1)
+        out = np.full(sl.shape[:-1], np.nan, dtype=np.float64)
+        np.divide(np.nansum(sl, axis=-1), n, out=out, where=n > 0)
+        return out
 
     def print_bands(self):
         """
@@ -63,10 +66,8 @@ class Resample(object):
 
         bands = [self.get_band(data, n + 1) for n in range(len(self.bands))]
         out = data.copy(data=False)
-        if data.is_image():
-            out.data = np.dstack(bands)
-        else:
-            out.data = np.hstack(bands)
+        # stack on the band axis so images (x,y), clouds (n,) and libraries (sample,meas) all work
+        out.data = np.stack(bands, axis=-1)
         out.set_wavelengths([np.mean(self.bands[n]) for n in range(len(self.bands))])
         return out
 

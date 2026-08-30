@@ -330,6 +330,9 @@ class HyLibrary(HyData):
         if isinstance(n, tuple):
             if len(n) == 0:
                 return False
+            # a full-rank tuple is array indexing, e.g. lib[0, 0, 550.0]
+            if self.data is not None and len(n) == self.data.ndim:
+                return False
             return all(
                 isinstance(x, (str, int, float, np.integer, np.floating))
                 for x in n

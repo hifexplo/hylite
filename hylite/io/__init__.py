@@ -50,30 +50,38 @@ def save(path, data, **kwds):
 
              - vmin = the data value that = 0 when saving RGB images.
              - vmax = the data value that = 255 when saving RGB images. Must be > vmin.
+
+        Preview formats (``.png``, ``.jpg``, ``.jpeg``, ``.bmp``, ``.pdf``) accept only
+        1-, 3- or 4-band images. Hyperspectral cubes must be saved as ENVI (``.hdr``).
     """
 
     if isinstance(data, HyImage):
 
-        # special case - save ternary image to png or jpg or bmp
+        # special case - save grey / RGB / RGBA previews
         ext = os.path.splitext(path)[1].lower()
-        if 'jpg' in ext or 'bmp' in ext or 'png' in ext or 'pdf' in ext:
-            if data.band_count() == 1 or data.band_count() == 3 or data.band_count == 4:
-                rgb = np.transpose( data.data, (1,0,2) )
-                if not ((data.is_int() and np.max(rgb) <= 255)): # handle normalisation
-                    vmin = kwds.get("vmin", np.nanpercentile(rgb, 1 ) )
-                    vmax = kwds.get("vmax", np.nanpercentile(rgb, 99) )
-                    rgb = (rgb - vmin) / (vmax-vmin)
-                    rgb = (np.clip(rgb, 0, 1) * 255).astype(np.uint8) # convert to 8 bit image
-                skio = require("skimage.io")
-                skio.imsave( path, rgb ) # save the image
-                return
-        elif ((data.band_count() == 1) or (data.band_count() == 3) or (data.band_count() == 4)) and (data.data.dtype == np.uint8):
-            # save 1, 3 and 4 band uint8 arrays as png files
-            Image = require("PIL").Image
-            if (data.band_count() == 1):
+        n = data.band_count()
+        if ext in ('.jpg', '.jpeg', '.bmp', '.png', '.pdf'):
+            if n not in (1, 3, 4):
+                raise ValueError(
+                    "Error - %s only supports 1, 3 or 4 bands; this image has %d. "
+                    "Export an RGB subset first (e.g. image.export_bands(hylite.RGB)) or save as ENVI (.hdr)."
+                    % (ext, n)
+                )
+            rgb = np.transpose( data.data, (1,0,2) )
+            if not ((data.is_int() and np.max(rgb) <= 255)): # handle normalisation
+                vmin = kwds.get("vmin", np.nanpercentile(rgb, 1 ) )
+                vmax = kwds.get("vmax", np.nanpercentile(rgb, 99) )
+                rgb = (rgb - vmin) / (vmax-vmin)
+                rgb = (np.clip(rgb, 0, 1) * 255).astype(np.uint8) # convert to 8 bit image
+            skio = require("skimage.io")
+            skio.imsave( path, rgb ) # save the image
+            return
+        elif n in (1, 3, 4) and data.data.dtype == np.uint8:
+            Image = require("PIL").Image # save 1, 3 and 4 band uint8 arrays as png files
+            if n == 1:
                 img = Image.fromarray(data.data[..., 0].T)  # single-band PNG
             else:
-                img = Image.fromarray(np.transpose(data.data, (1, 0, 2)))  # ternary PNG
+                img = Image.fromarray(np.transpose(data.data, (1, 0, 2)))  # ternary / RGBA PNG
 
             img.save(os.path.splitext(path)[0]+".png", "PNG")
             save( os.path.splitext(path)[0] + ".hdr", data.header ) # save header
@@ -212,14 +220,6 @@ def load(path, to_nm=False):
         # special case - loading spectral library; convert image to HyData
         if 'lib' in ext:
             out = HyLibrary(out.data, header=out.header)
-
-    # ensure band are ordered from lowest to highest
-    if hasattr(out, 'header'):
-        if 'wavelength' in out.header:
-            if len(out.header.get_wavelengths()) == out.data.shape[-1]:
-                ixx = np.argsort( out.header.get_wavelengths() )
-                out.data = out.data[..., ixx] # sort into ascending order
-                out.header.set_wavelengths( out.header.get_wavelengths()[ixx] )
 
     return out  # return dataset
 
