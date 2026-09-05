@@ -252,6 +252,13 @@ class TestIO(unittest.TestCase):
                 mapped = loadWithNumpy(out + '.hdr', memmap=True, mask_zero=False)
                 self.assertFalse(mapped.data.flags.writeable)
                 self.assertAlmostEqual(np.nanmax(np.abs(np.array(mapped.data) - cube)), 0, msg=interleave)
+
+            # boolean masks write as ENVI byte
+            mask = hylite.HyImage(np.full((8, 6, 1), True))
+            mask.data[:2, :2, :] = False
+            saveWithNumpy(os.path.join(pth, 'mask'), mask)
+            loaded_mask = loadWithNumpy(os.path.join(pth, 'mask.hdr'), mask_zero=False)
+            self.assertTrue(np.array_equal(loaded_mask.data.astype(bool), mask.data))
         finally:
             shutil.rmtree(pth)
 

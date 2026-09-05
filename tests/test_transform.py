@@ -10,6 +10,27 @@ from hylite import io
 from tests._support import TEST_DATA, require_test_env
 
 
+def _component_noise(data):
+    """Normalised roughness of each band along axis 0 (higher = noisier)."""
+    data = np.asarray(data)
+    spatial = tuple(range(data.ndim - 1))
+    delta = np.nanmean(np.abs(np.diff(data, axis=0)), axis=spatial)
+    return delta / (np.nanstd(data, axis=spatial) + 1e-12)
+
+
+def _assert_mnf_noise_increases(testcase, data):
+    """First MNF components must be cleaner than later ones (Green et al. 1988)."""
+    cn = _component_noise(data)
+    testcase.assertLess(cn[0], cn[-1], "first MNF component is noisier than the last")
+    testcase.assertNotEqual(int(np.argmax(cn)), 0, "first MNF component is the noisiest")
+    k = max(1, len(cn) // 5)
+    testcase.assertLess(
+        np.median(cn[:k]),
+        np.median(cn[-k:]),
+        "early MNF components are not cleaner than late ones",
+    )
+
+
 class TestTransform(unittest.TestCase):
     def test_PCA_MNF(self):
         require_test_env(self, "default")
@@ -44,25 +65,60 @@ class TestTransform(unittest.TestCase):
                 self.assertTrue( Xt.data.shape[-1] == n )
                 self.assertLess( np.nanmax( np.abs( X.data - Xtt.data ) ), 1e-4 )
             
-            # fit noise
-            noise = NoiseWhitener(noiseMethod='spectral')
-            noise.fit(X)
-            if isinstance(X, hylite.HyImage): # also try spatial on image data
-                noise = NoiseWhitener(noiseMethod='spatial')
-                noise.fit(X)
-            
-            # test MNF
-            mnf = MNF(n_components=n, normalise=False, subsample=1, noise=noise).fit(X)
-            Xt = mnf.transform(X)
-            Xtt = mnf.inverse_transform(Xt) # back-transform
+            methods = ['spectral']
+            if isinstance(X, hylite.HyImage) or (isinstance(X, np.ndarray) and X.ndim == 3):
+                methods.append('spatial')
 
-            self.assertTrue( isinstance( Xt, type(X) ) )
-            if isinstance(Xt, np.ndarray):
-                self.assertTrue( Xt.shape[-1] == n )
-                self.assertLess( np.nanmax( np.abs( X - Xtt ) ), 1e-4 )
-            else:
-                self.assertTrue( Xt.data.shape[-1] == n )
-                self.assertLess( np.nanmax( np.abs( X.data - Xtt.data ) ), 1e-4 )
+            for method in methods:
+                noise = NoiseWhitener(noiseMethod=method)
+                noise.fit(X)
+                if method == 'spectral':
+                    off = noise.Wn_.copy()
+                    np.fill_diagonal(off, 0.0)
+                    self.assertLess(np.max(np.abs(off)), 1e-12)
+                    self.assertTrue(np.all(np.diag(noise.Wn_) > 0))
+
+                mnf = MNF(n_components=n, normalise=False, subsample=1, noise=noise).fit(X)
+                Xt = mnf.transform(X)
+                Xtt = mnf.inverse_transform(Xt)
+
+                self.assertTrue(isinstance(Xt, type(X)))
+                data_in = X if isinstance(X, np.ndarray) else X.data
+                data_t = Xt if isinstance(Xt, np.ndarray) else Xt.data
+                data_tt = Xtt if isinstance(Xtt, np.ndarray) else Xtt.data
+                self.assertEqual(data_t.shape[-1], n)
+                self.assertLess(np.nanmax(np.abs(data_in - data_tt)), 1e-4)
+                _assert_mnf_noise_increases(self, data_t)
+                if method == 'spectral':
+                    # padding bug put ~all of PC1 into bands 0–1; smoothness residual must not
+                    self.assertLess(np.sum(mnf._pca.components_[0, :2] ** 2), 0.5)
+
+    def test_spectral_noise_sigma(self):
+        """Spectral whitening recovers per-band σ from a smooth cube plus white noise."""
+        require_test_env(self, "default")
+        from hylite.transform import NoiseWhitener, MNF
+
+        rng = np.random.default_rng(0)
+        h, w, b = 32, 40, 60
+        t = np.linspace(0, 2 * np.pi, b)
+        signal = 0.4 + 0.3 * np.sin(t)
+        yy, xx = np.mgrid[0:h, 0:w]
+        cube = (0.5 + 0.5 * np.sin(xx / 7.0) * np.cos(yy / 9.0))[..., None] * signal
+        true_sigma = 0.01 + 0.02 * np.linspace(0, 1, b) ** 2
+        cube = cube + rng.normal(0.0, 1.0, cube.shape) * true_sigma
+
+        noise = NoiseWhitener(noiseMethod='spectral', subsample=1).fit(cube)
+        np.testing.assert_allclose(noise.estimate[2:-2], true_sigma[2:-2], rtol=0.15)
+        off = noise.Wn_.copy()
+        np.fill_diagonal(off, 0.0)
+        self.assertLess(np.max(np.abs(off)), 1e-12)
+
+        mnf = MNF(n_components=5, subsample=1, noise=noise).fit(cube)
+        Xt = mnf.transform(cube)
+        _assert_mnf_noise_increases(self, Xt)
+        cn = _component_noise(Xt)
+        self.assertLess(cn[0], 0.3)
+        self.assertGreater(cn[-1], 0.8)
 
 
 class TestFilterAndSample(unittest.TestCase):

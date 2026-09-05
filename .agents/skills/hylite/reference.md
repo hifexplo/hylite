@@ -229,7 +229,7 @@ Most transforms do not require scikit-learn at import. Dimensionality reduction 
 
 | Export | Purpose |
 |--------|---------|
-| `NoiseWhitener` | Noise estimation for MNF |
+| `NoiseWhitener` | Noise estimation for MNF (`spatial`: full covariance from image shift-differences; `spectral`: diagonal per-band σ from local spectral smoothness) |
 | `MNF(n_components, noise=NoiseWhitener)` | MNF transformer |
 | `PCA(n_components)` | PCA (MNF without whitening) |
 

@@ -13,8 +13,8 @@ import hylite
 
 class NoiseWhitener(BaseEstimator, TransformerMixin):
     """
-    A scikit-learn compatible transformer that performs spatial noise whitening
-    for use in Minimum Noise Fraction (MNF) transforms on hyperspectral cubes.
+    A scikit-learn compatible transformer that estimates a noise-whitening matrix
+    for Minimum Noise Fraction (MNF) transforms on hyperspectral data.
     """
 
     def __init__(self, noise_estimate=None, neighbor_axis=0, subsample=5, noiseMethod='spectral'):
@@ -26,18 +26,22 @@ class NoiseWhitener(BaseEstimator, TransformerMixin):
         denoising, covariance estimation, or dimensionality reduction tasks.
 
         Args:
-            noise_estimate: Optional array of shape (H, W, B) containing per-pixel noise estimates.
+            noise_estimate: Optional array of shape (..., B) containing per-pixel noise samples.
                             If None, noise is estimated from spatial or spectral differences.
             neighbor_axis: Integer specifying which spatial axis to use for differencing when
                         estimating noise (0 = rows, 1 = columns). Default is 0.
             subsample: Integer factor to subsample noise samples during covariance estimation.
                     Reduces computation time and memory usage for large datasets.
-            noiseMethod: String specifying the differencing method to use.
-                        'spectral' computes band-wise differences, while
-                        'spatial' computes spatial differences (image data only).
+            noiseMethod: ``'spatial'`` or ``'spectral'``. Spatial shift-differences estimate a
+                        full noise covariance (images only). Spectral mode uses local smoothness
+                        along wavelength to estimate a per-band (diagonal) noise model, which
+                        also works for clouds and libraries. ``spatial`` is typically better for images, 
+                        but will not work with point clouds or libraries. 
 
-        Returns:
-            A numpy array representing the estimated noise covariance or adjusted noise model.
+        Attributes:
+            Wn_: Fitted whitening matrix of shape (B, B).
+            estimate: Per-band noise amplitude (std for spectral; mean absolute
+                      shift-difference for spatial).
         """
 
         self.noise_estimate = noise_estimate
@@ -51,30 +55,45 @@ class NoiseWhitener(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         """
         Fit the noise whitening matrix.
-        X : ndarray of shape (H, W, B)
+        X : ndarray of shape (H, W, B) or (N, B), or a `hylite.hydata.HyData` instance.
         """
         if isinstance(X, hylite.HyData):
             self.wavelengths = X.get_wavelengths()
             X = X.data
 
         # estimate noise if not provided
-        if self.noise_estimate is None:
-            if 'spatial' in self.noiseMethod.lower():
-                assert X.ndim == 3, "Spatial differencing can only be used for hyperspectral image data."
-                if self.neighbor_axis == 0:
-                    noise = np.abs(X[1:, :, :] - X[:-1, :, :])
-                elif self.neighbor_axis == 1:
-                    noise = np.abs(X[:, 1:, :] - X[:, :-1, :])
+        if self.noise_estimate is None and 'spectral' in str(self.noiseMethod).lower():
+            # Adjacent-band diffs are rank B-1, so estimate uncorrelated per-band σ from
+            # the residual to a local linear fit (2nd difference; first difference at the ends).
+            nb = X.shape[-1]
+            assert nb >= 2, "Spectral noise estimation needs at least 2 bands."
+            step = self.subsample
+            sigma = np.empty(nb, dtype=float)
+            if nb == 2:
+                delta = (X[..., 1] - X[..., 0]).reshape(-1)[::step]
+                sigma[:] = np.nanstd(delta) / np.sqrt(2.0)
             else:
-                noise = np.abs(X[..., 1:] - X[..., :-1]) # compute forward difference between adjacent bands
-                noise += np.abs(X[...,::-1][..., 1:] - X[...,::-1][..., :-1])[...,::-1] # compute backward difference between adjacent bands
-                noise /= 2
-                noise = np.concatenate([ noise[..., 0][...,None], noise ], axis=-1) # add first band difference using padding
+                resid = X[..., 1:-1] - 0.5 * (X[..., :-2] + X[..., 2:])
+                resid = resid.reshape(-1, nb - 2)[::step]
+                sigma[1:-1] = np.nanstd(resid, axis=0) / np.sqrt(1.5)
+                sigma[0] = np.nanstd((X[..., 1] - X[..., 0]).reshape(-1)[::step]) / np.sqrt(2.0)
+                sigma[-1] = np.nanstd((X[..., -1] - X[..., -2]).reshape(-1)[::step]) / np.sqrt(2.0)
+            sigma = np.clip(np.nan_to_num(sigma, nan=1e-12), 1e-12, None)
+            self.estimate = sigma
+            self.Wn_ = np.diag(1.0 / sigma)
+            return self
+
+        if self.noise_estimate is None:
+            assert X.ndim == 3, "Spatial differencing can only be used for hyperspectral image data."
+            if self.neighbor_axis == 0:
+                noise = np.abs(X[1:, :, :] - X[:-1, :, :])
+            elif self.neighbor_axis == 1:
+                noise = np.abs(X[:, 1:, :] - X[:, :-1, :])
         else:
             noise = self.noise_estimate
 
         # Flatten noise to (n_samples, n_bands)
-        if X.ndim == 3: # images
+        if noise.ndim > 2:
             noise = noise.reshape(-1, noise.shape[-1])
 
         # remove nans and subsample

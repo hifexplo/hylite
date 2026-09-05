@@ -179,7 +179,8 @@ mwl = minimum_wavelength(cloud, 2140., 2380., trend='hull', method='gauss', n=4)
 rgb_mwl = colourise_mwl(mwl)
 
 pca = PCA(n_components=5).fit(image).transform(image)
-mnf = MNF(n_components=5, noise=NoiseWhitener()).fit(image).transform(image)
+noise = NoiseWhitener(noiseMethod='spatial').fit(image)  # or 'spectral' for clouds / per-band σ
+mnf = MNF(n_components=5, noise=noise).fit(image).transform(image)
 
 amap = unmix(image, endmembers, method='nnls')
 sam_map = SAM(image, reference_library)

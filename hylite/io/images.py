@@ -423,7 +423,11 @@ def saveWithNumpy( path, image, writeHeader=True, interleave='BSQ'):
     image.push_to_header() # update header flags
     
     # Map NumPy dtype to ENVI data type code
-    dtype = str(image.data.dtype)
+    data = image.data
+    dtype = str(data.dtype)
+    if dtype in ('bool', 'bool_'):  # ENVI has no bool; write as byte 0/1
+        data = data.astype(np.uint8)
+        dtype = 'uint8'
     numpy_to_envi = {
         'uint8': 1,
         'int16': 2,
@@ -440,7 +444,7 @@ def saveWithNumpy( path, image, writeHeader=True, interleave='BSQ'):
     envi_data_type = numpy_to_envi[dtype]
 
     # Reorder data based on interleave
-    array = np.transpose( image.data, (1,0,2) ) # from x-y to i-j ordering
+    array = np.transpose( data, (1,0,2) ) # from x-y to i-j ordering
     if interleave == 'bil':
         out_data = np.transpose(array, (0, 2, 1))  # (lines, bands, samples)
     elif interleave == 'bsq':
@@ -509,8 +513,8 @@ def saveWithGDAL(path, image, writeHeader=True, interleave='BSQ'):
     if image.data.dtype == np.int16:
         dtype = gdal.GDT_Int16
         image.header["data type"] = 2
-    if image.data.dtype == np.uint8:
-        data = np.array(image.data, np.dtype('b'))
+    if image.data.dtype == np.uint8 or image.data.dtype == np.bool_ or image.data.dtype == bool:
+        data = np.array(image.data, np.uint8)
         dtype = gdal.GDT_Byte
         image.header["data type"] = 1
     if image.data.dtype == np.uint or image.data.dtype == np.uint32:
