@@ -108,6 +108,7 @@ jobs:
           python -m build
           mkdir -p ../wheels
           cp dist/hylite-*-py3-none-any.whl ../wheels/
+          cp dist/hylite-*-py3-none-any.whl ../wheels/hylite-latest-py3-none-any.whl
         working-directory: src-master
 
       - name: Build development wheel (dev)
@@ -116,6 +117,7 @@ jobs:
           python -m build
           mkdir -p ../wheels
           cp dist/hylite-*-py3-none-any.whl ../wheels/
+          cp dist/hylite-*-py3-none-any.whl ../wheels/hylite-dev-latest-py3-none-any.whl
         working-directory: src-dev
 
       - name: Assemble site
