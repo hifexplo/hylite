@@ -71,26 +71,36 @@ def align_to_cloud_manual( cloud, cam, points, pixels, **kwds ):
     points = np.array(points).astype(np.uint)
     kxyz = cloud.xyz[ points, : ]
 
-    # get pixel coordinates array
-    kxy = np.array( pixels ).astype(float) - 0.5 # must be float for OpenCV. - 0.5 transforms to pixel centers.
-
-    # solve pnp problem
-    if 'pano' in cam.proj.lower():
-        kxy_pp = pano_to_persp(kxy[:,0], kxy[:, 1], cam.fov, cam.step, cam.dims)
-        p_est, r_est, inl = pnp(kxyz, kxy_pp, cam.fov, cam.dims, ransac=True, **kwds)
+    # get pixel coordinates array. Sphere pixels stay in edge-origin coordinates
+    # (the same numbers proj_sphere returns). Pinhole PnP uses OpenCV pixel centres.
+    kxy = np.array( pixels ).astype(float)
+    if cam.is_spherical():
+        p_est, r_est, inl = pnp_sphere(
+            kxyz, kxy, cam.az_lo, cam.el_hi, cam.step, cam.dims, ransac=True, **kwds)
+        est = cam.clone()
+        est.set_transform(p_est, r_est)
+        pp, vis = proj_sphere(kxyz[inl, :], C=p_est, a=r_est,
+                              az_lo=est.az_lo, el_hi=est.el_hi, step=est.step, dims=est.dims)
     else:
-        p_est, r_est, inl = pnp(kxyz, kxy, cam.fov, cam.dims, ransac=True, **kwds)
+        kxy = kxy - 0.5  # must be float for OpenCV. - 0.5 transforms to pixel centers.
 
-    # put estimate in a camera object
-    est = Camera(p_est, r_est, cam.proj, cam.fov, cam.dims, cam.step)
+        # solve pnp problem
+        if 'pano' in cam.proj.lower():
+            kxy_pp = pano_to_persp(kxy[:,0], kxy[:, 1], cam.fov, cam.step, cam.dims)
+            p_est, r_est, inl = pnp(kxyz, kxy_pp, cam.fov, cam.dims, ransac=True, **kwds)
+        else:
+            p_est, r_est, inl = pnp(kxyz, kxy, cam.fov, cam.dims, ransac=True, **kwds)
 
-    # calculate final correspondances
-    if 'pano' in cam.proj.lower():
-        pp, vis = proj_pano(kxyz[inl, :], C=p_est, a=r_est,
-                            fov=cam.fov, dims=cam.dims, step=cam.step)
-    else:
-        pp, vis = proj_persp(kxyz[inl, :], C=p_est, a=r_est,
-                             fov=cam.fov, dims=cam.dims)
+        # put estimate in a camera object
+        est = Camera(p_est, r_est, cam.proj, cam.fov, cam.dims, cam.step)
+
+        # calculate final correspondances
+        if 'pano' in cam.proj.lower():
+            pp, vis = proj_pano(kxyz[inl, :], C=p_est, a=r_est,
+                                fov=cam.fov, dims=cam.dims, step=cam.step)
+        else:
+            pp, vis = proj_persp(kxyz[inl, :], C=p_est, a=r_est,
+                                 fov=cam.fov, dims=cam.dims)
 
     err = np.linalg.norm(pp[:, 0:2] - kxy[inl, :], axis=1)
     err = np.mean(err)
@@ -197,7 +207,7 @@ def resample_raster(data, src_gt, dst_gt, dst_shape, order=1):
 def refine_alignment(image, cloud, cam, bands=hylite.RGB, s=2,
                      maxdist=25, histeq=True, method='sift',
                      recurse=1, feat_args={}, match_args={}, vb=True, **kwds):
-    if 'pano' in cam.proj.lower():
+    if cam.is_spherical() or 'pano' in cam.proj.lower():
         assert not cam.step is None, "Error - angluar step ('step') must be defined for panoramic cameras."
     
     cv2 = require("cv2") # lazy import to avoid errors if opencv is not installed
@@ -260,14 +270,19 @@ def refine_alignment(image, cloud, cam, bands=hylite.RGB, s=2,
     k3d = k3d[mask, :]
     src = src[mask, :]
 
-    if 'pano' in cam.proj.lower():
+    if cam.is_spherical():
+        p_est, r_est, inl = pnp_sphere(
+            k3d, src, cam.az_lo, cam.el_hi, cam.step, image.data.shape, **kwds)
+        est = cam.clone()
+        est.set_transform(p_est, r_est)
+        est.dims = image.data.shape
+    elif 'pano' in cam.proj.lower():
         pp = pano_to_persp(src[:, 0], src[:, 1], cam.fov, cam.step, image.data.shape)
         p_est, r_est, inl = pnp(k3d, pp, cam.fov, image.data.shape, **kwds)
+        est = Camera(p_est, r_est, cam.proj, cam.fov, image.data.shape, cam.step)
     else:
         p_est, r_est, inl = pnp(k3d, src, cam.fov, image.data.shape, **kwds)
-
-    # put estimate in a camera object
-    est = Camera(p_est, r_est, cam.proj, cam.fov, image.data.shape, cam.step)
+        est = Camera(p_est, r_est, cam.proj, cam.fov, image.data.shape, cam.step)
 
     if recurse > 1:
         return refine_alignment(image, cloud, est, bands=bands, s=s,
@@ -338,15 +353,15 @@ def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
          - err = average distance (in pixels) between inlier points.
     """
 
-    if 'pano' in cam.proj.lower():
+    if cam.is_spherical() or 'pano' in cam.proj.lower():
         assert not cam.step is None, "Error - angluar step ('step') must be defined for panoramic cameras."
 
     # generate rendered view to get matches from
     if vb: print("Projecting scene... ", end='')
     ortho_cam = cam.clone()
     ortho_cam.dims = (int(image.data.shape[0] * sf), int(image.data.shape[1] * sf)) #increase resolution by scale factor
-    if ortho_cam.is_panoramic():
-        ortho_cam.step = cam.step / sf
+    if ortho_cam.is_panoramic() or ortho_cam.is_spherical():
+        ortho_cam.step = cam.step / sf  # az_lo / el_hi stay on the image edges
     ortho = cloud.render(ortho_cam, fill_holes=True, blur=3,
                          s=s, bands='rgbxyz')
     if vb: print("Done.")
@@ -413,7 +428,10 @@ def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
 
     # solve pnp problem
     try:
-        if 'pano' in cam.proj.lower():
+        if cam.is_spherical():
+            p_est, r_est, inl = pnp_sphere(
+                k3d, k_hyper, cam.az_lo, cam.el_hi, cam.step, image.data.shape, **kwds)
+        elif 'pano' in cam.proj.lower():
             k_hyper_pp = pano_to_persp(k_hyper[:, 0], k_hyper[:, 1], cam.fov, cam.step, image.data.shape)
             p_est, r_est, inl = pnp(k3d, k_hyper_pp, cam.fov, image.data.shape, **kwds)
         else:
@@ -439,15 +457,22 @@ def align_to_cloud(image, cloud, cam, bands=hylite.RGB,
         return None, None, np.inf
 
     #put estimate in a camera object
-    est = Camera(p_est,r_est,cam.proj,cam.fov,image.data.shape,cam.step)
-
-    # calculate final correspondances
-    if 'pano' in cam.proj.lower():
-        pp, vis = proj_pano(k3d[inl, :], C=p_est, a=r_est,
-                            fov=cam.fov, dims=image.data.shape, step=cam.step)
+    if cam.is_spherical():
+        est = cam.clone()
+        est.set_transform(p_est, r_est)
+        est.dims = image.data.shape
+        pp, vis = proj_sphere(k3d[inl, :], C=p_est, a=r_est,
+                              az_lo=est.az_lo, el_hi=est.el_hi, step=est.step, dims=image.data.shape)
     else:
-        pp, vis = proj_persp(k3d[inl, :], C=p_est, a=r_est,
-                             fov=cam.fov, dims=image.data.shape)
+        est = Camera(p_est,r_est,cam.proj,cam.fov,image.data.shape,cam.step)
+
+        # calculate final correspondances
+        if 'pano' in cam.proj.lower():
+            pp, vis = proj_pano(k3d[inl, :], C=p_est, a=r_est,
+                                fov=cam.fov, dims=image.data.shape, step=cam.step)
+        else:
+            pp, vis = proj_persp(k3d[inl, :], C=p_est, a=r_est,
+                                 fov=cam.fov, dims=image.data.shape)
 
     err = np.linalg.norm(pp[:, 0:2] - k_hyper[inl, :], axis=1)
     err = np.mean(err)

@@ -4,7 +4,7 @@ between images and point clouds.
 """
 
 from hylite import HyCollection
-from hylite.project.basic import proj_persp, proj_pano
+from hylite.project.basic import project_points
 from hylite.project.camera import Camera
 import numpy as np
 from hylite.correct.equalize import hist_eq, norm_eq
@@ -72,16 +72,8 @@ class HyScene( HyCollection ):
         if bf:
             normals = cloud.normals
         if isinstance(self.camera, Camera): # conventional camera
-            if 'persp' in camera.proj:
-                pp, vis = proj_persp(cloud.xyz, C=camera.pos, a=camera.ori,
-                                     fov=camera.fov, dims=camera.dims, normals=normals)
-                self.pmap.set_ppc( pp, vis )
-            elif 'pano' in camera.proj:
-                pp, vis = proj_pano(cloud.xyz, C=camera.pos, a=camera.ori,
-                                    fov=camera.fov, dims=camera.dims, step=camera.step, normals=normals)
-                self.pmap.set_ppc(pp, vis)
-            else:
-                assert False, "Error, %s is an incompatible projection type" % camera.proj
+            pp, vis = project_points(cloud.xyz, camera, normals=normals)
+            self.pmap.set_ppc(pp, vis)
         elif isinstance(self.camera, Pushbroom):
                 self.pmap = project_pushbroom( self.image, self.cloud, self.camera, vb=vb, **kwds )
         else:

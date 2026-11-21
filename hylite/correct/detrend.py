@@ -39,6 +39,20 @@ def polynomial(data, degree = 1, method='div'):
 
     return y.reshape(data.shape), t.reshape(data.shape)
 
+def _mirror_about_peak(D):
+    """
+    Reflect each spectrum about its own maximum so peaks become troughs.
+
+    A single maximum taken over the whole batch makes a later hull quotient
+    depend on which spectra were included.
+    """
+    with np.errstate(all='ignore'):  # all-NaN spectra have no peak to mirror
+        peak = np.nanmax(D, axis=-1, keepdims=True)
+    # Keep the reflected spectrum strictly positive. An exact zero on a hull
+    # vertex (a maximum at an endpoint) becomes 0/0 during division.
+    floor = np.maximum(peak, 1e-6) * 1e-6
+    return peak - D + floor
+
 def get_hull_corrected(data, band_range=None, method='div', hull='upper', vb=True):
     """
     Apply a hull correction to an entire `hylite.hydata.HyData` instance (`hylite.hyimage.HyImage`, `hylite.hycloud.HyCloud`
@@ -98,7 +112,7 @@ def get_hull_corrected(data, band_range=None, method='div', hull='upper', vb=Tru
     if 'upper' in hull.lower():
         X = remove_hull( D[valid],upper=True, div=('div' in method), vb=vb)
     elif 'lower' in hull.lower():
-        X = remove_hull(np.max(D[valid]) - D[valid], upper=True, div=('div' in method), vb=vb)
+        X = remove_hull(_mirror_about_peak(D[valid]), upper=True, div=('div' in method), vb=vb)
     else:
         assert False, "Error = 'hull' should be 'upper' or 'lower', not %s." % hull
     D[valid] = X  # copy data back into original array

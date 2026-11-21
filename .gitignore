@@ -9,3 +9,5 @@ build/
 .pyc
 .tutorials
 .cursor
+
+telopsNano.py

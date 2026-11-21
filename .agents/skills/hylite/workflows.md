@@ -88,6 +88,8 @@ Pushbroom UAV: `Pushbroom(positions, orientations, xfov, lfov, dims=...)` + `opt
 
 Panoramic cameras need `cam.step` (angular pixel size). Pixel coords passed to PnP are converted from pixel centres (`- 0.5`).
 
+Equirectangular photospheres use `proj='sphere'`. `step` is degrees per pixel; `az_lo` and `el_hi` are the azimuth of the left edge and the elevation of the top edge. Pass those to `Camera` directly. Telops Nano HSI mosaics store the same crop in `panorama azimuth range deg`, `panorama elevation range deg`, and `panorama deg per pixel`; `TelopsNano.from_equirect(image, pos, ori)` reads that header. Pose estimation uses bearing angles (`pnp_sphere`); the pinhole half-pixel shift is not applied.
+
 ### Image to image
 
 **Preferred**: `align()` — SIFT matching + scikit-image warp (requires `scikit-image` and **`hylite[opencv]`**):

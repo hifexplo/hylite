@@ -11,15 +11,18 @@ class Camera( object ):
     A utility class for storing camera properties (position, dimensions, fov etc.).
     """
 
-    def __init__(self, pos, ori, proj, fov, dims, step = None):
+    def __init__(self, pos, ori, proj, fov, dims, step = None, az_lo=None, el_hi=None):
         """
         Args:
             pos (ndarray): the camera position vector.
             ori (ndarray): the camera orientation vector (pitch, roll, yaw) in degrees.
-            proj (str): the project type: 'persp' or 'pano'.
-            fov (float): the camera field of view (degrees).
+            proj (str): the project type: 'persp', 'pano', or 'sphere'.
+            fov (float): the camera field of view (degrees). For a sphere this is the vertical
+                angular height of the image (ydim * step) and is not used by the projection.
             dims (tuple): the pixel dimensions of the frame.
-            step (float): the angular step of pixels in the x-direction for panoramic projections. Default is None.
+            step (float): the angular step of pixels. Required for panoramic and spherical cameras.
+            az_lo (float): azimuth (degrees) of the left edge of a spherical image. Positive is right.
+            el_hi (float): elevation (degrees) of the top edge of a spherical image. Positive is up.
         """
 
         assert isinstance(pos, np.ndarray) and len(pos)==3, \
@@ -30,8 +33,8 @@ class Camera( object ):
                                             "Error - camera_ori must be a numpy array with length 3. "
         self.ori = ori.copy()
 
-        assert 'persp' in proj.lower() or 'pano' in proj.lower(), \
-                           "Error - camera type should be pano or persp."
+        assert 'persp' in proj.lower() or 'pano' in proj.lower() or 'sphere' in proj.lower(), \
+                           "Error - camera type should be persp, pano or sphere."
         self.proj = proj
 
         assert len(dims) >= 2, "Error, dims must be a tuple or list of length 2."
@@ -40,12 +43,19 @@ class Camera( object ):
         assert np.isfinite(fov), "Error, fov must be numeric."
         self.fov = fov
         self.step = step
+        self.az_lo = None if az_lo is None else float(az_lo)
+        self.el_hi = None if el_hi is None else float(el_hi)
+        if self.is_spherical():
+            assert self.step is not None and self.step > 0, "Error - sphere cameras require a positive pixel step."
+            assert self.az_lo is not None and self.el_hi is not None, \
+                "Error - sphere cameras require az_lo and el_hi."
 
     def clone(self):
         """
         Create a deep copy of a camera instance.
         """
-        return Camera( self.pos.copy(), self.ori.copy(), self.proj, self.fov, self.dims, self.step )
+        return Camera( self.pos.copy(), self.ori.copy(), self.proj, self.fov, self.dims, self.step,
+                       az_lo=self.az_lo, el_hi=self.el_hi )
 
     def set_transform(self, camera_pos, camera_ori):
         """
@@ -86,6 +96,12 @@ class Camera( object ):
         Returns true if this camera uses a panoramic project.
         """
         return 'pano' in self.proj.lower()
+
+    def is_spherical(self):
+        """
+        Returns true if this camera uses an equirectangular spherical projection.
+        """
+        return 'sphere' in self.proj.lower()
 
     def get_rotation_matrix(self):
         """

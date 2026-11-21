@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from hylite.correct.detrend import get_hull_corrected
+from hylite.correct.detrend import get_hull_corrected, _mirror_about_peak
 from hylite import HyCollection, HyCloud, HyImage, HyData
 from hylite._deps import require, require_on_load
 
@@ -681,8 +681,8 @@ def minimum_wavelength(data, minw, maxw, method='gaussian', trend='hull', n=1, l
 
     # get relevant bands and detrend
     hc = data.export_bands((minw, maxw))
-    if not minima: # flip if need be
-        hc.data = np.nanmax(hc.data)-hc.data
+    if not minima: # flip peaks into troughs, using each spectrum's own maximum
+        hc.data = _mirror_about_peak(hc.data)
     if trend is not None:
         if 'hull' in trend:
             hc = get_hull_corrected(hc,vb=vb)

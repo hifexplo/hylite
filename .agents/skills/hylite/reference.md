@@ -262,10 +262,10 @@ hyspex_on_fenix = onto_fenix.apply(hyspex)
 
 | Class/Function | Purpose |
 |----------------|---------|
-| `Camera(pos, ori, proj, fov, dims, step)` | Frame/pano camera |
+| `Camera(pos, ori, proj, fov, dims, step, az_lo, el_hi)` | Frame (`persp`), cylindrical (`pano`), or equirectangular (`sphere`) camera |
 | `Pushbroom(pos, ori, xfov, lfov, dims)` | Line scanner |
 | `PMap(xdim, ydim, npoints)` | Sparse image↔point lookup |
-| `proj_persp/pano/ortho`, `rasterize`, `pnp` | Projection geometry |
+| `proj_persp/pano/sphere/ortho`, `rasterize`, `pnp`, `pnp_sphere` | Projection geometry |
 | `push_to_cloud/image`, `blend_scenes`, `get_blend_weights` | Data transfer |
 | `project_pushbroom`, `optimize_boresight` | UAV pushbroom |
 | `align`, `align_images`, `align_to_cloud`, `align_to_cloud_manual`, `refine_alignment`, `deepWarp`, `resample_raster` | Registration / warping |
@@ -280,7 +280,7 @@ Base `Sensor`: `name()`, `fov()`, `correct_image()`, `correct_folder()`.
 | `FX10`, `FX17`, `FX50` | Specim FX |
 | `Rikola`, `Rikola_RSC1`, `Rikola_HSC2` | Rikola UAV |
 | `OWL` | MWIR |
-| `TelopsNano` | Telops Hypercam Nano |
+| `TelopsNano` | Telops Hypercam Nano. `from_equirect(image, pos, ori)` builds a `sphere` camera from a Nano photomosaic header |
 
 `QAQC(image, method='LDPE'/'FT', dim=0/1/2)` — spectral accuracy vs reference.
 

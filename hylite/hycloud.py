@@ -8,7 +8,7 @@ import numpy as np
 import hylite
 from hylite.hydata import HyData
 from hylite.hyimage import HyImage
-from hylite.project.basic import proj_persp, proj_pano, project_ortho_nadir, rasterize
+from hylite.project.basic import project_ortho_nadir, rasterize, project_points
 from hylite.project.camera import Camera
 from hylite._deps import require
 
@@ -392,16 +392,8 @@ class HyCloud( HyData ):
             else:
                 assert False, "Error - unknown camera_type. Should be 'ortho', 'perspective' or 'panorama'."
         else:
-            if 'persp' in cam.proj.lower():
-                dims = cam.dims
-                pp, vis = proj_persp(self.xyz[::step,:], C=cam.pos, a=cam.ori,
-                                     fov=cam.fov, dims=dims)
-            elif 'pano' in cam.proj.lower():
-                dims = cam.dims
-                pp, vis = proj_pano(self.xyz[::step,:], C=cam.pos, a=cam.ori,
-                                    fov=cam.fov, dims=dims, step=cam.step)
-            else:
-                assert False, "Error - unknown camera_type. Should be 'ortho', 'perspective' or 'panorama'."
+            dims = cam.dims
+            pp, vis = project_points(self.xyz[::step, :], cam)
 
         # gather data
         data = []
@@ -595,8 +587,6 @@ class HyCloud( HyData ):
             Tuple of (point_mask, polygon)
         """
         
-        from hylite.project.basic import proj_persp, proj_pano
-        
         if mask is None:
             # Interactive polygon picking
             print("Rendering cloud for visualization...")
@@ -659,12 +649,7 @@ class HyCloud( HyData ):
             if isinstance(cam, str):
                 raise ValueError("Only 'ortho' camera is supported for string cameras")
             
-            if 'persp' in cam.proj.lower():
-                pp, vis = proj_persp(self.xyz, C=cam.pos, a=cam.ori, fov=cam.fov, dims=cam.dims)
-            elif 'pano' in cam.proj.lower():
-                pp, vis = proj_pano(self.xyz, C=cam.pos, a=cam.ori, fov=cam.fov, dims=cam.dims, step=cam.step)
-            else:
-                raise ValueError("Unknown camera projection")
+            pp, vis = project_points(self.xyz, cam)
         
         # Extract pixel coordinates (x, y only, ignore depth)
         points_2d = pp[:, :2]  # Shape: (n_points, 2)
@@ -715,8 +700,6 @@ class HyCloud( HyData ):
                 click_coord   : ndarray [x, y] of the clicked pixel
         """
 
-        from hylite.project.basic import proj_persp, proj_pano
-
         # ------------------------------------------------------------------ #
         # 1. Render image once                                                 #
         # ------------------------------------------------------------------ #
@@ -739,12 +722,7 @@ class HyCloud( HyData ):
             if isinstance(cam, str):
                 raise ValueError("Only 'ortho' camera is supported as a string; pass a Camera object.")
 
-            if 'persp' in cam.proj.lower():
-                pp, vis = proj_persp(self.xyz, C=cam.pos, a=cam.ori, fov=cam.fov, dims=cam.dims)
-            elif 'pano' in cam.proj.lower():
-                pp, vis = proj_pano(self.xyz, C=cam.pos, a=cam.ori, fov=cam.fov, dims=cam.dims, step=cam.step)
-            else:
-                raise ValueError("Unknown camera projection type.")
+            pp, vis = project_points(self.xyz, cam)
 
         points_2d = pp[:, :2]
 
@@ -1008,14 +986,7 @@ class HyCloud( HyData ):
                 bid = [_image.get_band_index(b) for b in bands]
 
             # project points
-            if 'persp' in _cam.proj.lower():
-                pp, vis = proj_persp(self.xyz, C=_cam.pos, a=_cam.ori,
-                                     fov=_cam.fov, dims=_image.data.shape)
-            elif 'pano' in _cam.proj.lower():
-                pp, vis = proj_pano(self.xyz, C=_cam.pos, a=_cam.ori,
-                                    fov=_cam.fov, dims=_image.data.shape, step=_cam.step)
-            else:
-                assert False, "Error - unknown camera_type. Should be 'perspective' or 'panorama'."
+            pp, vis = project_points(self.xyz, _cam, dims=_image.data.shape)
 
             # no visible points...
             if not vis.any(): print("Warning: no visible points in image %d" % i, flush=True)

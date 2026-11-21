@@ -47,6 +47,32 @@ class TestHullCorrection(unittest.TestCase):
             self.assertGreaterEqual(np.nanmin(Xhc.data), 0.0)
             self.assertLessEqual(np.nanmax(Xhc.data), 1.0)
 
+    def test_lower_hull_is_per_spectrum(self):
+        """A brighter spectrum in the batch must not change the others."""
+        require_test_env(self, "basic")
+        from hylite.correct import get_hull_corrected
+
+        x = np.linspace(0, 1, 40)
+
+        def spec(center, amp, base):
+            y = base + 0.05 * np.sin(2 * np.pi * x)
+            y = y + amp * np.exp(-0.5 * ((x - center) / 0.06) ** 2)
+            return y
+
+        shared = np.vstack([spec(0.3, 0.4, 0.5), spec(0.7, 0.15, 0.35)])
+        bright = spec(0.5, 0.05, 3.0)
+        alone = get_hull_corrected(shared, hull='lower', vb=False)
+        with_bright = get_hull_corrected(np.vstack([shared, bright]), hull='lower', vb=False)
+        np.testing.assert_allclose(alone, with_bright[:2], rtol=0, atol=1e-10)
+        self.assertLessEqual(np.nanmax(alone), 1.0 + 1e-6)
+        self.assertGreaterEqual(np.nanmin(alone), 0.0)
+
+        # A maximum on the last band is a hull vertex after mirroring.
+        edged = spec(0.4, 0.2, 0.4)
+        edged[-1] = edged.max() + 0.3
+        edged_hc = get_hull_corrected(edged, hull='lower', vb=False)
+        self.assertTrue(np.isfinite(edged_hc).all())
+
 
 class TestEqualize(unittest.TestCase):
     def test_hist_eq(self):

@@ -308,8 +308,12 @@ class HyHeader( dict ):
         self["camera %d pose" % n] = "%f %f %f %f %f %f" % (camera.pos[0], camera.pos[1], camera.pos[2],
                                                      camera.ori[0], camera.ori[1], camera.ori[2])
 
-        # internals = x pixels, y pixels, vertical field of view, angular step (for panoramic cameras)
-        if camera.is_panoramic():
+        # internals = projection, x pixels, y pixels, vertical field of view,
+        # then step (pano) or step, az_lo, el_hi (sphere)
+        if camera.is_spherical():
+            self["camera %d internals" % n] = "%s %d %d %f %f %f %f" % (
+                camera.proj, camera.dims[0], camera.dims[1], camera.fov, camera.step, camera.az_lo, camera.el_hi)
+        elif camera.is_panoramic():
             self["camera %d internals" % n] = "%s %d %d %f %f" % (
             camera.proj, camera.dims[0], camera.dims[1], camera.fov, camera.step)
         else:
@@ -342,7 +346,12 @@ class HyHeader( dict ):
         proj = internal[0]
         dims = (int(internal[1]), int(internal[2]))
         fov = float(internal[3])
-        if 'pano' in proj:
+        if 'sphere' in proj:
+            step = float(internal[4])
+            az_lo = float(internal[5])
+            el_hi = float(internal[6])
+            return Camera(pos=pos, ori=ori, proj=proj, fov=fov, dims=dims, step=step, az_lo=az_lo, el_hi=el_hi)
+        elif 'pano' in proj:
             step = float(internal[4])
             return Camera(pos=pos, ori=ori, proj=proj, fov=fov, dims=dims, step=step)
         elif 'persp' in proj:

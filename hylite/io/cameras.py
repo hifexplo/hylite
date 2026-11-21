@@ -31,7 +31,11 @@ def saveCameraTXT( path, camera ):
             f.write('%s #projection type\n' % camera.proj)
             f.write('%.3f #vertical field of view (deg)\n' % camera.fov)
             f.write('%d,%d #dims\n' % (camera.dims[0],camera.dims[1]))
-            if 'pano' in camera.proj.lower():
+            if camera.is_spherical():
+                f.write('%.6f # angular pitch (deg/pixel)\n' % camera.step)
+                f.write('%.6f # azimuth of left edge (deg)\n' % camera.az_lo)
+                f.write('%.6f # elevation of top edge (deg)\n' % camera.el_hi)
+            elif 'pano' in camera.proj.lower():
                 f.write('%.3f # angular pitch (x)\n' % camera.step)
         elif isinstance( camera, Pushbroom ):
             f.write("Pushbroom # camera type\n")
@@ -64,10 +68,15 @@ def loadCameraTXT( path ):
             proj = lines[3]
             fov = float(lines[4])
             dims = tuple( np.fromstring( lines[5], sep=',').astype(int))
-            step  = None
+            step = None
+            az_lo = None
+            el_hi = None
             if len(lines) > 6:
                 step = float( lines[6] )
-            return Camera(pos, ori, proj, fov, dims, step)
+            if len(lines) > 8:
+                az_lo = float( lines[7] )
+                el_hi = float( lines[8] )
+            return Camera(pos, ori, proj, fov, dims, step, az_lo=az_lo, el_hi=el_hi)
         elif 'pushbroom' in lines[0].lower():
             from hylite.project import Pushbroom
 

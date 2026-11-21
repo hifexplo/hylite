@@ -289,5 +289,149 @@ class TestHyCloudProjection(unittest.TestCase):
         ids = cloud.render('ortho', 'i')
         assert np.max(ids.data.ravel().astype(int)) > 1000 # check some point IDs exist
 
+
+def _sphere_ray(az, el, dist=10.0):
+    """World direction for an identity-pose spherical camera (x right, y up, look -z)."""
+    azr = np.deg2rad(az)
+    elr = np.deg2rad(el)
+    direction = np.array([
+        np.cos(elr) * np.sin(azr),
+        np.sin(elr),
+        -np.cos(elr) * np.cos(azr),
+    ])
+    return direction * dist
+
+
+class TestSphereCamera(unittest.TestCase):
+    def _camera(self):
+        step = 0.2
+        dims = (200, 150)
+        az_lo = -20.0
+        el_hi = 15.0
+        return Camera(np.zeros(3), np.zeros(3), 'sphere', dims[1] * step, dims,
+                      step=step, az_lo=az_lo, el_hi=el_hi)
+
+    def test_projection_roundtrip(self):
+        require_test_env(self, "default")
+        from hylite.project.basic import proj_sphere, pix_to_ray_sphere
+
+        cam = self._camera()
+        samples = [(0.0, 0.0), (0.0, 2.0), (3.0, 0.0)]
+        xyz = np.vstack([_sphere_ray(az, el) for az, el in samples])
+        pp, vis = proj_sphere(xyz, cam.pos, cam.ori, cam.az_lo, cam.el_hi, cam.step, cam.dims)
+        self.assertTrue(vis.all())
+        for i, (az, el) in enumerate(samples):
+            self.assertAlmostEqual(pp[i, 0], (az - cam.az_lo) / cam.step, places=6)
+            self.assertAlmostEqual(pp[i, 1], (cam.el_hi - el) / cam.step, places=6)
+            self.assertAlmostEqual(pp[i, 2], 10.0, places=6)
+            ray = pix_to_ray_sphere(pp[i, 0], pp[i, 1], cam.az_lo, cam.el_hi, cam.step)
+            np.testing.assert_allclose(ray, xyz[i] / 10.0, atol=1e-6)
+
+        # a normal pointing away from the camera is culled; one pointing toward it is kept
+        away = xyz[:1]
+        _, hidden = proj_sphere(away, cam.pos, cam.ori, cam.az_lo, cam.el_hi, cam.step, cam.dims, normals=away)
+        _, shown = proj_sphere(away, cam.pos, cam.ori, cam.az_lo, cam.el_hi, cam.step, cam.dims, normals=-away)
+        self.assertFalse(hidden[0])
+        self.assertTrue(shown[0])
+
+    def test_camera_io(self):
+        require_test_env(self, "basic")
+        from hylite.hyheader import HyHeader
+        from hylite.io.cameras import saveCameraTXT, loadCameraTXT
+
+        cam = self._camera()
+        header = HyHeader()
+        header.set_camera(cam)
+        loaded = header.get_camera()
+        self.assertEqual(loaded.proj, 'sphere')
+        self.assertEqual(loaded.dims, cam.dims)
+        self.assertAlmostEqual(loaded.step, cam.step, places=5)
+        self.assertAlmostEqual(loaded.az_lo, cam.az_lo, places=5)
+        self.assertAlmostEqual(loaded.el_hi, cam.el_hi, places=5)
+        np.testing.assert_allclose(loaded.pos, cam.pos)
+        np.testing.assert_allclose(loaded.ori, cam.ori)
+
+        pth = mkdtemp()
+        try:
+            path = os.path.join(pth, 'cam.txt')
+            saveCameraTXT(path, cam)
+            text = loadCameraTXT(path)
+        finally:
+            shutil.rmtree(pth)
+        self.assertTrue(text.is_spherical())
+        self.assertAlmostEqual(text.az_lo, cam.az_lo, places=5)
+        self.assertAlmostEqual(text.el_hi, cam.el_hi, places=5)
+        self.assertAlmostEqual(text.step, cam.step, places=5)
+
+        image = HyImage(np.zeros((cam.dims[0], cam.dims[1], 1)))
+        image.header['panorama azimuth range deg'] = '%.3f %.3f' % (cam.az_lo, cam.az_lo + cam.dims[0] * cam.step)
+        image.header['panorama elevation range deg'] = '%.3f %.3f' % (cam.el_hi - cam.dims[1] * cam.step, cam.el_hi)
+        image.header['panorama deg per pixel'] = '%.5f' % cam.step
+        from hylite.sensors import TelopsNano
+        built = TelopsNano.from_equirect(image, cam.pos, cam.ori)
+        self.assertTrue(built.is_spherical())
+        self.assertEqual(built.dims, cam.dims)
+        self.assertAlmostEqual(built.az_lo, cam.az_lo, places=3)
+        self.assertAlmostEqual(built.el_hi, cam.el_hi, places=3)
+        self.assertAlmostEqual(built.step, cam.step, places=5)
+        self.assertAlmostEqual(built.fov, cam.dims[1] * cam.step, places=5)
+
+    def test_align_to_cloud(self):
+        require_test_env(self, "opencv")
+        from hylite.project.align import align_to_cloud_manual
+        from hylite.project.basic import proj_sphere
+
+        x, y = np.meshgrid(np.linspace(-10, 10, 15), np.linspace(-10, 10, 15))
+        xyz = np.vstack([x.ravel(), y.ravel(), np.zeros_like(x.ravel())]).T
+        cloud = hylite.HyCloud(xyz)
+
+        step = 0.1
+        dims = (800, 800)
+        cam = Camera(np.array([0.0, 0.0, 40.0]), np.array([5.0, -3.0, 12.0]), 'sphere',
+                     dims[1] * step, dims, step=step, az_lo=-40.0, el_hi=40.0)
+        pp, vis = proj_sphere(xyz, cam.pos, cam.ori, cam.az_lo, cam.el_hi, cam.step, cam.dims)
+        self.assertGreater(np.sum(vis), 20)
+
+        idx = np.linspace(0, np.sum(vis) - 1, 20).astype(int)
+        pixels = pp[vis, :][idx, :2]
+        points = np.arange(xyz.shape[0])[vis][idx]
+        cam_est, err = align_to_cloud_manual(cloud, cam, points, pixels)
+
+        self.assertAlmostEqual(np.linalg.norm(cam.pos - cam_est.pos), 0, 3)
+        self.assertAlmostEqual(np.sin(np.deg2rad(np.linalg.norm(cam.ori - cam_est.ori))), 0, 3)
+        self.assertLess(err, 0.05)
+        self.assertAlmostEqual(cam_est.az_lo, cam.az_lo)
+        self.assertAlmostEqual(cam_est.el_hi, cam.el_hi)
+        self.assertAlmostEqual(cam_est.step, cam.step)
+
+    def test_scene_backproject(self):
+        require_test_env(self, "default")
+        cam = self._camera()
+        pixels = [(40, 60, 0.2), (80, 40, 0.5), (120, 90, 0.8)]
+        xyz = []
+        for x, y, _ in pixels:
+            az = cam.az_lo + (x + 0.5) * cam.step
+            el = cam.el_hi - (y + 0.5) * cam.step
+            xyz.append(_sphere_ray(az, el))
+        cloud = HyCloud(np.vstack(xyz))
+
+        image = HyImage(np.zeros((cam.dims[0], cam.dims[1], 1)))
+        image.set_wavelengths(np.array([10000.0]))
+        for x, y, value in pixels:
+            image.data[x, y, 0] = value
+
+        pth = mkdtemp()
+        try:
+            scene = HyScene('sphere', pth)
+            scene.construct(image, cloud, cam, s=1, occ_tol=0, maxf=0, bf=False, vb=False)
+            self.assertGreater(scene.pmap.point_count(), 0)
+            self.assertGreater(scene.pmap.pixel_count(), 0)
+            out = scene.push_to_cloud(0, method='closest')
+            for i, (_, _, value) in enumerate(pixels):
+                self.assertAlmostEqual(float(out.data[i, 0]), value, places=5)
+        finally:
+            shutil.rmtree(pth)
+
+
 if __name__ == '__main__':
     unittest.main()

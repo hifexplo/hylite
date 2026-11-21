@@ -8,7 +8,7 @@ import numpy as np
 import hylite
 from hylite.reference.features import HyFeature
 from hylite import HyData
-from hylite.project.basic import pix_to_ray_pano, pix_to_ray_persp
+from hylite.project.basic import pix_to_ray_pano, pix_to_ray_persp, pix_to_ray_sphere
 from hylite._deps import require
 
 
@@ -264,7 +264,12 @@ class Panel( HyData ):
             # get corners of panel and convert to rays
             corners = np.array([self.outline.vertices[i, :] for i in range(4)])
 
-            if cam.is_panoramic():
+            if cam.is_spherical():
+                ray1 = pix_to_ray_sphere(corners[0, 0], corners[0, 1], cam.az_lo, cam.el_hi, cam.step)
+                ray2 = pix_to_ray_sphere(corners[1, 0], corners[1, 1], cam.az_lo, cam.el_hi, cam.step)
+                ray3 = pix_to_ray_sphere(corners[2, 0], corners[2, 1], cam.az_lo, cam.el_hi, cam.step)
+                ray4 = pix_to_ray_sphere(corners[3, 0], corners[3, 1], cam.az_lo, cam.el_hi, cam.step)
+            elif cam.is_panoramic():
                 ray1 = pix_to_ray_pano(corners[0, 0], corners[0, 1], cam.fov, cam.step, cam.dims)
                 ray2 = pix_to_ray_pano(corners[1, 0], corners[1, 1], cam.fov, cam.step, cam.dims)
                 ray3 = pix_to_ray_pano(corners[2, 0], corners[2, 1], cam.fov, cam.step, cam.dims)

@@ -469,3 +469,256 @@ def pnp(kxyz, kxy, fov, dims, ransac=True, **kwds):
     r = np.array([r[0] - 180, -r[1], -r[2]])
 
     return p + mean, r, inl
+
+
+def proj_sphere(xyz, C, a, az_lo, el_hi, step, dims, normals=None):
+    """
+    Project 3d points with a partial equirectangular (spherical) camera.
+
+    Pixel x is azimuth and pixel y is elevation, both linear in angle. The left edge of
+    column 0 is ``az_lo`` degrees and the top edge of row 0 is ``el_hi`` degrees.
+    Azimuth is positive to the right and elevation is positive up. This matches a Telops
+    Nano photosphere: hylite camera axes are x right, y up, looking along -z.
+
+    Args:
+        xyz (ndarray): an nx3 array of world positions.
+        C (ndarray): the camera position.
+        a (ndarray): camera Euler angles (pitch, roll, yaw) in degrees, XYZ order.
+        az_lo (float): azimuth (degrees) of the left edge of the image.
+        el_hi (float): elevation (degrees) of the top edge of the image.
+        step (float): angular size of one pixel in degrees (square pixels).
+        dims (tuple): image dimensions (width, height).
+        normals (ndarray): per-point normals for backface culling. Default is None.
+
+    Returns:
+        A tuple containing:
+
+        - pp = an (n, 3) array of pixel x, pixel y, and slant range.
+        - vis = an (n,) boolean array, True where the point falls inside the crop.
+    """
+    spatial = require("scipy").spatial
+
+    assert step > 0, "Error - sphere pixel step must be positive."
+
+    xyz = np.asarray(xyz, dtype=float) - np.asarray(C, dtype=float)[None, :]
+
+    vis = np.full(xyz.shape[0], True, dtype=bool)
+    if normals is not None:
+        ndv = np.einsum('ij, ij->i', normals, xyz)
+        vis = ndv < 0  # normal points toward the camera
+
+    # same extrinsic convention as proj_persp: y up, camera looks along -z
+    R = spatial.transform.Rotation.from_euler('XYZ', -a, degrees=True).as_matrix()
+    xyz = xyz @ R
+
+    right = xyz[:, 0]
+    up = xyz[:, 1]
+    forward = -xyz[:, 2]
+    az = np.degrees(np.arctan2(right, forward))
+    el = np.degrees(np.arctan2(up, np.hypot(right, forward)))
+
+    px = (az - az_lo) / step
+    py = (el_hi - el) / step
+    pz = np.linalg.norm(xyz, axis=1)
+
+    # edge origin: pixel i occupies [i, i+1). No forward-hemisphere cull.
+    vis = vis & np.isfinite(px) & np.isfinite(py) & (pz > 1e-8)
+    vis = vis & (px >= 0) & (px < dims[0]) & (py >= 0) & (py < dims[1])
+
+    return np.array([px, py, pz]).T, vis
+
+
+def pix_to_ray_sphere(x, y, az_lo, el_hi, step):
+    """
+    Transform equirectangular pixel coordinates to unit rays in the hylite camera frame.
+
+    Coordinates use the same edge origin as ``proj_sphere``: 0 is the left or top edge,
+    and the centre of pixel ``i`` is at ``i + 0.5``.
+
+    Args:
+        x: pixel x coordinate or array of coordinates (azimuth axis).
+        y: pixel y coordinate or array of coordinates (elevation axis).
+        az_lo (float): azimuth (degrees) of the left edge of the image.
+        el_hi (float): elevation (degrees) of the top edge of the image.
+        step (float): angular size of one pixel in degrees.
+
+    Returns:
+        Unit ray(s) with components (x right, y up, z backward). A single pixel returns
+        shape (3,); arrays return shape (n, 3).
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    scalar = x.ndim == 0 and y.ndim == 0
+
+    az = np.deg2rad(az_lo + x * step)
+    el = np.deg2rad(el_hi - y * step)
+    ray = np.stack([
+        np.cos(el) * np.sin(az),
+        np.sin(el),
+        -np.cos(el) * np.cos(az),
+    ], axis=-1)
+    ray = ray / np.linalg.norm(ray, axis=-1, keepdims=True)
+    if scalar:
+        return np.asarray(ray, dtype=float).reshape(3)
+    return ray
+
+
+def project_points(xyz, cam, normals=None, dims=None):
+    """
+    Project world points with a `hylite.project.camera.Camera`.
+
+    Args:
+        xyz (ndarray): an nx3 array of world positions.
+        cam: a Camera (``persp``, ``pano``, or ``sphere``).
+        normals (ndarray): optional per-point normals for backface culling.
+        dims (tuple): image size (width, height). Default is ``cam.dims``.
+
+    Returns:
+        pp, vis from `proj_persp`, `proj_pano`, or `proj_sphere`.
+    """
+    if dims is None:
+        dims = cam.dims
+    if cam.is_perspective():
+        return proj_persp(xyz, C=cam.pos, a=cam.ori, fov=cam.fov, dims=dims, normals=normals)
+    if cam.is_panoramic():
+        return proj_pano(xyz, C=cam.pos, a=cam.ori, fov=cam.fov, dims=dims, step=cam.step, normals=normals)
+    if cam.is_spherical():
+        return proj_sphere(xyz, C=cam.pos, a=cam.ori, az_lo=cam.az_lo, el_hi=cam.el_hi,
+                           step=cam.step, dims=dims, normals=normals)
+    raise ValueError("Error - %s is an unknown camera projection." % cam.proj)
+
+
+def _sphere_bearings(kxyz, pos, ori):
+    """Unit vectors from a spherical camera to world points, in the camera frame."""
+    spatial = require("scipy").spatial
+    R = spatial.transform.Rotation.from_euler('XYZ', -np.asarray(ori, dtype=float), degrees=True).as_matrix()
+    v = (np.asarray(kxyz, dtype=float) - np.asarray(pos, dtype=float)) @ R
+    n = np.linalg.norm(v, axis=1, keepdims=True)
+    return v / np.maximum(n, 1e-12)
+
+
+def _sphere_pose_residual(params, kxyz, rays):
+    """Difference between predicted and observed unit bearings."""
+    pred = _sphere_bearings(kxyz, params[:3], params[3:])
+    return (pred - rays).ravel()
+
+
+def _sphere_angle_deg(pos, ori, kxyz, rays):
+    """Angular error (degrees) between predicted and observed bearings."""
+    pred = _sphere_bearings(kxyz, pos, ori)
+    cross = np.linalg.norm(np.cross(pred, rays), axis=1)
+    dot = np.sum(pred * rays, axis=1)
+    return np.degrees(np.arctan2(cross, np.clip(dot, -1.0, 1.0)))
+
+
+def pnp_sphere(kxyz, kxy, az_lo, el_hi, step, dims, ransac=True, thresh_deg=0.5, **kwds):
+    """
+    Solve for the pose of an equirectangular camera from 3d-2d correspondences.
+
+    Pixels use the edge-origin coordinates returned by `proj_sphere` (no OpenCV half-pixel
+    shift). The initial pose comes from `pnp` on a virtual 120 degree pinhole, using only
+    tie points within that forward cone, so the existing Euler convention is preserved.
+    A least-squares refinement then minimises the bearing angle, including wide-angle points.
+
+    Args:
+        kxyz: Nx3 world coordinates.
+        kxy: Nx2 equirectangular pixel coordinates (edge origin).
+        az_lo: azimuth (degrees) of the left image edge.
+        el_hi: elevation (degrees) of the top image edge.
+        step: degrees per pixel.
+        dims: equirectangular image size (width, height).
+        ransac: True to reject correspondences whose angular error exceeds ``thresh_deg``.
+        thresh_deg: inlier threshold in degrees. Default is 0.5.
+        **kwds: forwarded to the initial `pnp` call (OpenCV solvePnP arguments).
+
+    Returns:
+        A tuple containing:
+
+         - p = camera position in world coordinates.
+         - r = camera orientation as XYZ Euler angles in degrees.
+         - inl = indices of inlier correspondences.
+    """
+    least_squares = require("scipy").optimize.least_squares
+
+    kxyz = np.asarray(kxyz, dtype=float)
+    kxy = np.asarray(kxy, dtype=float)
+    assert kxyz.shape[0] == kxy.shape[0], "Error - keypoints and pixels must have the same length."
+    assert kxyz.shape[0] >= 4, "Error - at least four pixel/point pairs are needed."
+    assert len(dims) >= 2, "Error - dims must include width and height."
+
+    rays = pix_to_ray_sphere(kxy[:, 0], kxy[:, 1], az_lo, el_hi, step)
+
+    # virtual pinhole: half-angle 60 deg, so the cone is the forward hemisphere of a 120 deg camera
+    virt_fov = 120.0
+    virt_dims = (1000, 1000)
+    pp, in_cone = proj_persp(rays, C=np.zeros(3), a=np.zeros(3), fov=virt_fov, dims=virt_dims)
+    cone_idx = np.flatnonzero(in_cone)
+    assert len(cone_idx) >= 4, \
+        "Error - at least four tie points within 60 degrees of the boresight are required."
+
+    inner = dict(kwds)
+    inner.pop('optical_centre', None)
+
+    def _fit(idx):
+        idx = np.asarray(idx, dtype=int)
+        use = np.intersect1d(idx, cone_idx)
+        if len(use) < 4:
+            raise ValueError("need four forward tie points")
+        kxy_virt = pp[use, :2] - 0.5  # OpenCV pixel centres, matching pnp
+        p0, r0, _ = pnp(kxyz[use], kxy_virt, virt_fov, virt_dims, ransac=False, **inner)
+        params0 = np.concatenate([np.asarray(p0, dtype=float).ravel(), np.asarray(r0, dtype=float).ravel()])
+        init_cost = np.sum(_sphere_pose_residual(params0, kxyz[idx], rays[idx]) ** 2)
+        opt = least_squares(
+            _sphere_pose_residual, params0, args=(kxyz[idx], rays[idx]),
+            method='lm', ftol=1e-12, xtol=1e-12, max_nfev=80,
+        )
+        if opt.cost <= init_cost:
+            return opt.x[:3].copy(), opt.x[3:].copy()
+        return params0[:3].copy(), params0[3:].copy()
+
+    def _inliers(pos, ori):
+        ang = _sphere_angle_deg(pos, ori, kxyz, rays)
+        return np.flatnonzero(ang <= thresh_deg)
+
+    if (not ransac) or kxyz.shape[0] < 6:
+        pos, ori = _fit(np.arange(kxyz.shape[0]))
+        inl = _inliers(pos, ori)
+        if len(inl) < 4:
+            inl = np.arange(kxyz.shape[0])
+        return pos, ori, inl
+
+    rng = np.random.default_rng(0)
+    best_inl = None
+    best_pose = None
+    trials = [cone_idx]
+    for _ in range(30):
+        if len(cone_idx) >= 6:
+            trials.append(rng.choice(cone_idx, size=6, replace=False))
+        else:
+            trials.append(cone_idx)
+
+    for sample in trials:
+        try:
+            pos, ori = _fit(sample)
+        except Exception:
+            continue
+        inl = _inliers(pos, ori)
+        if best_inl is None or len(inl) > len(best_inl):
+            best_inl = inl
+            best_pose = (pos, ori)
+            if len(inl) == kxyz.shape[0]:
+                break
+
+    assert best_pose is not None, "Error - no solution found to spherical pnp problem."
+
+    refit = best_inl
+    if len(np.intersect1d(refit, cone_idx)) < 4:
+        refit = np.arange(kxyz.shape[0])
+    try:
+        pos, ori = _fit(refit)
+    except Exception:
+        pos, ori = best_pose
+    inl = _inliers(pos, ori)
+    if len(inl) < 4:
+        inl = np.asarray(refit, dtype=int)
+    return pos, ori, inl
