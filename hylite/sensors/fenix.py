@@ -322,25 +322,18 @@ class Fenix(Sensor):
             idx[:, :, 0] -= dmap[:, :, 0]
             idx[:, :, 1] -= dmap[:, :, 1]
 
-            # apply remapping
-            if image.data.shape[-1] < 512:  # open-cv cannot handle more than 512 bands at a time
+            # OpenCV 5 remap accepts at most 128 channels. Older builds allowed 512.
+            step = 128
+            nb = image.data.shape[-1]
+            if nb <= step:
                 remap = cv2.remap(image.data, idx, None, cv2.INTER_LINEAR)
-            else:  # we need to split into different stacks with < 512 bands and then recombine
+            else:
                 remap = []
-                mn = 0
-                mx = 500
-                while mn < image.data.shape[-1]:
-                    if mx > image.data.shape[-1]:
-                        mx = image.data.shape[-1]
-
-                    # apply mapping to slice of bands
-                    remap.append(cv2.remap(image.data[:, :, mn:mx], idx, None, cv2.INTER_LINEAR))
-
-                    # get next slice
-                    mn = mx
-                    mx += 500
-
-                # stack
+                for mn in range(0, nb, step):
+                    part = cv2.remap(image.data[:, :, mn:mn + step], idx, None, cv2.INTER_LINEAR)
+                    if part.ndim == 2:  # a one-band slice comes back without a channel axis
+                        part = part[:, :, None]
+                    remap.append(part)
                 remap = np.dstack(remap)
 
             image.data = remap

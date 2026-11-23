@@ -11,7 +11,10 @@ from .owl import OWL
 from .fenix import Fenix
 from .rikola import Rikola, Rikola_HSC2, Rikola_RSC1
 from .fx import *
-from .telopsNano import TelopsNano
+try:
+    from .telopsNano import TelopsNano  # optional private sensor module
+except ImportError:
+    TelopsNano = None
 
 # noinspection PyDefaultArgument
 def QAQC(image, method, dim=0, fit="minmax", checklines=[]):

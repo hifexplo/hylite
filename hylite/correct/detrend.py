@@ -4,6 +4,7 @@ Hyperspectral detrending algorithms such as hull correction.
 
 from hylite import HyLibrary, HyData
 import numpy as np
+import warnings
 from hylite._deps import require
 
 def polynomial(data, degree = 1, method='div'):
@@ -46,7 +47,9 @@ def _mirror_about_peak(D):
     A single maximum taken over the whole batch makes a later hull quotient
     depend on which spectra were included.
     """
-    with np.errstate(all='ignore'):  # all-NaN spectra have no peak to mirror
+    # nanmax warns (not an errstate) when a spectrum is entirely NaN
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
         peak = np.nanmax(D, axis=-1, keepdims=True)
     # Keep the reflected spectrum strictly positive. An exact zero on a hull
     # vertex (a maximum at an endpoint) becomes 0/0 during division.

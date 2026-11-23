@@ -50,6 +50,38 @@ class Camera( object ):
             assert self.az_lo is not None and self.el_hi is not None, \
                 "Error - sphere cameras require az_lo and el_hi."
 
+    @classmethod
+    def from_equirect(cls, image, pos, ori):
+        """
+        Build a spherical camera from an equirectangular mosaic.
+
+        The header stores the crop as ``panorama azimuth range deg`` (left and right
+        edges), ``panorama elevation range deg`` (bottom and top edges), and
+        ``panorama deg per pixel``.
+
+        Args:
+            image: a HyImage whose header contains those three keys.
+            pos: camera position (x, y, z).
+            ori: camera orientation (pitch, roll, yaw) in degrees.
+
+        Returns:
+            A Camera with ``proj='sphere'``. ``pos`` and ``ori`` are the station pose;
+            the header only fixes the angular crop.
+        """
+        hdr = image.header
+        az_key = 'panorama azimuth range deg'
+        el_key = 'panorama elevation range deg'
+        step_key = 'panorama deg per pixel'
+        assert az_key in hdr and el_key in hdr and step_key in hdr, \
+            "Error - image header has no equirectangular panorama bounds."
+        az_lo = float(str(hdr[az_key]).split()[0])
+        el_hi = float(str(hdr[el_key]).split()[1])
+        step = float(hdr[step_key])
+        dims = (int(image.xdim()), int(image.ydim()))
+        fov = dims[1] * step
+        return cls(np.array(pos, dtype=float), np.array(ori, dtype=float), 'sphere', fov, dims,
+                   step=step, az_lo=az_lo, el_hi=el_hi)
+
     def clone(self):
         """
         Create a deep copy of a camera instance.

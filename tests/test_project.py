@@ -367,8 +367,7 @@ class TestSphereCamera(unittest.TestCase):
         image.header['panorama azimuth range deg'] = '%.3f %.3f' % (cam.az_lo, cam.az_lo + cam.dims[0] * cam.step)
         image.header['panorama elevation range deg'] = '%.3f %.3f' % (cam.el_hi - cam.dims[1] * cam.step, cam.el_hi)
         image.header['panorama deg per pixel'] = '%.5f' % cam.step
-        from hylite.sensors import TelopsNano
-        built = TelopsNano.from_equirect(image, cam.pos, cam.ori)
+        built = Camera.from_equirect(image, cam.pos, cam.ori)
         self.assertTrue(built.is_spherical())
         self.assertEqual(built.dims, cam.dims)
         self.assertAlmostEqual(built.az_lo, cam.az_lo, places=3)
